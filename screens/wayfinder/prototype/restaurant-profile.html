@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalConnect Restaurant Profile — Prototype (issue #17)</title>
+<!--
+  PROTOTYPE — decision record for issue Calel33/dircteshop#17
+  Reviewed live and ACCEPTED: Variant A — "Classic directory".
+  Kept in-repo (not throwaway) as the primary source for the B8 decisions.
+  Question: what restaurant-profile prototype should be accepted before B8
+  (restaurant vertical — menu modules + order workflow) is built, so menu
+  navigation, item customization, order submission, status feedback, and
+  responsive behavior are unambiguous?
+
+  Plan: three structurally different variants of the SAME restaurant profile
+  — menu tabs · item customization · Order Online → anonymous order form →
+  confirmation · owner order-status view — switchable via the floating bottom
+  bar (#v=A|B|C), with a View / State / Width switcher. B and C are retained
+  as the exploration record alongside the accepted A.
+
+  Fixture: Green Bowl Co. (LOCALCONNECT-SCREEN-SPEC screen 4); menu content is
+  transcribed from `screens/screens/LocalConnect Page.html` (build groups,
+  signature bowls, prices). Smoothies/Sides items are plausible fixtures — the
+  mockup showed the tabs but no item content.
+
+  Profile foundation: SPEC §6 slots (hero, identityBar, actionsBar, mainContent,
+  sidebar) are prototyped inline because B2 (public profile) is not built yet.
+  Palette here follows the screen mockups (blue/slate) for legibility only —
+  the B8 token source is design.md / app/globals.css per issue #8; do not carry
+  these hex values into production.
+
+  Not production code. No backend, no persistence, no tests (per /prototype).
+  Open by double-clicking. Drive the variants from the bottom bar; the accepted
+  decisions are recorded in the DECISION POINTS block at the bottom of this file.
+-->
+<style>
+/* ===== tokens (mirrors screens/wayfinder/prototype/public-discovery.html) ===== */
+:root{
+  --brand:#2563eb; --brand-dark:#1e40af; --brand-tint:#eff6ff; --brand-soft:#dbeafe;
+  --bg:#f8fafc; --surface:#ffffff; --white:#ffffff; --canvas:#e8edf4;
+  --border:#e2e8f0; --border-strong:#cbd5e1;
+  --text:#0f172a; --muted:#64748b; --muted-2:#94a3b8;
+  --green:#16a34a; --green-bg:#dcfce7; --green-ink:#166534; --green-light:#4ade80;
+  --amber:#b45309; --amber-bg:#fef3c7; --amber-border:#fcd34d; --amber-ink:#78350f;
+  --red:#dc2626; --red-bg:#fee2e2; --red-border:#fecaca; --red-ink:#7f1d1d;
+  --ink-bg:#0f172a; --ink-surface:#1e293b; --ink-line:#334155;
+  --ink-fg:#e2e8f0; --ink-fg-dim:#cbd5e1; --ink-fg-muted:#94a3b8;
+  --accent:#f59e0b; --accent-fg:#111827;
+  --tint-1:#bfdbfe; --tint-2:#dbeafe;
+  --radius:0.75rem; --radius-sm:0.5rem; --radius-pill:62.5rem;
+  --s1:0.25rem; --s2:0.5rem; --s3:0.75rem; --s4:1rem; --s5:1.25rem; --s6:1.5rem; --s8:2rem;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --shadow:0 0.0625rem 0.125rem rgba(15,23,42,.06), 0 0.75rem 2rem -1rem rgba(15,23,42,.22);
+  --shadow-lg:0 0.25rem 1rem rgba(15,23,42,.14), 0 1.5rem 3rem -1rem rgba(15,23,42,.35);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none !important}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--canvas);color:var(--text);font-size:0.9375rem;line-height:1.5;-webkit-font-smoothing:antialiased;padding:3.5rem 0 7rem}
+h1{font-size:1.5rem;font-weight:800;letter-spacing:-0.01em}
+h2{font-size:1rem;font-weight:700}
+h3{font-size:0.9375rem;font-weight:700}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+input,select,textarea{font:inherit;color:inherit}
+a{color:var(--brand);text-decoration:none}
+.muted{color:var(--muted)}
+.hint{font-size:0.75rem;color:var(--muted)}
+.wrap{max-width:76rem;margin:0 auto;padding:0 var(--s5)}
+
+/* ===== foundation primitives (SPEC §6) ===== */
+.topnav{background:var(--surface);border-bottom:0.0625rem solid var(--border)}
+.topnav .wrap{display:flex;align-items:center;gap:var(--s5);height:3.25rem}
+.brandmark{display:flex;align-items:center;gap:var(--s2);font-weight:800;color:var(--text)}
+.branddot{width:1.25rem;height:1.25rem;border-radius:var(--radius-sm);background:var(--brand);display:inline-block}
+.topnav nav{display:flex;gap:var(--s4);font-size:0.8125rem;color:var(--muted);font-weight:600}
+.bc{display:flex;align-items:center;gap:var(--s2);font-size:0.75rem;color:var(--muted);padding:var(--s3) 0}
+.bc b{color:var(--text)}
+.hero{position:relative;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,var(--tint-1),var(--tint-2) 55%,var(--brand-soft));min-height:13rem;border:0.0625rem solid var(--border)}
+.hero .hero-note{position:absolute;left:var(--s4);bottom:var(--s3);font-size:0.6875rem;color:var(--brand-dark);background:rgba(255,255,255,.72);border-radius:var(--radius-pill);padding:0.15rem var(--s3)}
+.identity{padding:var(--s4) 0 var(--s2)}
+.identity h1{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.identity .sub{color:var(--muted);font-size:0.8125rem;margin-top:var(--s1)}
+.identity .desc{margin-top:var(--s2);max-width:48rem;color:var(--text)}
+.verified{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.6875rem;font-weight:700;color:var(--green-ink);background:var(--green-bg);border-radius:var(--radius-pill);padding:0.1rem var(--s2)}
+.ratingline{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;font-size:0.8125rem;color:var(--muted);margin-top:var(--s2)}
+.ratingline b{color:var(--text)}
+.actions{display:flex;gap:var(--s2);flex-wrap:wrap;padding:var(--s3) 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:2.5rem;padding:0 var(--s4);border-radius:var(--radius-sm);border:0.0625rem solid var(--border-strong);background:var(--surface);font-size:0.8125rem;font-weight:700;color:var(--text)}
+.btn:hover{border-color:var(--text)}
+.btn-primary{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.btn-primary:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
+.btn-ghost{border-color:transparent;background:var(--brand-tint);color:var(--brand-dark)}
+.btn-sm{min-height:2rem;padding:0 var(--s3);font-size:0.75rem}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.card{background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);padding:var(--s4)}
+.card + .card{margin-top:var(--s4)}
+.card h3{margin-bottom:var(--s2)}
+.kv{display:flex;gap:var(--s2);font-size:0.8125rem;padding:0.2rem 0}
+.kv span{color:var(--muted);min-width:3.5rem}
+.kv b{font-weight:600}
+.hours{list-style:none;font-size:0.8125rem}
+.hours li{display:flex;justify-content:space-between;padding:0.15rem 0}
+.hours li.today{font-weight:700;color:var(--text)}
+.hours li span{color:var(--muted)}
+.updated{font-size:0.75rem;color:var(--muted-2);padding:var(--s4) 0}
+.reward{background:linear-gradient(135deg,var(--green-bg),var(--brand-tint));border:0.0625rem solid var(--green-bg);border-radius:var(--radius);padding:var(--s3) var(--s4)}
+.reward h3{font-size:0.8125rem;color:var(--green-ink)}
+.reward p{font-size:0.75rem;color:var(--muted)}
+.tagchip{display:inline-block;font-size:0.6875rem;font-weight:600;color:var(--brand-dark);background:var(--brand-tint);border-radius:var(--radius-pill);padding:0.1rem var(--s2);margin:0 var(--s1) var(--s1) 0}
+.tagchip.warm{color:var(--amber-ink);background:var(--amber-bg)}
+.tagchip.cool{color:var(--green-ink);background:var(--green-bg)}
+
+/* ===== Variant A — classic two-column directory ===== */
+.a-layout{display:grid;grid-template-columns:minmax(0,1fr) 20rem;gap:var(--s5);align-items:start;margin-top:var(--s4)}
+.a-main{min-width:0}
+.a-side{position:sticky;top:var(--s4)}
+.tabs{display:flex;gap:var(--s1);border-bottom:0.0625rem solid var(--border);overflow-x:auto;margin-bottom:var(--s4)}
+.tab{white-space:nowrap;padding:var(--s2) var(--s3);font-size:0.8125rem;font-weight:700;color:var(--muted);border-bottom:0.125rem solid transparent}
+.tab[aria-selected="true"]{color:var(--brand-dark);border-color:var(--brand)}
+.dish-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4)}
+.dish{display:flex;flex-direction:column;gap:var(--s2);border:0.0625rem solid var(--border);background:var(--surface);border-radius:var(--radius);padding:var(--s3)}
+.dish .thumb{height:7rem;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--brand-soft),var(--tint-2))}
+.dish .row{display:flex;justify-content:space-between;gap:var(--s2);align-items:baseline}
+.dish .price{font-weight:800;font-size:0.875rem}
+.dish .desc{font-size:0.8125rem;color:var(--muted)}
+.dish .foot{margin-top:auto;display:flex;gap:var(--s2);flex-wrap:wrap}
+.builder-group{border:0.0625rem solid var(--border);background:var(--surface);border-radius:var(--radius);padding:var(--s3) var(--s4);margin-bottom:var(--s3)}
+.builder-group .head{display:flex;justify-content:space-between;gap:var(--s3);align-items:center;flex-wrap:wrap}
+.builder-group .desc{font-size:0.8125rem;color:var(--muted);margin-top:var(--s1)}
+.optgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:var(--s2);margin-top:var(--s3);padding-top:var(--s3);border-top:0.0625rem dashed var(--border)}
+.opt{display:flex;align-items:center;gap:var(--s2);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);padding:var(--s2) var(--s3);font-size:0.8125rem;background:var(--surface)}
+.opt.on{border-color:var(--brand);background:var(--brand-tint)}
+.opt input{accent-color:var(--brand)}
+.opt .delta{margin-left:auto;color:var(--muted);font-size:0.75rem}
+.tray{position:fixed;left:50%;translate:-50% 0;bottom:var(--s3);z-index:70;width:min(76rem,calc(100% - 1.5rem));background:var(--surface);border:0.0625rem solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow);padding:var(--s3) var(--s4);display:flex;gap:var(--s4);align-items:center;flex-wrap:wrap}
+.tray .tray-body{flex:1;min-width:12rem}
+.tray .tray-body b{display:block}
+.tray .tray-body span{font-size:0.75rem;color:var(--muted)}
+.summary{border:0.0625rem solid var(--border);border-radius:var(--radius);background:var(--surface);padding:var(--s4)}
+.summary h3{margin-bottom:var(--s3)}
+.summary .line{display:flex;justify-content:space-between;gap:var(--s3);font-size:0.8125rem;padding:0.2rem 0;border-bottom:0.0625rem dashed var(--border)}
+.summary .line.total{border-bottom:none;font-weight:800;font-size:0.9375rem;padding-top:var(--s2)}
+.form{display:grid;gap:var(--s3);margin-top:var(--s3)}
+.field label{display:block;font-size:0.75rem;font-weight:700;margin-bottom:0.15rem}
+.field input,.field textarea{width:100%;border:0.0625rem solid var(--border-strong);border-radius:var(--radius-sm);padding:0.5rem var(--s3);background:var(--surface)}
+.field .err{color:var(--red-ink);font-size:0.6875rem;margin-top:0.15rem}
+.banner{border-radius:var(--radius);padding:var(--s3) var(--s4);font-size:0.8125rem;margin-bottom:var(--s3)}
+.banner.err{background:var(--red-bg);border:0.0625rem solid var(--red-border);color:var(--red-ink)}
+.banner.ok{background:var(--green-bg);border:0.0625rem solid var(--green-light);color:var(--green-ink)}
+.stepper{display:flex;gap:var(--s1);margin:var(--s4) 0;flex-wrap:wrap}
+.step{flex:1;min-width:6rem;border-top:0.1875rem solid var(--border);padding-top:var(--s2);font-size:0.75rem;color:var(--muted)}
+.step.on{border-color:var(--brand);color:var(--brand-dark);font-weight:700}
+.step.done{border-color:var(--green);color:var(--green-ink)}
+.receipt-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.5rem;font-weight:800;letter-spacing:0.06em}
+.board{display:grid;gap:var(--s3)}
+.order-row{display:grid;grid-template-columns:9rem 1fr 11rem 12rem;gap:var(--s3);align-items:center;border:0.0625rem solid var(--border);background:var(--surface);border-radius:var(--radius);padding:var(--s3) var(--s4)}
+.order-row .meta{font-size:0.75rem;color:var(--muted)}
+.order-row .who b{display:block}
+.statuspill{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.6875rem;font-weight:800;border-radius:var(--radius-pill);padding:0.15rem var(--s3);text-transform:uppercase;letter-spacing:0.05em}
+.s-new{background:var(--brand-tint);color:var(--brand-dark)}
+.s-accepted{background:var(--amber-bg);color:var(--amber-ink)}
+.s-ready{background:var(--green-bg);color:var(--green-ink)}
+.s-completed{background:var(--border);color:var(--muted)}
+
+/* ===== Variant B — builder-first configurator ===== */
+.b-hero{position:relative;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,var(--tint-1),var(--brand-soft) 60%,var(--tint-2));min-height:16rem;display:flex;align-items:flex-end;padding:var(--s5);border:0.0625rem solid var(--border)}
+.b-hero .overlay{background:rgba(255,255,255,.9);border-radius:var(--radius);padding:var(--s4);max-width:34rem;box-shadow:var(--shadow)}
+.b-infostrip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s4);margin:var(--s4) 0;align-items:start}
+.b-builder{display:grid;grid-template-columns:11rem minmax(0,1fr) 19rem;gap:var(--s4);align-items:start}
+.b-builder.full{grid-template-columns:12rem minmax(0,1fr) 22rem}
+.b-rail{display:flex;flex-direction:column;gap:var(--s1);position:sticky;top:var(--s4)}
+.b-rail button{text-align:left;padding:var(--s2) var(--s3);border-radius:var(--radius-sm);font-size:0.8125rem;font-weight:700;color:var(--muted)}
+.b-rail button.on{background:var(--brand-tint);color:var(--brand-dark)}
+.b-center{min-width:0}
+.b-group{border:0.0625rem solid var(--border);border-radius:var(--radius);background:var(--surface);padding:var(--s4);margin-bottom:var(--s3)}
+.b-group-head{display:flex;justify-content:space-between;gap:var(--s2);align-items:baseline}
+.b-group .desc{font-size:0.8125rem;color:var(--muted);margin:var(--s1) 0 var(--s3)}
+.chipset{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.chip{border:0.0625rem solid var(--border-strong);border-radius:var(--radius-pill);padding:var(--s2) var(--s3);font-size:0.8125rem;background:var(--surface)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.b-rows{display:grid;gap:var(--s2)}
+.b-row{display:flex;justify-content:space-between;gap:var(--s3);align-items:center;border:0.0625rem solid var(--border);border-radius:var(--radius-sm);padding:var(--s3);background:var(--surface)}
+.b-canvas{border:0.0625rem solid var(--border-strong);border-radius:var(--radius);background:var(--surface);padding:var(--s4);position:sticky;top:var(--s4)}
+.b-canvas .bowl{height:8rem;border-radius:var(--radius-sm);background:conic-gradient(from 210deg,var(--brand-soft),var(--green-bg),var(--amber-bg),var(--brand-tint),var(--brand-soft));margin:var(--s3) 0}
+.b-canvas-line{display:flex;justify-content:space-between;gap:var(--s3);font-size:0.8125rem;padding:0.15rem 0;border-bottom:0.0625rem dashed var(--border)}
+.b-canvas-total{display:flex;justify-content:space-between;font-weight:800;padding:var(--s3) 0}
+.b-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.38);z-index:55}
+.b-drawer{position:absolute;top:0;right:0;bottom:0;width:min(24rem,100%);background:var(--surface);border-left:0.0625rem solid var(--border-strong);box-shadow:var(--shadow-lg);padding:var(--s5);overflow:auto;z-index:60}
+.b-queue{display:grid;gap:var(--s3);max-width:44rem}
+.b-ticket{border:0.0625rem solid var(--border);border-radius:var(--radius);background:var(--surface);padding:var(--s4);display:flex;flex-direction:column;gap:0.15rem}
+.b-ticket-top{display:flex;align-items:center;gap:var(--s3)}
+.b-ticket-top b{margin-left:auto}
+
+/* ===== Variant C — mobile-first feed + bottom sheet ===== */
+.c-feed{max-width:40rem;margin:0 auto}
+.c-slim{position:relative;border-radius:var(--radius);overflow:hidden;background:linear-gradient(120deg,var(--tint-1),var(--tint-2));height:8rem;border:0.0625rem solid var(--border)}
+.c-head{padding:var(--s3) 0}
+.c-stepper{position:sticky;top:0;z-index:20;background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);padding:var(--s2) var(--s3);margin:var(--s3) 0;display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+.c-filterbar{position:sticky;top:0;z-index:15;display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 0;background:var(--bg)}
+.c-filterbar button{white-space:nowrap;border:0.0625rem solid var(--border-strong);border-radius:var(--radius-pill);padding:var(--s2) var(--s3);font-size:0.8125rem;font-weight:700;background:var(--surface);color:var(--muted)}
+.c-filterbar button.on{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.c-section{margin-bottom:var(--s4)}
+.c-section h2{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:var(--s2)}
+.c-row{width:100%;display:flex;gap:var(--s3);align-items:center;border-bottom:0.0625rem solid var(--border);padding:var(--s3) 0;text-align:left}
+.c-row .thumb{width:3rem;height:3rem;border-radius:var(--radius-sm);flex:none;background:linear-gradient(135deg,var(--brand-soft),var(--tint-2))}
+.c-row .body{flex:1;min-width:0}
+.c-row .add{min-width:2rem;min-height:2rem;border-radius:var(--radius-pill);border:0.0625rem solid var(--brand);color:var(--brand);font-weight:800;background:var(--surface);flex:none}
+.c-sheet-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.38);z-index:75}
+.c-sheet{position:absolute;bottom:0;left:50%;translate:-50% 0;width:min(40rem,100%);z-index:80;background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;border-top:0.0625rem solid var(--border-strong);box-shadow:var(--shadow-lg);padding:var(--s4);max-height:82%;overflow:auto}
+.c-sheet .handle{width:2.5rem;height:0.25rem;border-radius:var(--radius-pill);background:var(--border-strong);margin:0 auto var(--s3)}
+.c-sheet-head{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);margin-bottom:var(--s3)}
+.c-timeline{display:grid;gap:var(--s3)}
+.c-tl-group{border-left:0.1875rem solid var(--border);padding-left:var(--s3)}
+.c-tl-group h3{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
+.c-tl-item{border:0.0625rem solid var(--border);border-radius:var(--radius-sm);background:var(--surface);padding:var(--s3);margin-bottom:var(--s2)}
+
+/* ===== states ===== */
+.skel{border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--border),var(--bg),var(--border));background-size:200% 100%;animation:shimmer 1.2s infinite;min-height:1rem}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.empty{text-align:center;padding:var(--s8) var(--s4);border:0.0625rem dashed var(--border);border-radius:var(--radius);background:var(--surface)}
+.empty h3{margin-bottom:var(--s1)}
+
+/* ===== prototype chrome ===== */
+#hint{position:fixed;left:50%;translate:-50% 0;bottom:5.5rem;z-index:90;background:rgba(15,23,42,.88);color:var(--ink-fg-dim);font-size:0.6875rem;padding:0.3rem var(--s3);border-radius:var(--radius-pill);max-width:calc(100vw - 2rem);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chrome{position:fixed;left:50%;translate:-50% 0;bottom:var(--s3);z-index:95;width:min(78rem,calc(100% - 1.5rem));display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;padding:var(--s2) var(--s3);background:var(--ink-bg);color:var(--ink-fg);border-radius:var(--radius);box-shadow:var(--shadow-lg)}
+.cbtn{display:inline-flex;align-items:center;justify-content:center;min-height:1.875rem;padding:0 var(--s3);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-pill);color:var(--ink-fg-dim);font-size:0.6875rem;font-weight:700}
+.cbtn:hover{color:var(--white);border-color:var(--ink-fg-muted)}
+.cbtn.on{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.carrow{font-size:1rem;line-height:1;min-width:1.875rem;padding:0}
+.clabel{font-size:0.6875rem;font-weight:700;color:var(--ink-fg-muted);text-transform:uppercase;letter-spacing:.06em}
+#vlabel{font-size:0.8125rem;font-weight:700;color:var(--white);white-space:nowrap}
+#vlabel b{color:var(--accent)}
+.cgroup{display:inline-flex;gap:0.25rem;flex-wrap:wrap}
+.csep{width:0.0625rem;height:1.25rem;background:var(--ink-line);margin:0 var(--s1)}
+.cselect{background:var(--ink-surface);color:var(--ink-fg);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-sm);font-size:0.75rem;font-weight:600;padding:0.25rem var(--s2)}
+.cnote{font-size:0.6875rem;color:var(--ink-fg-muted);width:100%;margin-top:0.125rem}
+
+/* ===== width frame + container queries ===== */
+#stage{padding:0 var(--s4)}
+#frame{width:100%;margin:0 auto;container-type:inline-size;position:relative}
+#frame[data-w="tablet"]{width:48rem}
+#frame[data-w="mobile"]{width:23.4375rem}
+#frame[data-w="tablet"],#frame[data-w="mobile"]{border:0.0625rem solid var(--border-strong);border-radius:var(--radius);background:var(--bg);overflow:hidden}
+@container (max-width:60rem){
+  .a-layout{grid-template-columns:minmax(0,1fr) 17rem}
+  .dish-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .order-row{grid-template-columns:7rem 1fr;}
+  .b-builder,.b-builder.full{grid-template-columns:9rem minmax(0,1fr)}
+  .b-canvas{grid-column:1 / -1;position:static}
+  .b-infostrip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container (max-width:44rem){
+  .wrap{padding:0 var(--s4)}
+  .topnav nav{display:none}
+  .a-layout{grid-template-columns:1fr}
+  .a-side{position:static}
+  .dish-grid{grid-template-columns:1fr}
+  .order-row{grid-template-columns:1fr;gap:var(--s2)}
+  .tray{width:calc(100% - 1rem);padding:var(--s3)}
+  .hero{min-height:9rem}
+  .b-builder,.b-builder.full{grid-template-columns:1fr}
+  .b-rail{flex-direction:row;overflow-x:auto;position:static;padding-bottom:var(--s1)}
+  .b-rail button{white-space:nowrap}
+  .b-infostrip{grid-template-columns:1fr}
+  .b-hero{min-height:11rem;padding:var(--s4)}
+  .b-drawer{width:100%;top:auto;bottom:0;height:auto;max-height:82%;border-left:none;border-top:0.0625rem solid var(--border-strong);border-radius:var(--radius) var(--radius) 0 0}
+  .b-backdrop{position:fixed}
+}
+@media (max-width:56rem){ #hint{display:none} }
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important;scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame" data-w="desktop"><div id="app"></div></div></div>
+<div id="hint" role="status"></div>
+<footer id="chrome" aria-label="Prototype controls">
+  <button class="cbtn carrow" id="vprev" aria-label="Previous variant">&lsaquo;</button>
+  <span id="vlabel"></span>
+  <button class="cbtn carrow" id="vnext" aria-label="Next variant">&rsaquo;</button>
+  <span class="csep" aria-hidden="true"></span>
+  <span class="clabel">View</span>
+  <div class="cgroup" id="viewbtns"></div>
+  <span class="csep" aria-hidden="true"></span>
+  <label class="clabel" for="stateSel">State</label>
+  <select class="cselect" id="stateSel"></select>
+  <span class="csep" aria-hidden="true"></span>
+  <span class="clabel">Width</span>
+  <div class="cgroup" id="widthbtns">
+    <button class="cbtn" data-width="desktop">Desktop</button>
+    <button class="cbtn" data-width="tablet">Tablet</button>
+    <button class="cbtn" data-width="mobile">Mobile</button>
+  </div>
+  <div class="cnote" id="cnote"></div>
+</footer>
+<script>
+(function(){
+'use strict';
+
+/* ===== fixture — restaurant profile (screen spec screen 4) ===== */
+var BIZ = {
+  name:'Green Bowl Co.', category:'Restaurants', sub:'Fast-casual · Healthy bowls · Smoothies',
+  rating:4.8, ratingCount:214, verified:true, distance:'1.2 mi', openUntil:'9:00 PM',
+  desc:'Chef-crafted grain bowls, smoothies, and sides built from clean, seasonal ingredients.',
+  address:'184 Market Street, Springfield', phone:'(555) 214-8890',
+  website:'greenbowlco.example', email:'hello@greenbowlco.example', updated:'4 days ago',
+  hours:[['Monday','10:30 AM – 9:00 PM'],['Tuesday','10:30 AM – 9:00 PM'],['Wednesday','10:30 AM – 9:00 PM'],
+         ['Thursday','10:30 AM – 9:00 PM'],['Friday','10:30 AM – 10:00 PM'],['Saturday','11:00 AM – 10:00 PM'],['Sunday','11:00 AM – 8:00 PM']]
+};
+var TODAY = 5;
+
+var MENU = [
+  { id:'build', name:'Build Your Bowl', kind:'builder', basePrice:10.95, groups:[
+    { id:'base', name:'Choose Your Base', cal:'50–180 cal', required:true,
+      desc:'Start with quinoa, brown rice, cauliflower rice, mixed greens, or spinach.',
+      tags:[['Gluten-Free Options','cool'],['Vegan','cool']],
+      choices:[{id:'quinoa',name:'Quinoa',delta:0},{id:'brown',name:'Brown Rice',delta:0},{id:'cauli',name:'Cauliflower Rice',delta:0},{id:'greens',name:'Mixed Greens',delta:0},{id:'spinach',name:'Spinach',delta:0}] },
+    { id:'protein', name:'Select Your Protein', cal:'120–280 cal', required:true,
+      desc:'Grilled chicken, grass-fed beef, wild salmon, tofu, tempeh, or plant-based protein.',
+      tags:[['High Protein','cool'],['Vegan Options','cool']],
+      choices:[{id:'chicken',name:'Grilled Chicken',delta:0},{id:'beef',name:'Grass-Fed Beef',delta:2},{id:'salmon',name:'Wild Salmon',delta:3},{id:'tofu',name:'Tofu',delta:0},{id:'tempeh',name:'Tempeh',delta:1},{id:'plant',name:'Plant-Based Protein',delta:1.5}] },
+    { id:'veggies', name:'Load Your Veggies', cal:'15–80 cal', required:false, multi:true,
+      desc:'Mix and match from 15+ fresh vegetables, including seasonal specials.',
+      tags:[['Unlimited Veggies','cool'],['Vegan','cool']],
+      choices:[{id:'sweetpotato',name:'Roasted Sweet Potato',delta:0},{id:'broccoli',name:'Steamed Broccoli',delta:0},{id:'cucumber',name:'Cucumber',delta:0},{id:'tomato',name:'Cherry Tomatoes',delta:0},{id:'pepper',name:'Bell Peppers',delta:0},{id:'chickpea',name:'Chickpeas',delta:0},{id:'avocado',name:'Avocado',delta:1.5},{id:'hemp',name:'Hemp Hearts',delta:1}] },
+    { id:'sauce', name:'Signature Sauces', cal:'25–120 cal', required:true,
+      desc:'Tahini goddess, spicy peanut, cilantro lime, balsamic vinaigrette, or house green sauce.',
+      tags:[['Contains Nuts','warm'],['Vegan Options','cool']],
+      choices:[{id:'tahini',name:'Tahini Goddess',delta:0},{id:'peanut',name:'Spicy Peanut',delta:0},{id:'cilantro',name:'Cilantro Lime',delta:0},{id:'balsamic',name:'Balsamic Vinaigrette',delta:0},{id:'green',name:'House Green Sauce',delta:0}] }
+  ]},
+  { id:'signature', name:'Signature Bowls', kind:'items', items:[
+    { id:'goddess', name:'The Green Goddess', cal:'485 cal', price:12.95, tags:[['High Protein','cool'],['Gluten-Free','cool']],
+      desc:'Quinoa base, grilled chicken, avocado, cucumber, cherry tomatoes, hemp hearts, and house green sauce.' },
+    { id:'plant', name:'Plant Power', cal:'420 cal', price:11.95, tags:[['Vegan','cool'],['High Protein','cool']],
+      desc:'Brown rice, seasoned tempeh, roasted sweet potato, steamed broccoli, chickpeas, and tahini goddess sauce.' },
+    { id:'power', name:'Protein Powerhouse', cal:'520 cal', price:14.95, tags:[['Keto-Friendly',''],['Contains Nuts','warm']],
+      desc:'Cauliflower rice, grass-fed beef, hard-boiled egg, spinach, bell peppers, and spicy peanut sauce.' }
+  ]},
+  { id:'smoothies', name:'Smoothies', kind:'items', items:[
+    { id:'greenglow', name:'Green Glow', cal:'210 cal', price:7.95, tags:[['Vegan','cool'],['Dairy-Free','cool']],
+      desc:'Spinach, banana, mango, ginger, coconut water.' },
+    { id:'berrybliss', name:'Berry Bliss', cal:'240 cal', price:8.25, tags:[['Vegetarian',''],['High Protein','cool']],
+      desc:'Mixed berries, banana, Greek yogurt, almond milk.' },
+    { id:'peanutpow', name:'Peanut Power', cal:'320 cal', price:8.95, tags:[['Vegan','cool'],['Contains Nuts','warm']],
+      desc:'Peanut butter, banana, cacao, oat milk, plant protein.' }
+  ]},
+  { id:'sides', name:'Sides', kind:'items', items:[
+    { id:'fries', name:'Sweet Potato Fries', cal:'280 cal', price:4.95, tags:[['Vegan','cool']], desc:'Oven-roasted, sea salt, chipotle aioli.' },
+    { id:'sidesalad', name:'Side Salad', cal:'140 cal', price:3.95, tags:[['Vegan','cool'],['Gluten-Free','cool']], desc:'Mixed greens, cucumber, tomato, balsamic.' },
+    { id:'hummus', name:'Hummus & Veggies', cal:'190 cal', price:5.25, tags:[['Vegan','cool'],['Gluten-Free','cool']], desc:'House hummus, carrot, cucumber, bell pepper.' }
+  ]}
+];
+
+/* seeded owner-side orders so the status board is populated on load */
+var ORDERS = [
+  { code:'GB-1039', name:'Dana R.', contact:'(555) 201-3391', what:'The Green Goddess', detail:'no substitutions', total:12.95, status:'new', age:'2 min ago' },
+  { code:'GB-1038', name:'Marcus L.', contact:'marcus@example.com', what:'Build Your Bowl', detail:'brown rice · beef · avocado · spicy peanut', total:14.45, status:'accepted', age:'11 min ago' },
+  { code:'GB-1037', name:'Priya S.', contact:'(555) 884-2210', what:'Plant Power', detail:'extra tahini', total:11.95, status:'ready', age:'24 min ago' },
+  { code:'GB-1036', name:'Tom W.', contact:'tomw@example.com', what:'Peanut Power', detail:'oat milk', total:8.95, status:'completed', age:'1 hr ago' }
+];
+var ORDER_SEQ = 1040;
+
+/* ===== state ===== */
+var VARIANTS = ['A','B','C'];
+var VNAMES = { A:'Classic directory', B:'Builder configurator', C:'Mobile feed' };
+var VIEWS = [['profile','Menu'],['customize','Customize'],['order','Order'],['done','Confirmation'],['owner','Owner status']];
+var S = {
+  v:'A', view:'profile', state:'normal', w:'desktop',
+  tab:'build', openGroup:'base', sheetGroup:'base',
+  sel:{ base:'quinoa', protein:'chicken', veggies:['broccoli'], sauce:'tahini' },
+  cart:null, placed:null
+};
+
+/* ===== helpers ===== */
+function money(n){ return '$' + n.toFixed(2); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function group(id){ return MENU[0].groups.filter(function(g){ return g.id===id; })[0]; }
+function choiceOf(gid,cid){ return group(gid).choices.filter(function(c){ return c.id===cid; })[0]; }
+function dish(id){
+  var out=null;
+  MENU.forEach(function(g){ if(g.items) g.items.forEach(function(it){ if(it.id===id) out=it; }); });
+  return out;
+}
+function buildTotal(){
+  var t = MENU[0].basePrice;
+  MENU[0].groups.forEach(function(g){
+    if(g.multi){ (S.sel[g.id]||[]).forEach(function(cid){ t += choiceOf(g.id,cid).delta; }); }
+    else if(S.sel[g.id]){ t += choiceOf(g.id,S.sel[g.id]).delta; }
+  });
+  return t;
+}
+function buildSelections(){
+  var out=[];
+  MENU[0].groups.forEach(function(g){
+    if(g.multi){ (S.sel[g.id]||[]).forEach(function(cid){ out.push({ group:g.name, name:choiceOf(g.id,cid).name }); }); }
+    else if(S.sel[g.id]){ out.push({ group:g.name, name:choiceOf(g.id,S.sel[g.id]).name }); }
+  });
+  return out;
+}
+function currentCart(){ if(S.cart) return S.cart; return { name:'Build Your Bowl', selections:buildSelections(), total:buildTotal() }; }
+/* ===== foundation primitives ===== */
+function topnavHtml(){
+  return '<div class="topnav"><div class="wrap">'+
+    '<span class="brandmark"><span class="branddot"></span>LocalConnect</span>'+
+    '<nav><span>Directory</span><span>Categories</span><span>About</span><span>Add Your Business</span></nav>'+
+  '</div></div>';
+}
+function bcHtml(){
+  return '<div class="bc">Home <span>/</span> Restaurants <span>/</span> <b>'+esc(BIZ.name)+'</b></div>';
+}
+function heroHtml(){
+  return '<div class="hero"><span class="hero-note">gallery · prototype gradient placeholder</span></div>';
+}
+function identityHtml(){
+  return '<div class="identity"><h1>'+esc(BIZ.name)+
+    (BIZ.verified ? ' <span class="verified">Verified</span>' : '')+'</h1>'+
+    '<div class="sub">'+esc(BIZ.sub)+'</div>'+
+    '<div class="ratingline"><span><b>'+BIZ.rating.toFixed(1)+'</b> ('+BIZ.ratingCount+' reviews)</span>'+
+      '<span>'+esc(BIZ.distance)+'</span><span>Open until '+esc(BIZ.openUntil)+'</span></div>'+
+    '<p class="desc">'+esc(BIZ.desc)+'</p></div>';
+}
+function actionsHtml(){
+  return '<div class="actions">'+
+    '<button class="btn btn-primary" data-act="go-order">Order Online</button>'+
+    '<button class="btn" data-act="noop">Call Restaurant</button>'+
+    '<button class="btn" data-act="noop">Get Directions</button>'+
+    '<button class="btn" data-act="noop">Visit Website</button>'+
+  '</div>';
+}
+function infoCardHtml(){
+  return '<div class="card"><h3>Contact Information</h3>'+
+    '<div class="kv"><span>Address</span><b>'+esc(BIZ.address)+'</b></div>'+
+    '<div class="kv"><span>Phone</span><b>'+esc(BIZ.phone)+'</b></div>'+
+    '<div class="kv"><span>Email</span><b>'+esc(BIZ.email)+'</b></div>'+
+    '<div class="kv"><span>Website</span><b>'+esc(BIZ.website)+'</b></div></div>';
+}
+function hoursCardHtml(){
+  return '<div class="card"><h3>Hours</h3><ul class="hours">'+BIZ.hours.map(function(h,i){
+    return '<li'+(i===TODAY?' class="today"':'')+'><span>'+h[0]+'</span>'+h[1]+'</li>';
+  }).join('')+'</ul></div>';
+}
+function rewardHtml(){
+  return '<div class="reward"><h3>Green Rewards Program</h3><p>Earn a point per bowl — 10 points = one free signature bowl.</p></div>';
+}
+function updatedHtml(){
+  return '<div class="updated">Last updated '+esc(BIZ.updated)+' by the owner · content edits go live immediately for approved businesses (SPEC §5).</div>';
+}
+function sidebarHtml(){
+  return infoCardHtml()+hoursCardHtml()+'<div style="margin-top:var(--s4)">'+rewardHtml()+'</div>';
+}
+function tabsHtml(){
+  return '<div class="tabs" role="tablist">'+MENU.map(function(g){
+    return '<button class="tab" role="tab" aria-selected="'+(S.tab===g.id)+'" data-act="tab:'+g.id+'">'+esc(g.name)+'</button>';
+  }).join('')+'</div>';
+}
+function tagsHtml(tags){
+  return (tags||[]).map(function(t){ return '<span class="tagchip '+t[1]+'">'+esc(t[0])+'</span>'; }).join('');
+}
+
+/* ===== state wrappers ===== */
+function loadingView(){
+  return '<div class="wrap" style="padding-top:var(--s5)"><div class="skel" style="height:13rem"></div>'+
+    '<div class="skel" style="height:2rem;width:18rem;margin-top:var(--s4)"></div>'+
+    '<div class="dish-grid" style="margin-top:var(--s4)">'+[1,2,3,4].map(function(){ return '<div class="skel" style="height:11rem"></div>'; }).join('')+'</div>'+
+    '<p class="hint" style="margin-top:var(--s3)">Loading skeletons — menu and profile modules (SPEC §13: each build ticket owns its states)</p></div>';
+}
+function errorView(){
+  return '<div class="wrap" style="padding-top:var(--s6)"><div class="empty">'+
+    '<h3>We couldn’t load this profile</h3>'+
+    '<p class="muted">The menu didn’t respond. This is the error state the B8 profile must define.</p>'+
+    '<div style="margin-top:var(--s4)"><button class="btn btn-primary" data-act="state:normal">Retry</button></div></div></div>';
+}
+function emptyView(){
+  return '<div class="wrap" style="padding-top:var(--s6)"><div class="empty">'+
+    '<h3>No menu items yet</h3>'+
+    '<p class="muted">The owner hasn’t published items in this group. Empty groups hide entirely on the public profile.</p>'+
+    '<div style="margin-top:var(--s4)"><button class="btn" data-act="state:normal">Back to menu</button></div></div></div>';
+}
+
+/* ============================================================
+   VARIANT A — classic two-column directory
+   ============================================================ */
+function aTabs(){
+  return tabsHtml();
+}
+function aBuildGroup(g){
+  var open = S.openGroup===g.id;
+  var opts = g.choices.map(function(c){
+    var on = g.multi ? (S.sel[g.id]||[]).indexOf(c.id)>=0 : S.sel[g.id]===c.id;
+    return '<label class="opt'+(on?' on':'')+'"><input type="'+(g.multi?'checkbox':'radio')+'" name="a-'+g.id+'" '+(on?'checked':'')+
+      ' data-act="sel:'+g.id+':'+c.id+'"><span>'+esc(c.name)+'</span>'+
+      (c.delta?'<span class="delta">+'+money(c.delta)+'</span>':'')+'</label>';
+  }).join('');
+  return '<div class="builder-group"><div class="head"><div><h3>'+esc(g.name)+'</h3>'+
+    '<div class="desc">'+esc(g.desc)+'</div><div style="margin-top:var(--s2)">'+tagsHtml(g.tags)+'<span class="tagchip">'+esc(g.cal)+'</span></div></div>'+
+    '<button class="btn btn-sm" data-act="group:'+g.id+'">'+(open?'Hide':'Customize')+'</button></div>'+
+    (open?'<div class="optgrid">'+opts+'</div>':'')+'</div>';
+}
+function aMenu(){
+  var g = MENU.filter(function(x){ return x.id===S.tab; })[0];
+  if(g.kind==='builder'){
+    return '<p class="hint" style="margin-bottom:var(--s3)">Customize every ingredient, then review one bowl — no cart, no checkout (SPEC §7).</p>'+
+      g.groups.map(aBuildGroup).join('');
+  }
+  return '<div class="dish-grid">'+g.items.map(function(it){
+    return '<article class="dish"><div class="thumb"></div><div class="row"><h3>'+esc(it.name)+'</h3><span class="price">'+money(it.price)+'</span></div>'+
+      '<p class="desc">'+esc(it.desc)+'</p><div>'+tagsHtml(it.tags)+'<span class="tagchip">'+esc(it.cal)+'</span></div>'+
+      '<div class="foot"><button class="btn btn-primary btn-sm" data-act="order-item:'+it.id+'">Order '+money(it.price)+'</button></div></article>';
+  }).join('')+'</div>';
+}
+function aTrayHtml(){
+  if(S.view!=='profile' && S.view!=='customize') return '';
+  if(S.tab!=='build') return '';
+  return '<div class="tray"><div class="tray-body"><b>Build Your Bowl — '+money(buildTotal())+'</b>'+
+    '<span>'+buildSelections().map(function(s){ return esc(s.name); }).join(' · ')+'</span></div>'+
+    '<button class="btn btn-primary" data-act="review">Review order</button></div>';
+}
+function aProfile(){
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+heroHtml()+identityHtml()+actionsHtml()+
+    '<div class="a-layout"><div class="a-main">'+aTabs()+
+      (S.state==='empty' ? emptyView() : aMenu())+'</div>'+
+    '<aside class="a-side">'+sidebarHtml()+'</aside></div>'+updatedHtml()+'</div>'+aTrayHtml();
+}
+function aCustomize(){
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+
+    '<h1 style="margin:var(--s3) 0">Customize — Build Your Bowl</h1>'+
+    '<p class="hint" style="margin-bottom:var(--s3)">Inline accordion: one group open at a time. Running price is always visible in the tray.</p>'+
+    '<div class="a-layout"><div class="a-main">'+MENU[0].groups.map(aBuildGroup).join('')+'</div>'+
+    '<aside class="a-side"><div class="summary"><h3>Your bowl</h3>'+
+      buildSelections().map(function(s){ return '<div class="line"><span>'+esc(s.name)+'</span><span class="muted">'+esc(s.group)+'</span></div>'; }).join('')+
+      '<div class="line total"><span>Total</span><span>'+money(buildTotal())+'</span></div>'+
+      '<div style="margin-top:var(--s3)"><button class="btn btn-primary" style="width:100%" data-act="review">Review order</button></div>'+
+    '</div></aside></div>'+updatedHtml()+'</div>';
+}
+function aOrder(){
+  var cart = currentCart();
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+
+    '<h1 style="margin:var(--s3) 0">Review your order</h1>'+
+    '<div class="a-layout"><div class="a-main">'+
+      (S.state==='error' ? '<div class="banner err"><b>We couldn’t place that order.</b> The kitchen service didn’t respond — your order wasn’t sent. <button class="btn btn-sm" data-act="state:normal">Try again</button></div>' : '')+
+      '<div class="card"><h3>Anonymous order form</h3><p class="hint">Name + contact only — no account required (SPEC §3, §7).</p>'+
+      '<div class="form">'+
+        '<div class="field"><label for="of-name">Name</label><input id="of-name" placeholder="Your name" value="'+esc(S.placed?S.placed.name:'')+'"></div>'+
+        '<div class="field"><label for="of-contact">Phone or email</label><input id="of-contact" placeholder="How should the restaurant reach you?" value="'+esc(S.placed?S.placed.contact:'')+'"></div>'+
+        '<div class="field"><label for="of-note">Notes (optional)</label><textarea id="of-note" rows="2" placeholder="Allergies, pickup note…"></textarea></div>'+
+      '</div>'+
+      '<div style="margin-top:var(--s4);display:flex;gap:var(--s2);flex-wrap:wrap"><button class="btn btn-primary" data-act="place">Place order</button>'+
+        '<button class="btn" data-act="back">Back to menu</button></div>'+
+      '<p class="hint" style="margin-top:var(--s2)">Validation: name and contact required — the error state is driven by the State selector.</p></div>'+
+      '<p class="hint" style="margin-top:var(--s3)">Submitting notifies the owner in-app (SPEC §11). No payment, no cart.</p>'+
+    '</div><aside class="a-side"><div class="summary"><h3>Order summary</h3>'+
+      '<div class="line"><span>'+esc(cart.name)+'</span><span></span></div>'+
+      (cart.selections||[]).map(function(s){ return '<div class="line"><span class="muted">'+esc(s.name)+'</span><span class="muted">'+esc(s.group)+'</span></div>'; }).join('')+
+      '<div class="line total"><span>Total</span><span>'+money(cart.total)+'</span></div>'+
+      '<p class="hint" style="margin-top:var(--s2)">Single item. No cart, no checkout.</p></div></aside></div>'+updatedHtml()+'</div>';
+}
+function aDone(){
+  var o = S.placed || { code:'GB-1042', name:'Guest', what:currentCart().name, total:currentCart().total, status:'new' };
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+
+    '<div class="a-layout" style="grid-template-columns:minmax(0,1fr) 20rem">'+
+    '<div class="a-main"><div class="card"><span class="statuspill s-new">Status: new</span>'+
+      '<h2 style="margin:var(--s3) 0 var(--s1)">Order placed</h2>'+
+      '<p class="muted">'+esc(o.name)+' — the restaurant has been notified and will accept it shortly.</p>'+
+      '<div class="receipt-code" style="margin:var(--s3) 0">'+esc(o.code)+'</div>'+
+      '<div class="stepper">'+['New','Accepted','Ready','Completed'].map(function(label,i){
+        var cls = i===0 ? 'step on' : 'step'; return '<div class="'+cls+'">'+label+'</div>'; }).join('')+'</div>'+
+      '<div class="line" style="display:flex;justify-content:space-between;border-top:0.0625rem solid var(--border);padding-top:var(--s3)"><span>'+esc(o.what||currentCart().name)+'</span><b>'+money(o.total||currentCart().total)+'</b></div>'+
+      '<div style="margin-top:var(--s4);display:flex;gap:var(--s2);flex-wrap:wrap"><button class="btn btn-primary" data-act="owner">View owner status →</button>'+
+        '<button class="btn" data-act="back">Order again</button></div>'+
+      '<p class="hint" style="margin-top:var(--s2)">Prototype: the order is in memory only — reload resets it.</p></div></div>'+
+    '<aside class="a-side">'+infoCardHtml()+'</aside></div></div>';
+}
+function aOwner(){
+  if(S.state==='empty'){
+    return topnavHtml()+'<div class="wrap">'+bcHtml()+emptyView()+'</div>';
+  }
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+
+    '<h1 style="margin:var(--s3) 0">Incoming orders — '+esc(BIZ.name)+'</h1>'+
+    '<p class="hint" style="margin-bottom:var(--s3)">Owner workspace view. Status transitions: new → accepted → ready → completed (owner-driven, SPEC §7).</p>'+
+    '<div class="board">'+ORDERS.map(function(o){
+      var next = { new:'Accept', accepted:'Mark ready', ready:'Complete', completed:null }[o.status];
+      return '<div class="order-row"><div><span class="statuspill s-'+o.status+'">'+o.status+'</span><div class="meta">'+esc(o.code)+' · '+esc(o.age)+'</div></div>'+
+        '<div class="who"><b>'+esc(o.what)+'</b><div class="meta">'+esc(o.detail)+'</div></div>'+
+        '<div class="meta">'+esc(o.name)+'<br>'+esc(o.contact)+'</div>'+
+        '<div style="display:flex;gap:var(--s2);align-items:center;justify-content:flex-end"><b>'+money(o.total)+'</b>'+
+        (next?'<button class="btn btn-sm btn-primary" data-act="advance:'+o.code+'">'+next+'</button>':'<span class="hint">done</span>')+'</div></div>';
+    }).join('')+'</div>'+
+    '<p class="hint" style="margin-top:var(--s3)">An in-app notification badge would appear for each new order (SPEC §11).</p></div>';
+}
+function variantA(){
+  if(S.state==='loading') return topnavHtml()+loadingView();
+  if(S.state==='error' && S.view!=='order') return topnavHtml()+errorView();
+  switch(S.view){
+    case 'customize': return aCustomize();
+    case 'order': return aOrder();
+    case 'done': return aDone();
+    case 'owner': return aOwner();
+    default: return aProfile();
+  }
+}
+
+/* ============================================================
+   VARIANT B — builder-first configurator
+   ============================================================ */
+function bHero(){
+  return '<div class="b-hero"><div class="overlay">'+identityHtml()+actionsHtml()+'</div></div>';
+}
+function bInfoStrip(){
+  return '<div class="b-infostrip">'+
+    '<div class="card"><h3>Contact</h3>'+
+      '<div class="kv"><span>Phone</span><b>'+esc(BIZ.phone)+'</b></div>'+
+      '<div class="kv"><span>Address</span><b>'+esc(BIZ.address)+'</b></div>'+
+      '<div class="kv"><span>Web</span><b>'+esc(BIZ.website)+'</b></div></div>'+
+    '<div class="card"><h3>Hours</h3><ul class="hours">'+BIZ.hours.map(function(h,i){
+      return '<li'+(i===TODAY?' class="today"':'')+'><span>'+h[0].slice(0,3)+'</span>'+h[1]+'</li>'; }).join('')+'</ul></div>'+
+    rewardHtml()+'</div>';
+}
+function bRail(){
+  return '<div class="b-rail">'+MENU.map(function(g){
+    return '<button class="'+(S.tab===g.id?'on':'')+'" data-act="tab:'+g.id+'">'+esc(g.name)+'</button>';
+  }).join('')+'</div>';
+}
+function bChips(g){
+  return '<div class="chipset">'+g.choices.map(function(c){
+    var on = g.multi ? (S.sel[g.id]||[]).indexOf(c.id)>=0 : S.sel[g.id]===c.id;
+    return '<button class="chip'+(on?' on':'')+'" data-act="sel:'+g.id+':'+c.id+'">'+esc(c.name)+(c.delta?' +'+money(c.delta):'')+'</button>';
+  }).join('')+'</div>';
+}
+function bCenter(){
+  var g = MENU.filter(function(x){ return x.id===S.tab; })[0];
+  if(g.kind==='builder'){
+    return g.groups.map(function(gr){
+      return '<section class="b-group"><div class="b-group-head"><h3>'+esc(gr.name)+'</h3>'+
+        '<span class="hint">'+esc(gr.cal)+(gr.required?' · required':' · optional')+'</span></div>'+
+        '<p class="desc">'+esc(gr.desc)+'</p>'+bChips(gr)+'</section>';
+    }).join('');
+  }
+  return '<div class="b-rows">'+g.items.map(function(it){
+    return '<div class="b-row"><div><b>'+esc(it.name)+'</b><div class="hint">'+esc(it.cal)+' · '+esc(it.desc)+'</div></div>'+
+      '<div style="display:flex;gap:var(--s2);align-items:center"><b>'+money(it.price)+'</b>'+
+      '<button class="btn btn-primary btn-sm" data-act="order-item:'+it.id+'">Order</button></div></div>';
+  }).join('')+'</div>';
+}
+function bCanvas(){
+  var sel = S.cart ? S.cart.selections : buildSelections();
+  return '<aside class="b-canvas"><h3>Your bowl</h3><div class="bowl" aria-hidden="true"></div>'+
+    (sel.length ? sel.map(function(s){ return '<div class="b-canvas-line"><span class="hint">'+esc(s.group)+'</span><b>'+esc(s.name)+'</b></div>'; }).join('') : '<p class="hint">Pick a base and a protein to start.</p>')+
+    '<div class="b-canvas-total"><span>Total</span><b>'+money(S.cart?S.cart.total:buildTotal())+'</b></div>'+
+    '<button class="btn btn-primary" style="width:100%" data-act="review">Add &amp; order</button>'+
+    '<p class="hint" style="margin-top:var(--s2)">No cart — one bowl per order.</p></aside>';
+}
+function bBuilder(full){
+  return '<div class="b-builder'+(full?' full':'')+'">'+bRail()+'<div class="b-center">'+bCenter()+'</div>'+bCanvas()+'</div>';
+}
+function bProfile(){
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+bHero()+bInfoStrip()+
+    '<p class="hint" style="margin-bottom:var(--s3)">Builder-first: pick a group on the rail, compose on the left, the canvas prices it live.</p>'+
+    (S.state==='empty' ? emptyView() : bBuilder(false))+updatedHtml()+'</div>';
+}
+function bCustomize(){
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+
+    '<h1 style="margin:var(--s3) 0">Build your bowl</h1>'+bBuilder(true)+updatedHtml()+'</div>';
+}
+function bOrder(){
+  var cart = currentCart();
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+'<h1 style="margin:var(--s3) 0">Checkout</h1>'+bBuilder(false)+updatedHtml()+'</div>'+
+    '<div class="b-backdrop"></div><aside class="b-drawer" role="dialog" aria-label="Order form">'+
+      '<h2>Review &amp; order</h2>'+
+      (S.state==='error'?'<div class="banner err" style="margin-top:var(--s3)">The kitchen service didn’t respond. <button class="btn btn-sm" data-act="state:normal">Retry</button></div>':'')+
+      '<div class="summary" style="margin-top:var(--s3)"><div class="line"><span>'+esc(cart.name)+'</span><span>'+money(cart.total)+'</span></div>'+
+      (cart.selections||[]).map(function(s){ return '<div class="line"><span class="muted">'+esc(s.name)+'</span><span class="muted">'+esc(s.group)+'</span></div>'; }).join('')+
+      '<div class="line total"><span>Total</span><span>'+money(cart.total)+'</span></div></div>'+
+      '<div class="form"><div class="field"><label for="of-name">Name</label><input id="of-name" placeholder="Your name"></div>'+
+      '<div class="field"><label for="of-contact">Phone or email</label><input id="of-contact" placeholder="Contact"></div>'+
+      '<div class="field"><label for="of-note">Notes (optional)</label><textarea id="of-note" rows="2"></textarea></div></div>'+
+      '<div style="margin-top:var(--s4);display:flex;gap:var(--s2)"><button class="btn btn-primary" data-act="place">Place order</button>'+
+      '<button class="btn" data-act="back">Cancel</button></div>'+
+      '<p class="hint" style="margin-top:var(--s2)">Anonymous — name + contact only (SPEC §3).</p></aside>';
+}
+function bDone(){
+  var o = S.placed || { code:'GB-1042', what:currentCart().name, total:currentCart().total };
+  return topnavHtml()+'<div class="wrap"><div class="card" style="max-width:34rem;margin:var(--s5) auto;text-align:center">'+
+    '<span class="statuspill s-new">Status: new</span>'+
+    '<h1 style="margin:var(--s3) 0">Order placed</h1>'+
+    '<div class="receipt-code">'+esc(o.code)+'</div>'+
+    '<div class="stepper">'+['New','Accepted','Ready','Completed'].map(function(l,i){ return '<div class="step'+(i===0?' on':'')+'">'+l+'</div>'; }).join('')+'</div>'+
+    '<p class="muted">'+esc(o.what)+' — '+money(o.total)+'</p>'+
+    '<div style="margin-top:var(--s4);display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap">'+
+    '<button class="btn btn-primary" data-act="owner">Owner view →</button><button class="btn" data-act="back">Order again</button></div></div></div>';
+}
+function bOwner(){
+  if(S.state==='empty') return topnavHtml()+'<div class="wrap">'+bcHtml()+emptyView()+'</div>';
+  return topnavHtml()+'<div class="wrap">'+bcHtml()+'<h1 style="margin:var(--s3) 0">Order tickets</h1>'+
+    '<p class="hint" style="margin-bottom:var(--s3)">Advance-by-ticket queue. Each new order also raises an in-app notification (SPEC §11).</p>'+
+    '<div class="b-queue">'+ORDERS.map(function(o){
+      var next = { new:'Accept', accepted:'Mark ready', ready:'Complete', completed:null }[o.status];
+      return '<div class="b-ticket"><div class="b-ticket-top"><span class="statuspill s-'+o.status+'">'+o.status+'</span>'+
+        '<span class="hint">'+esc(o.code)+' · '+esc(o.age)+'</span><b>'+money(o.total)+'</b></div>'+
+        '<b>'+esc(o.what)+'</b><div class="hint">'+esc(o.detail)+'</div>'+
+        '<div class="hint">'+esc(o.name)+' · '+esc(o.contact)+'</div>'+
+        (next?'<div style="margin-top:var(--s3)"><button class="btn btn-primary btn-sm" data-act="advance:'+o.code+'">'+next+'</button></div>':'<div class="hint" style="margin-top:var(--s3)">Completed</div>')+
+      '</div>';
+    }).join('')+'</div></div>';
+}
+function variantB(){
+  if(S.state==='loading') return topnavHtml()+loadingView();
+  if(S.state==='error' && S.view!=='order') return topnavHtml()+errorView();
+  switch(S.view){
+    case 'customize': return bCustomize();
+    case 'order': return bOrder();
+    case 'done': return bDone();
+    case 'owner': return bOwner();
+    default: return bProfile();
+  }
+}
+/* ============================================================
+   VARIANT C — mobile-first feed + bottom sheet
+   ============================================================ */
+function cCurrentOrder(){
+  if(!S.placed) return null;
+  return ORDERS.filter(function(o){ return o.code===S.placed.code; })[0] || null;
+}
+function cStepper(){
+  var o = cCurrentOrder();
+  if(!o) return '';
+  var labels=['New','Accepted','Ready','Completed'];
+  var idx={ new:0, accepted:1, ready:2, completed:3 }[o.status];
+  return '<div class="c-stepper" role="status"><b>'+esc(o.code)+'</b>'+labels.map(function(l,i){
+    return '<span class="step'+(i<idx?' done':i===idx?' on':'')+'">'+l+'</span>';
+  }).join('')+'</div>';
+}
+function cHead(){
+  return '<div class="c-slim"></div><div class="c-head">'+identityHtml()+
+    '<div class="actions"><button class="btn btn-primary" style="width:100%" data-act="go-order">Order Online</button></div>'+
+    '<div class="actions"><button class="btn btn-sm" data-act="noop">Call</button><button class="btn btn-sm" data-act="noop">Directions</button><button class="btn btn-sm" data-act="noop">Website</button></div></div>';
+}
+function cFilterbar(){
+  return '<div class="c-filterbar">'+MENU.map(function(g){
+    return '<button class="'+(S.tab===g.id?'on':'')+'" data-act="tab:'+g.id+'">'+esc(g.name)+'</button>';
+  }).join('')+'</div>';
+}
+function cFeed(){
+  var g = MENU.filter(function(x){ return x.id===S.tab; })[0];
+  if(g.kind==='builder'){
+    return '<div class="c-section"><h2>Build Your Bowl</h2>'+g.groups.map(function(gr){
+      var picks = gr.multi ? (S.sel[gr.id]||[]).map(function(cid){ return choiceOf(gr.id,cid).name; }) : [S.sel[gr.id] ? choiceOf(gr.id,S.sel[gr.id]).name : ''];
+      return '<button class="c-row" data-act="sheet:'+gr.id+'"><span class="thumb"></span>'+
+        '<span class="body"><b>'+esc(gr.name)+'</b><span class="hint" style="display:block">'+esc(picks.filter(Boolean).join(', ')||'Tap to choose')+'</span></span>'+
+        '<span class="add">+</span></button>';
+    }).join('')+'<div style="margin-top:var(--s3)"><button class="btn btn-primary" style="width:100%" data-act="review">Review bowl — '+money(buildTotal())+'</button></div></div>';
+  }
+  return '<div class="c-section"><h2>'+esc(g.name)+'</h2>'+g.items.map(function(it){
+    return '<div class="c-row"><span class="thumb"></span><span class="body"><b>'+esc(it.name)+'</b>'+
+      '<span class="hint" style="display:block">'+esc(it.cal)+' · '+esc(it.desc)+'</span>'+
+      '<span class="hint" style="display:block;font-weight:700;color:var(--text)">'+money(it.price)+'</span></span>'+
+      '<button class="add" data-act="order-item:'+it.id+'" aria-label="Order '+esc(it.name)+'">+</button></div>';
+  }).join('')+'</div>';
+}
+function cSheetCustomize(){
+  var g = group(S.sheetGroup||'base');
+  return '<div class="c-sheet-backdrop"></div><div class="c-sheet" role="dialog" aria-label="Customize '+esc(g.name)+'"><div class="handle"></div>'+
+    '<div class="c-sheet-head"><div><h2>'+esc(g.name)+'</h2><span class="hint">'+esc(g.cal)+(g.required?' · required':' · optional')+'</span></div>'+
+    '<button class="btn btn-sm" data-act="closesheet">Done</button></div>'+
+    '<p class="hint" style="margin-bottom:var(--s3)">'+esc(g.desc)+'</p>'+
+    '<div class="chipset">'+g.choices.map(function(c){
+      var on = g.multi ? (S.sel[g.id]||[]).indexOf(c.id)>=0 : S.sel[g.id]===c.id;
+      return '<button class="chip'+(on?' on':'')+'" data-act="sel:'+g.id+':'+c.id+'">'+esc(c.name)+(c.delta?' +'+money(c.delta):'')+'</button>';
+    }).join('')+'</div>'+
+    '<div style="margin-top:var(--s4)"><button class="btn btn-primary" style="width:100%" data-act="closesheet">Save — bowl '+money(buildTotal())+'</button></div></div>';
+}
+function cSheetOrder(){
+  var cart = currentCart();
+  return '<div class="c-sheet-backdrop"></div><div class="c-sheet" role="dialog" aria-label="Order form"><div class="handle"></div>'+
+    '<div class="c-sheet-head"><h2>Review &amp; order</h2><button class="btn btn-sm" data-act="back">Close</button></div>'+
+    (S.state==='error'?'<div class="banner err">The kitchen service didn’t respond. <button class="btn btn-sm" data-act="state:normal">Retry</button></div>':'')+
+    '<div class="summary"><div class="line"><span>'+esc(cart.name)+'</span><span>'+money(cart.total)+'</span></div>'+
+    (cart.selections||[]).map(function(s){ return '<div class="line"><span class="muted">'+esc(s.name)+'</span><span class="muted">'+esc(s.group)+'</span></div>'; }).join('')+
+    '<div class="line total"><span>Total</span><span>'+money(cart.total)+'</span></div></div>'+
+    '<div class="form"><div class="field"><label for="of-name">Name</label><input id="of-name" placeholder="Your name"></div>'+
+    '<div class="field"><label for="of-contact">Phone or email</label><input id="of-contact" placeholder="Contact"></div>'+
+    '<div class="field"><label for="of-note">Notes (optional)</label><textarea id="of-note" rows="2"></textarea></div></div>'+
+    '<div style="margin-top:var(--s4)"><button class="btn btn-primary" style="width:100%" data-act="place">Place order</button></div>'+
+    '<p class="hint" style="margin-top:var(--s2)">Anonymous — name + contact only (SPEC §3).</p></div>';
+}
+function cProfile(){
+  if(S.state==='empty') return topnavHtml()+'<div class="wrap"><div class="c-feed">'+cHead()+emptyView()+'</div></div>';
+  return topnavHtml()+'<div class="wrap"><div class="c-feed">'+cHead()+cStepper()+cFilterbar()+cFeed()+updatedHtml()+'</div></div>';
+}
+function cCustomize(){
+  return topnavHtml()+'<div class="wrap"><div class="c-feed">'+cHead()+cStepper()+cFilterbar()+cFeed()+updatedHtml()+'</div>'+cSheetCustomize()+'</div>';
+}
+function cOrder(){
+  return topnavHtml()+'<div class="wrap"><div class="c-feed">'+cHead()+cStepper()+cFilterbar()+cFeed()+updatedHtml()+'</div>'+cSheetOrder()+'</div>';
+}
+function cDone(){
+  var o = S.placed || { code:'GB-1042', what:currentCart().name, total:currentCart().total };
+  return topnavHtml()+'<div class="wrap"><div class="c-feed">'+
+    '<div class="banner ok" style="margin-top:var(--s3)"><b>Order placed</b> — the restaurant has been notified.</div>'+
+    cStepper()+
+    '<div class="card"><div class="receipt-code">'+esc(o.code)+'</div>'+
+    '<p class="muted" style="margin-top:var(--s2)">'+esc(o.what)+' — '+money(o.total)+'</p>'+
+    '<div style="margin-top:var(--s4);display:flex;gap:var(--s2);flex-wrap:wrap">'+
+    '<button class="btn btn-primary btn-sm" data-act="owner">Track in owner view →</button>'+
+    '<button class="btn btn-sm" data-act="back">Order again</button></div></div>'+
+    cFilterbar()+cFeed()+updatedHtml()+'</div></div>';
+}
+function cOwner(){
+  if(S.state==='empty') return topnavHtml()+'<div class="wrap"><div class="c-feed">'+emptyView()+'</div></div>';
+  var order=['new','accepted','ready','completed'];
+  return topnavHtml()+'<div class="wrap"><div class="c-feed">'+bcHtml()+'<h1 style="margin:var(--s3) 0">Order timeline</h1>'+
+    '<p class="hint" style="margin-bottom:var(--s3)">Grouped by status — advance a ticket to move it down the timeline.</p>'+
+    '<div class="c-timeline">'+order.map(function(st){
+      var items = ORDERS.filter(function(o){ return o.status===st; });
+      if(!items.length) return '';
+      var next = { new:'Accept', accepted:'Mark ready', ready:'Complete', completed:null }[st];
+      return '<div class="c-tl-group"><h3><span class="statuspill s-'+st+'">'+st+'</span><span class="hint">'+items.length+'</span></h3>'+
+        items.map(function(o){
+          return '<div class="c-tl-item"><div style="display:flex;justify-content:space-between;gap:var(--s2)"><b>'+esc(o.code)+'</b><b>'+money(o.total)+'</b></div>'+
+            '<div class="hint">'+esc(o.what)+' · '+esc(o.detail)+'</div><div class="hint">'+esc(o.name)+' · '+esc(o.age)+'</div>'+
+            (next?'<div style="margin-top:var(--s2)"><button class="btn btn-primary btn-sm" data-act="advance:'+o.code+'">'+next+'</button></div>':'')+'</div>';
+        }).join('')+'</div>';
+    }).join('')+'</div></div></div>';
+}
+function variantC(){
+  if(S.state==='loading') return topnavHtml()+loadingView();
+  if(S.state==='error' && S.view!=='order') return topnavHtml()+errorView();
+  switch(S.view){
+    case 'customize': return cCustomize();
+    case 'order': return cOrder();
+    case 'done': return cDone();
+    case 'owner': return cOwner();
+    default: return cProfile();
+  }
+}
+
+/* ============================================================
+   render + chrome + events
+   ============================================================ */
+var app = document.getElementById('app');
+var frame = document.getElementById('frame');
+var chrome = document.getElementById('chrome');
+var hintEl = document.getElementById('hint');
+var stateSel = document.getElementById('stateSel');
+var viewbtns = document.getElementById('viewbtns');
+
+function renderView(){
+  if(S.v==='B') return variantB();
+  if(S.v==='C') return variantC();
+  return variantA();
+}
+function stateOptions(){ return [['normal','Normal'],['loading','Loading'],['error','Error'],['empty','Empty']]; }
+function updateChrome(){
+  document.getElementById('vlabel').innerHTML = '<b>'+S.v+'</b> — '+VNAMES[S.v];
+  viewbtns.innerHTML = VIEWS.map(function(vw){
+    return '<button class="cbtn'+(S.view===vw[0]?' on':'')+'" data-view="'+vw[0]+'">'+vw[1]+'</button>';
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('#widthbtns .cbtn'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-width')===S.w);
+  });
+  stateSel.innerHTML = stateOptions().map(function(o){
+    return '<option value="'+o[0]+'"'+(o[0]===S.state?' selected':'')+'>'+o[1]+'</option>';
+  }).join('');
+  frame.setAttribute('data-w', S.w);
+  var notes = ['Fixture: Green Bowl Co. — 4 menu groups', 'No cart / no checkout — one item per order', 'Owner view is the same data, owner side'];
+  if(S.state==='loading') notes.push('Skeletons');
+  if(S.state==='error') notes.push('Error state + retry');
+  if(S.state==='empty') notes.push('Empty group / no orders');
+  document.getElementById('cnote').textContent = notes.join(' · ');
+  hintEl.textContent = '← → cycle variants ('+S.v+' of 3) · A accepted for B8 (issue #17) · view: '+S.view+' · state: '+S.state+' · width: '+S.w;
+}
+function paint(){
+  app.innerHTML = renderView();
+  writeState();
+  updateChrome();
+}
+function cycleVariant(d){
+  var i = VARIANTS.indexOf(S.v);
+  S.v = VARIANTS[(i+d+VARIANTS.length) % VARIANTS.length];
+  S.view='profile'; S.state='normal';
+  paint();
+}
+function setSel(cart){
+  S.cart = cart;
+  S.view = 'order';
+  paint();
+}
+function orderItem(id){
+  var it = dish(id);
+  if(!it) return;
+  setSel({ name:it.name, selections:[], total:it.price });
+}
+function reviewBuild(){
+  setSel({ name:'Build Your Bowl', selections:buildSelections(), total:buildTotal() });
+}
+function placeOrder(){
+  var nameEl = document.getElementById('of-name');
+  var contactEl = document.getElementById('of-contact');
+  var name = nameEl ? nameEl.value.trim() : '';
+  var contact = contactEl ? contactEl.value.trim() : '';
+  if(!name || !contact){
+    if(nameEl && !name){ nameEl.style.borderColor = 'var(--red)'; nameEl.focus(); }
+    if(contactEl && !contact){ contactEl.style.borderColor = 'var(--red)'; if(name) contactEl.focus(); }
+    return;
+  }
+  var cart = currentCart();
+  var code = 'GB-' + (ORDER_SEQ++);
+  S.placed = { code:code, name:name, contact:contact, what:cart.name, total:cart.total };
+  ORDERS.unshift({ code:code, name:name, contact:contact, what:cart.name,
+    detail:(cart.selections||[]).map(function(s){ return s.name; }).join(' · ') || 'as ordered',
+    total:cart.total, status:'new', age:'just now' });
+  S.view='done';
+  paint();
+}
+function advance(code){
+  var o = ORDERS.filter(function(x){ return x.code===code; })[0];
+  if(!o) return;
+  var next = { new:'accepted', accepted:'ready', ready:'completed', completed:'completed' }[o.status];
+  o.status = next;
+  paint();
+}
+function act(a){
+  var parts = a.split(':'), k = parts[0];
+  if(k==='tab'){ S.tab=parts[1]; S.openGroup = null; paint(); }
+  else if(k==='group'){ S.openGroup = (S.openGroup===parts[1] ? null : parts[1]); paint(); }
+  else if(k==='sel'){
+    var g = group(parts[1]), cid = parts[2];
+    if(g.multi){
+      var arr = S.sel[g.id] || [];
+      var i = arr.indexOf(cid);
+      if(i>=0) arr.splice(i,1); else arr.push(cid);
+      S.sel[g.id] = arr;
+    } else { S.sel[g.id] = cid; }
+    paint();
+  }
+  else if(k==='go-order'){ S.view='customize'; paint(); }
+  else if(k==='review'){ reviewBuild(); }
+  else if(k==='order-item'){ orderItem(parts[1]); }
+  else if(k==='place'){ placeOrder(); }
+  else if(k==='owner'){ S.view='owner'; paint(); }
+  else if(k==='back'){ S.view='profile'; S.cart=null; paint(); }
+  else if(k==='sheet'){ S.sheetGroup=parts[1]; S.view='customize'; paint(); }
+  else if(k==='closesheet'){ S.view='profile'; paint(); }
+  else if(k==='advance'){ advance(parts[1]); }
+  else if(k==='state'){ S.state=parts[1]; paint(); }
+}
+app.addEventListener('click', function(e){
+  var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+  if(!el) return;
+  e.preventDefault();
+  act(el.getAttribute('data-act'));
+});
+chrome.addEventListener('click', function(e){
+  var b = e.target.closest ? e.target.closest('[data-view]') : null;
+  if(b){ S.view=b.getAttribute('data-view'); S.cart = (S.view==='order' && !S.cart) ? currentCart() : S.cart; paint(); return; }
+  var w = e.target.closest ? e.target.closest('[data-width]') : null;
+  if(w){ S.w=w.getAttribute('data-width'); updateChrome(); writeState(); return; }
+  if(e.target.closest('#vprev')) cycleVariant(-1);
+  else if(e.target.closest('#vnext')) cycleVariant(1);
+});
+stateSel.addEventListener('change', function(){ S.state=stateSel.value; paint(); });
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if(t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable)) return;
+  if(e.key==='ArrowLeft') cycleVariant(-1);
+  if(e.key==='ArrowRight') cycleVariant(1);
+});
+
+/* ===== URL state ===== */
+function readState(){
+  var hp = new URLSearchParams(location.hash.replace(/^#/,''));
+  var qp = new URLSearchParams(location.search);
+  function get(k){ var a=hp.get(k); if(a!==null) return a; return qp.get(k); }
+  var v = get('v') || get('variant');
+  if(v && VARIANTS.indexOf(v.toUpperCase())>=0) S.v = v.toUpperCase();
+  var view = get('view'); if(view && VIEWS.some(function(x){ return x[0]===view; })) S.view = view;
+  var st = get('state'); if(st && stateOptions().some(function(x){ return x[0]===st; })) S.state = st;
+  var w = get('w'); if(w && ['desktop','tablet','mobile'].indexOf(w)>=0) S.w = w;
+}
+function writeState(){
+  var p = new URLSearchParams();
+  p.set('v', S.v); p.set('view', S.view); p.set('state', S.state); p.set('w', S.w);
+  var url = location.pathname + location.search + '#' + p.toString();
+  try{ history.replaceState(null, '', url); }catch(err){ location.hash = p.toString(); }
+}
+
+readState();
+paint();
+
+/*
+  ===== DECISION POINTS — reviewed 2026-09-18 for issue #17 =====
+  VERDICT: Variant A — "Classic directory" — ACCEPTED. The points below are
+  resolved as prototyped in A; B and C are kept as the exploration record.
+  Still open: B8 token/palette source (issue #8 points at design.md →
+  globals.css) — this prototype's mockup blue/slate is not the product palette.
+  1. Menu navigation — horizontal tabs (A), vertical rail in a 3-pane builder (B),
+     or a single searchable/filterable feed (C)? Which one matches the
+     `menuTabs` module contract in SPEC §6?
+  2. Item customization — inline accordion under each group (A), a dedicated
+     3-pane configurator with a live bowl canvas (B), or a bottom sheet over the
+     feed (C)? Required vs optional groups; single vs multi-select (veggies = multi).
+  3. Order action — does "Order Online" open the builder (A/B) or a direct
+     single-item order (C)? No cart, no checkout (SPEC §7) — confirm.
+  4. Anonymous order form — fields (name + contact + optional note) and where it
+     lives: inline panel (A), slide-in drawer (B), bottom sheet (C).
+  5. Confirmation — receipt card with code + stepper (A), full-screen receipt (B),
+     inline banner that advances a persistent stepper (C).
+  6. Owner order-status view — table/board with per-row actions (A), advance-by-
+     ticket queue (B), or a status-grouped timeline (C). Where does it live
+     (separate owner route, not the public profile)?
+  7. Status feedback for the visitor — is the visitor shown the live status at
+     all, and if so where (post-order page, persistent stepper, nothing)?
+  8. Loading / error / empty states — confirm the shapes prototyped here per
+     SPEC §13 (skeletons; error + retry; empty group hides / no orders).
+  9. Narrow-width behavior — confirm the container-query breakpoints (~60rem /
+     ~44rem) and which modules collapse: two-column → one-column, tabs become
+     horizontally scrollable, builder panes stack, owner rows become cards.
+  10. Profile foundation reuse — the prototypes render foundation primitives
+      (breadcrumb, hero, identity bar, actions bar, info/hours cards, last-updated)
+      inline. Confirm these are the exact primitives B2 must expose for B8.
+*/
+})();
+</script>
+</body>
+</html>
