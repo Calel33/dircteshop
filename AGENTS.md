@@ -127,8 +127,8 @@ Before editing ANY file:
 
 ### Design System Location
 
-- Tokens stored in: `design -system/`
-- Reference: `design -system/design.md`
+- Product tokens: Tailwind theme in `app/globals.css` (starter tokens replaced with the product brand palette — issue #20 decision)
+- Reference spec: `design.md` (root) — scoped to landing/template sections
 
 ---
 
