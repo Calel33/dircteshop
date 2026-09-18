@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salon Booking Flow — Prototype (issue #20 · B9)</title>
+<!--
+  PROTOTYPE — issue #20 (B9 salon vertical). Throwaway artifact, not production code.
+  ────────────────────────────────────────────────────────────────────────────────
+  Question this answers:
+    What should the salon profile + booking flow be, so service selection, stylist
+    selection, time slots, confirmation, cancellation, owner booking status, and
+    responsive behavior are unambiguous before B9 implementation?
+  Shape:
+    One coherent profile design (Luxe mockup + SPEC §6 foundation) with a guided
+    clickable journey, a live booking-state inspector, and state toggles.
+  Run:
+    Double-click this file. No build, no server, no dependencies. Reload = reset.
+  Liftable part:
+    The `SalonWorkflow` script block — pure booking state machine + slot derivation
+    + timezone rules. No DOM access. Mirrors SPEC §7 / B9. Everything else is shell.
+-->
+<style>
+/* ── Design tokens (mirror of the intended product token set; prototype-local) ── */
+:root {
+  --brand: #2563eb; --brand-dark: #1e40af; --brand-soft: #eff6ff; --brand-border: #bfdbfe;
+  --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9;
+  --border: #e2e8f0; --border-strong: #cbd5e1;
+  --text: #0f172a; --text-muted: #64748b; --text-faint: #94a3b8;
+  --green: #16a34a; --green-soft: #dcfce7; --green-dark: #166534;
+  --amber: #d97706; --amber-soft: #fef3c7; --amber-dark: #92400e;
+  --red: #dc2626; --red-soft: #fee2e2; --red-dark: #991b1b;
+  --slate-chip: #e2e8f0; --slate-chip-text: #475569;
+  --radius-sm: 0.375rem; --radius: 0.625rem; --radius-lg: 0.875rem; --radius-xl: 1rem;
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* brand ramp + accents (salon mockup palette; swap values here to re-skin) */
+  --brand-100: #dbeafe; --brand-200: #bfdbfe; --brand-300: #93c5fd; --brand-500: #3b82f6; --brand-900: #1e3a8a;
+  --on-brand: #ffffff;
+  --star: #f59e0b; --amber-border: #fcd34d;
+  --accent-lavender: #e0e7ff; --accent-pink: #fae8ff;
+  /* prototype chrome only — deliberately outside the reviewed design */
+  --chrome-900: #0f172a; --chrome-800: #1e293b; --chrome-700: #334155;
+  --chrome-300: #cbd5e1; --chrome-200: #e2e8f0; --chrome-accent: #7dd3fc; --chrome-muted: #64748b;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-size: 0.9375rem; line-height: 1.5; padding-bottom: 7.5rem; }
+
+/* ── Prototype chrome (deliberately not part of the design being reviewed) ── */
+.proto-ribbon { background: var(--chrome-900); color: var(--chrome-300); font-size: 0.75rem; padding: var(--space-2) var(--space-4); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.proto-ribbon strong { color: var(--on-brand); letter-spacing: 0.06em; }
+.proto-ribbon .pill { background: var(--chrome-800); border: 0.0625rem solid var(--chrome-700); border-radius: 62.5rem; padding: 0.1rem 0.6rem; color: var(--chrome-accent); font-weight: 600; }
+.session-card { margin: var(--space-4) auto; max-width: 80rem; padding: var(--space-3) var(--space-4); background: var(--brand-soft); border: 0.0625rem solid var(--brand-border); border-radius: var(--radius-lg); font-size: 0.8125rem; color: var(--brand-dark); }
+.session-card strong { display: block; margin-bottom: 0.15rem; }
+
+.topbar { position: sticky; top: 0; z-index: 40; background: var(--surface); border-bottom: 0.0625rem solid var(--border); padding: var(--space-3) var(--space-4); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.brand { font-weight: 800; font-size: 1.0625rem; color: var(--brand); margin-right: var(--space-2); white-space: nowrap; }
+.brand span { color: var(--text); }
+.brand small { display: block; font-weight: 500; font-size: 0.65rem; color: var(--text-faint); letter-spacing: 0.04em; }
+.mode-tabs { display: flex; gap: var(--space-1); background: var(--surface-2); padding: 0.2rem; border-radius: var(--radius); }
+.mode-tab { border: none; background: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted); cursor: pointer; font-family: inherit; }
+.mode-tab.active { background: var(--surface); color: var(--brand); box-shadow: var(--shadow-sm); }
+.topbar .spacer { flex: 1; }
+.viewport-switch { display: flex; gap: var(--space-1); align-items: center; font-size: 0.75rem; color: var(--text-muted); }
+.viewport-switch button { border: 0.0625rem solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 0.25rem 0.6rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: var(--text-muted); font-family: inherit; }
+.viewport-switch button.active { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+
+/* App frame — container queries make the Desktop/Mobile toggle real responsive evidence */
+.app-shell { max-width: 80rem; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-8); }
+.app-frame { container-type: inline-size; container-name: app; background: var(--bg); }
+.app-frame.mobile { max-width: 24rem; margin: 0 auto; border: 0.0625rem solid var(--border-strong); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-md); }
+.view.hidden, .hidden { display: none !important; }
+
+/* ── Shared primitives ── */
+.card { background: var(--surface); border: 0.0625rem solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius); border: 0.0625rem solid var(--border); background: var(--surface); font-size: 0.875rem; font-weight: 600; cursor: pointer; color: var(--text); font-family: inherit; }
+.btn:hover { background: var(--surface-2); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.primary:hover:not(:disabled) { background: var(--brand-dark); }
+.btn.success { background: var(--green); border-color: var(--green); color: var(--on-brand); }
+.btn.success:hover:not(:disabled) { background: var(--green-dark); }
+.btn.danger { background: var(--surface); border-color: var(--red); color: var(--red); }
+.btn.danger:hover:not(:disabled) { background: var(--red-soft); }
+.btn.ghost { border-color: transparent; background: none; color: var(--text-muted); }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.small { padding: 0.3rem var(--space-3); font-size: 0.75rem; }
+.btn.block { width: 100%; }
+.chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.65rem; border-radius: 62.5rem; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.chip.green { background: var(--green-soft); color: var(--green-dark); }
+.chip.amber { background: var(--amber-soft); color: var(--amber-dark); }
+.chip.red { background: var(--red-soft); color: var(--red-dark); }
+.chip.slate { background: var(--slate-chip); color: var(--slate-chip-text); }
+.chip.blue { background: var(--brand-soft); color: var(--brand-dark); border: 0.0625rem solid var(--brand-border); }
+.pulse { animation: pulse 1s ease 2; outline: 0.125rem solid var(--brand); outline-offset: 0.125rem; border-radius: var(--radius); }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35); } 50% { box-shadow: 0 0 0 0.5rem rgba(37, 99, 235, 0); } }
+.skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--radius-sm); }
+.skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); animation: shimmer 1.3s infinite; transform: translateX(-100%); }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.muted { color: var(--text-muted); }
+.tiny { font-size: 0.72rem; color: var(--text-faint); }
+.error-text { color: var(--red); font-size: 0.75rem; margin-top: 0.2rem; }
+.row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+
+/* ── Visitor profile ── */
+.breadcrumb { font-size: 0.75rem; color: var(--text-muted); padding: var(--space-3) 0.25rem; }
+.breadcrumb a { color: var(--brand); text-decoration: none; }
+.hero { height: 14rem; border-radius: var(--radius-lg); background: linear-gradient(135deg, var(--brand-900), var(--brand-500) 55%, var(--brand-300)); display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: var(--space-4); overflow: hidden; }
+.hero .hero-label { color: rgba(255,255,255,0.92); font-weight: 600; font-size: 0.8125rem; background: rgba(15,23,42,0.35); padding: 0.3rem 0.8rem; border-radius: 62.5rem; }
+.hero .gallery-dots { position: absolute; bottom: var(--space-3); display: flex; gap: 0.35rem; }
+.hero .gallery-dots i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: rgba(255,255,255,0.55); }
+.hero .gallery-dots i.active { background: var(--on-brand); }
+.identity-bar { display: flex; gap: var(--space-4); align-items: flex-start; flex-wrap: wrap; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); }
+.identity-main { flex: 1; min-width: 15rem; }
+.identity-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.identity-meta { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.25rem; display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+.stars { color: var(--star); letter-spacing: 0.05em; }
+.actions-bar { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); }
+.open-now { font-weight: 700; font-size: 0.75rem; }
+.open-now.open { color: var(--green); }
+.open-now.closed { color: var(--red); }
+
+/* Profile body: container-query driven 2-col → 1-col, booking first on narrow */
+.profile-body { display: grid; grid-template-columns: minmax(0, 1fr) 22.5rem; grid-template-areas: "main booking" "main info"; gap: var(--space-5); align-items: start; }
+.main-content { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: var(--space-5); }
+.booking-area { grid-area: booking; min-width: 0; }
+.aside-info { grid-area: info; min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+@container app (max-width: 64rem) {
+  .profile-body { grid-template-columns: minmax(0, 1fr); grid-template-areas: "booking" "main" "info"; }
+}
+.section-card { padding: var(--space-5); }
+.section-title { font-size: 1.0625rem; font-weight: 800; margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2); }
+.stylist-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+@container app (max-width: 52rem) { .stylist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container app (max-width: 30rem) { .stylist-grid { grid-template-columns: minmax(0, 1fr); } }
+.stylist-card { border: 0.0625rem solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); text-align: center; background: var(--surface); }
+.stylist-photo { width: 4rem; height: 4rem; margin: 0 auto var(--space-3); border-radius: 50%; background: linear-gradient(135deg, var(--brand-100), var(--brand-200)); color: var(--brand-dark); font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; }
+.stylist-name { font-weight: 700; font-size: 0.9375rem; }
+.stylist-specialty { font-size: 0.75rem; color: var(--text-muted); margin: 0.15rem 0 var(--space-2); }
+.stylist-rating { font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-2); }
+.availability-status { font-size: 0.6875rem; font-weight: 700; color: var(--green); margin-bottom: var(--space-3); }
+.service-list { display: flex; flex-direction: column; }
+.service-item { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 0.0625rem dashed var(--border); }
+.service-item:last-child { border-bottom: none; }
+.service-item.unavailable { opacity: 0.55; }
+.service-name { font-weight: 700; font-size: 0.875rem; }
+.service-description { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.1rem; }
+.service-meta { text-align: right; white-space: nowrap; }
+.service-price { font-weight: 800; font-size: 0.9375rem; color: var(--brand-dark); }
+.service-duration { font-size: 0.72rem; color: var(--text-faint); }
+.portfolio-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+@container app (max-width: 52rem) { .portfolio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.portfolio-item { aspect-ratio: 1 / 1; border-radius: var(--radius); background: linear-gradient(135deg, var(--accent-lavender), var(--accent-pink)); display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; padding: var(--space-2); }
+.portfolio-info { font-size: 0.65rem; background: rgba(255,255,255,0.85); border-radius: var(--radius-sm); padding: 0.15rem 0.4rem; color: var(--text-muted); }
+.info-card { padding: var(--space-4); }
+.card-title { font-size: 0.875rem; font-weight: 800; margin-bottom: var(--space-3); }
+.meta-item { display: flex; justify-content: space-between; gap: var(--space-2); font-size: 0.8125rem; padding: 0.2rem 0; }
+.meta-item .meta-label { color: var(--text-muted); }
+.hours-row { display: flex; justify-content: space-between; font-size: 0.8125rem; padding: 0.2rem 0; border-bottom: 0.0625rem dashed var(--border); }
+.hours-row:last-child { border-bottom: none; }
+.hours-row.today { font-weight: 800; color: var(--brand-dark); }
+.profile-footer { margin-top: var(--space-6); padding: var(--space-4); text-align: center; font-size: 0.72rem; color: var(--text-faint); }
+
+/* ── Booking widget ── */
+.booking-widget { border: 0.0625rem solid var(--border); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-md); background: var(--surface); }
+.widget-head { background: linear-gradient(135deg, var(--brand), var(--brand-500)); color: var(--on-brand); padding: var(--space-5); }
+.widget-title { font-size: 1.125rem; font-weight: 800; }
+.widget-sub { font-size: 0.75rem; opacity: 0.9; margin-top: 0.15rem; }
+.widget-body { padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-5); }
+.step-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+.step-num { width: 1.15rem; height: 1.15rem; border-radius: 50%; background: var(--brand-soft); color: var(--brand-dark); font-size: 0.65rem; display: inline-flex; align-items: center; justify-content: center; }
+.choice-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.choice { display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; text-align: left; border: 0.0625rem solid var(--border); background: var(--surface); border-radius: var(--radius); padding: var(--space-3); cursor: pointer; font-family: inherit; font-size: 0.8125rem; }
+.choice:hover:not(:disabled) { border-color: var(--brand); background: var(--brand-soft); }
+.choice.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 0.0625rem var(--brand); }
+.choice:disabled { opacity: 0.5; cursor: not-allowed; }
+.choice .choice-price { font-weight: 800; color: var(--brand-dark); white-space: nowrap; }
+.choice .choice-duration { font-size: 0.7rem; color: var(--text-faint); }
+.chip-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.person-chip { border: 0.0625rem solid var(--border); background: var(--surface); border-radius: 62.5rem; padding: 0.3rem 0.8rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--text); }
+.person-chip:hover { border-color: var(--brand); }
+.person-chip.selected { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
+.date-strip { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-1); }
+.date-chip { min-width: 4.25rem; border: 0.0625rem solid var(--border); border-radius: var(--radius); background: var(--surface); padding: var(--space-2) var(--space-1); text-align: center; cursor: pointer; font-family: inherit; }
+.date-chip .dow { display: block; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 700; }
+.date-chip .dom { display: block; font-size: 0.875rem; font-weight: 800; }
+.date-chip.selected { border-color: var(--brand); background: var(--brand-soft); }
+.date-chip:disabled { opacity: 0.4; cursor: not-allowed; background: var(--surface-2); }
+.slot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+@container app (max-width: 30rem) { .slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.slot-btn { border: 0.0625rem solid var(--border); background: var(--surface); border-radius: var(--radius); padding: var(--space-2); font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+.slot-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand-dark); }
+.slot-btn.selected { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.slot-btn:disabled { background: var(--surface-2); color: var(--text-faint); cursor: not-allowed; text-decoration: line-through; }
+.slot-btn.skeleton-cell { height: 2.2rem; border: none; cursor: default; }
+.field { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: var(--space-3); }
+.field label { font-size: 0.75rem; font-weight: 700; }
+.field input { padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-size: 0.875rem; font-family: inherit; background: var(--surface); }
+.field input:focus { outline: 0.125rem solid var(--brand); outline-offset: -0.0625rem; }
+.field input.invalid { border-color: var(--red); }
+.review-line { font-size: 0.78rem; background: var(--surface-2); border: 0.0625rem dashed var(--border-strong); border-radius: var(--radius); padding: var(--space-3); color: var(--text-muted); }
+.review-line strong { color: var(--text); }
+.widget-note { font-size: 0.7rem; color: var(--text-faint); }
+.inline-state { border: 0.0625rem dashed var(--border-strong); border-radius: var(--radius); padding: var(--space-4); text-align: center; font-size: 0.8rem; color: var(--text-muted); }
+.inline-state strong { display: block; color: var(--text); font-size: 0.85rem; margin-bottom: 0.15rem; }
+.inline-state.error { border-color: var(--red); background: var(--red-soft); color: var(--red-dark); }
+.confirm-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: rgba(255,255,255,0.2); border: 0.125rem solid rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: 800; margin-bottom: var(--space-3); }
+.confirm-list { display: flex; flex-direction: column; gap: var(--space-2); font-size: 0.82rem; }
+.confirm-list > div { display: flex; justify-content: space-between; gap: var(--space-3); }
+.confirm-list dt { color: var(--text-muted); }
+.confirm-list dd { font-weight: 600; text-align: right; }
+.cancel-link-box { border: 0.0625rem solid var(--brand-border); background: var(--brand-soft); border-radius: var(--radius); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.cancel-link-box code { font-family: var(--font-mono); font-size: 0.68rem; word-break: break-all; color: var(--brand-dark); }
+
+/* ── Cancellation view ── */
+.cancel-wrap { max-width: 34rem; margin: var(--space-8) auto; }
+.cancel-card { padding: var(--space-6); }
+.cancel-card h2 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+.cancel-lookup { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+.cancel-lookup input { flex: 1; padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.78rem; }
+.terminal { border-left: 0.25rem solid var(--border-strong); padding-left: var(--space-4); }
+
+/* ── Owner view ── */
+.owner-wrap { display: flex; flex-direction: column; gap: var(--space-4); }
+.owner-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-4) var(--space-5); }
+.owner-head h2 { font-size: 1.25rem; flex: 1; }
+.notif-banner { background: var(--amber-soft); border: 0.0625rem solid var(--amber-border); color: var(--amber-dark); border-radius: var(--radius); padding: var(--space-3) var(--space-4); font-size: 0.8125rem; display: flex; gap: var(--space-2); align-items: center; }
+.filter-tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.filter-tab { border: 0.0625rem solid var(--border); background: var(--surface); border-radius: 62.5rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--text-muted); }
+.filter-tab.active { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }
+.booking-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.booking-row { padding: var(--space-4); display: flex; gap: var(--space-4); align-items: flex-start; flex-wrap: wrap; }
+@container app (max-width: 40rem) { .booking-row { flex-direction: column; } .booking-row .booking-actions { width: 100%; } }
+.booking-main { flex: 1; min-width: 14rem; }
+.booking-visitor { font-weight: 800; font-size: 0.9rem; display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.booking-detail { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+.booking-when { font-size: 0.82rem; font-weight: 700; margin-top: var(--space-2); }
+.booking-utc { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-faint); font-weight: 400; }
+.booking-trail { font-size: 0.68rem; color: var(--text-faint); margin-top: var(--space-2); }
+.booking-actions { display: flex; gap: var(--space-2); align-items: center; }
+
+/* ── Demo bar ── */
+.demo-bar { position: fixed; bottom: var(--space-3); left: 50%; transform: translateX(-50%); width: min(76rem, calc(100vw - 1.5rem)); z-index: 60; background: var(--chrome-900); color: var(--chrome-200); border-radius: var(--radius-lg); box-shadow: 0 0.5rem 1.5rem rgba(15,23,42,0.35); font-size: 0.78rem; overflow: hidden; }
+.demo-content { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3); }
+.demo-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.demo-tag { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em; color: var(--chrome-accent); border: 0.0625rem solid var(--chrome-700); border-radius: var(--radius-sm); padding: 0.15rem 0.4rem; }
+.demo-bar select { background: var(--chrome-800); color: var(--chrome-200); border: 0.0625rem solid var(--chrome-700); border-radius: var(--radius-sm); padding: 0.3rem 0.5rem; font-size: 0.75rem; font-family: inherit; max-width: 16rem; }
+.demo-bar .btn { border-color: var(--chrome-700); background: var(--chrome-800); color: var(--chrome-200); }
+.demo-bar .btn:hover:not(:disabled) { background: var(--chrome-700); }
+.demo-bar .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.demo-step { flex: 1; min-width: 12rem; color: var(--chrome-300); }
+.demo-step strong { color: var(--on-brand); }
+.demo-counter { font-family: var(--font-mono); font-size: 0.7rem; color: var(--chrome-accent); }
+.demo-states { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; border-top: 0.0625rem solid var(--chrome-800); padding-top: var(--space-3); }
+.demo-states .group-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--chrome-muted); margin-right: 0.15rem; }
+.demo-states .btn.on { border-color: var(--chrome-accent); color: var(--chrome-accent); }
+.demo-collapse { position: absolute; top: 0.4rem; right: 0.6rem; background: none; border: none; color: var(--chrome-muted); cursor: pointer; font-size: 0.9rem; }
+.demo-bar.collapsed .demo-content { display: none; }
+.demo-bar.collapsed { width: auto; padding: 0.5rem 2.5rem 0.5rem 1.5rem; }
+
+/* ── Inspector ── */
+.inspector { position: fixed; top: 0; right: 0; bottom: 0; width: min(30rem, 100vw); background: var(--surface); border-left: 0.0625rem solid var(--border); box-shadow: -0.5rem 0 1.5rem rgba(15,23,42,0.12); z-index: 70; display: flex; flex-direction: column; }
+.inspector-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 0.0625rem solid var(--border); }
+.inspector-tabs { display: flex; gap: var(--space-1); flex: 1; }
+.inspector-tab { border: none; background: none; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700; color: var(--text-muted); cursor: pointer; font-family: inherit; }
+.inspector-tab.active { background: var(--brand-soft); color: var(--brand-dark); }
+.inspector-close { border: none; background: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); }
+.inspector-body { padding: var(--space-4); overflow-y: auto; flex: 1; }
+.state-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+.state-table th { text-align: left; color: var(--text-faint); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; padding: var(--space-2) 0.3rem; border-bottom: 0.0625rem solid var(--border); }
+.state-table td { padding: var(--space-2) 0.3rem; border-bottom: 0.0625rem solid var(--border); vertical-align: top; }
+.state-table .mono { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-faint); word-break: break-all; }
+.log-list { display: flex; flex-direction: column; gap: 0.35rem; margin-top: var(--space-2); }
+.log-item { font-size: 0.72rem; padding: var(--space-2); border-radius: var(--radius-sm); background: var(--surface-2); border-left: 0.1875rem solid var(--border-strong); }
+.log-item.ok { border-left-color: var(--green); }
+.log-item.fail { border-left-color: var(--red); background: var(--red-soft); }
+.log-item .log-time { font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-faint); margin-right: 0.3rem; }
+.decision-item { border: 0.0625rem solid var(--border); border-radius: var(--radius); padding: var(--space-3); margin-bottom: var(--space-2); }
+.decision-item h4 { font-size: 0.78rem; margin-bottom: 0.2rem; }
+.decision-item p { font-size: 0.72rem; color: var(--text-muted); margin-bottom: var(--space-2); }
+.decision-item .open-tag { font-size: 0.6rem; font-weight: 800; color: var(--amber-dark); background: var(--amber-soft); border-radius: var(--radius-sm); padding: 0.1rem 0.35rem; margin-left: 0.3rem; }
+.decision-status { display: flex; gap: var(--space-1); }
+.decision-status button { border: 0.0625rem solid var(--border); background: var(--surface); border-radius: var(--radius-sm); font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; cursor: pointer; color: var(--text-muted); font-family: inherit; }
+.decision-status button.on-accept { border-color: var(--green); background: var(--green-soft); color: var(--green-dark); }
+.decision-status button.on-discuss { border-color: var(--amber); background: var(--amber-soft); color: var(--amber-dark); }
+.decision-status button.on-reject { border-color: var(--red); background: var(--red-soft); color: var(--red-dark); }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 80; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.modal { background: var(--surface); border-radius: var(--radius-lg); padding: var(--space-5); width: min(44rem, 100%); }
+.modal textarea { width: 100%; font-family: var(--font-mono); font-size: 0.72rem; border: 0.0625rem solid var(--border); border-radius: var(--radius); padding: var(--space-3); margin: var(--space-3) 0; }
+</style>
+</head>
+<body>
+<!-- ═══ Prototype chrome ═══ -->
+<div class="proto-ribbon">
+  <strong>PROTOTYPE</strong>
+  <span>issue #20 · B9 salon vertical — throwaway artifact, not production code</span>
+  <span class="pill">double-click to run</span>
+  <span class="pill">reload = reset</span>
+</div>
+
+<div class="session-card">
+  <strong>Question this prototype answers</strong>
+  What should the salon profile + booking flow be, so <em>service selection, stylist selection, time slots,
+  booking confirmation, cancellation, owner booking status, and responsive behavior</em> are unambiguous
+  before B9 implementation? Drive it with the guided scenarios and state inspector in the bottom bar.
+</div>
+
+<header class="topbar">
+  <div class="brand">Local<span>Connect</span><small>PROTOTYPE · #20</small></div>
+  <nav class="mode-tabs" id="mode-tabs">
+    <button class="mode-tab active" data-act="mode" data-mode="visitor">Visitor profile</button>
+    <button class="mode-tab" data-act="mode" data-mode="cancel">Cancellation link</button>
+    <button class="mode-tab" data-act="mode" data-mode="owner">Owner view</button>
+  </nav>
+  <span class="spacer"></span>
+  <div class="viewport-switch">
+    <span>Preview:</span>
+    <button data-act="viewport" data-vp="desktop" class="active">Desktop</button>
+    <button data-act="viewport" data-vp="mobile">Mobile 390px</button>
+  </div>
+</header>
+
+<div class="app-shell">
+  <div class="app-frame" id="app-frame">
+
+    <!-- ═══ VISITOR VIEW ═══ -->
+    <div class="view" id="view-visitor">
+      <div id="profile-region"><!-- rendered by shell --></div>
+    </div>
+
+    <!-- ═══ CANCELLATION VIEW ═══ -->
+    <div class="view hidden" id="view-cancel">
+      <div class="cancel-wrap">
+        <div class="card cancel-card">
+          <h2>Manage your appointment</h2>
+          <p class="muted tiny">Simulates the tokenized cancellation link from the booking confirmation. No account needed.</p>
+          <div class="cancel-lookup">
+            <input id="cancel-token-input" placeholder="Paste cancellation token (e.g. lk_…)" value="">
+            <button class="btn primary" data-act="cancel-lookup">Look up</button>
+          </div>
+          <div id="cancel-result" style="margin-top: var(--space-5);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ OWNER VIEW ═══ -->
+    <div class="view hidden" id="view-owner">
+      <div class="owner-wrap">
+        <div class="card owner-head">
+          <h2>Bookings <span class="muted" style="font-weight:500;font-size:0.85rem">· Luxe Hair Studio &amp; Spa</span></h2>
+          <span class="chip blue" id="owner-count-chip">0</span>
+        </div>
+        <div id="owner-notif"></div>
+        <div class="filter-tabs" id="owner-filters"></div>
+        <div id="owner-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ Demo bar ═══ -->
+<div class="demo-bar" id="demo-bar">
+  <button class="demo-collapse" data-act="demo-collapse" title="Collapse prototype controls">▾</button>
+  <div class="demo-content">
+    <div class="demo-row">
+      <span class="demo-tag">PROTOTYPE CONTROLS</span>
+      <select id="scenario-select" title="Guided scenarios">
+        <option value="">Free play — click anything</option>
+      </select>
+      <span class="demo-counter" id="demo-counter"></span>
+      <button class="btn small" data-act="scenario-prev">‹ Prev</button>
+      <button class="btn small primary" data-act="scenario-next">Next step ›</button>
+      <button class="btn small" data-act="scenario-run">Run all</button>
+      <button class="btn small" data-act="scenario-reset">Reset</button>
+      <span class="spacer"></span>
+      <button class="btn small" data-act="toggle-states">State toggles</button>
+      <button class="btn small" data-act="toggle-inspector">State &amp; decisions</button>
+    </div>
+    <div class="demo-step" id="demo-step-text">Free play: pick a service in the booking widget, choose a stylist and date, then a time slot. The inspector (top right) shows the booking records live.</div>
+    <div class="demo-states hidden" id="demo-states">
+      <span class="group-label">Profile:</span>
+      <button class="btn small" data-act="sim-profile" data-mode="ok">Normal</button>
+      <button class="btn small" data-act="sim-profile" data-mode="skeleton">Skeleton</button>
+      <button class="btn small" data-act="sim-profile" data-mode="error">Error</button>
+      <span class="group-label">Slots:</span>
+      <button class="btn small" data-act="sim-slot-error">Force next slot fetch to fail</button>
+      <span class="group-label">Owner list:</span>
+      <button class="btn small" data-act="sim-owner-loading">Simulate loading</button>
+      <button class="btn small" data-act="sim-owner-empty">Empty list</button>
+      <span class="group-label">Data:</span>
+      <button class="btn small" data-act="scenario-reset">Reset demo data</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Inspector drawer ═══ -->
+<aside class="inspector hidden" id="inspector">
+  <div class="inspector-head">
+    <div class="inspector-tabs">
+      <button class="inspector-tab active" data-act="inspector-tab" data-tab="state">Live state</button>
+      <button class="inspector-tab" data-act="inspector-tab" data-tab="decisions">Decisions (13)</button>
+    </div>
+    <button class="inspector-close" data-act="toggle-inspector" title="Close">×</button>
+  </div>
+  <div class="inspector-body" id="inspector-body"></div>
+</aside>
+
+<!-- ═══ Summary modal ═══ -->
+<div class="modal-backdrop hidden" id="summary-modal">
+  <div class="modal">
+    <h3>Decisions summary — paste into issue #20</h3>
+    <p class="muted tiny">Generated from the Accept / Discuss / Reject marks in the Decisions tab.</p>
+    <textarea id="summary-text" rows="16" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="btn primary" data-act="copy-summary">Copy to clipboard</button>
+      <button class="btn" data-act="close-summary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ════════════════════════════════════════════════════════════════════
+   PURE MODULE — SalonWorkflow
+   The liftable part. Booking state machine + slot derivation + tz rules.
+   No DOM access anywhere in this block. Mirrors SPEC §7 and B9:
+     - slots derived from business hours + service.durationMinutes (naive)
+     - statuses requested | confirmed | declined | cancelled
+     - anonymous contact (name / phone / email)
+     - startAt stored UTC, rendered in the business timezone
+     - tokenized visitor cancellation
+   ════════════════════════════════════════════════════════════════════ */
+const SalonWorkflow = (() => {
+  const SLOT_STEP_MINUTES = 30;
+
+  const BUSINESS = {
+    id: "biz-luxe",
+    name: "Luxe Hair Studio & Spa",
+    category: "Beauty & Wellness",
+    timezone: "America/Chicago",
+    address: "214 Blanco St, Austin, TX",
+    phone: "(512) 555-0184",
+    email: "hello@luxehairstudio.example",
+    website: "luxehairstudio.example",
+    verified: true,
+    rating: 4.8,
+    ratingCount: 124,
+    lastUpdated: "Sep 12, 2026",
+    // day index 0=Sunday … 6=Saturday. null = closed. [openMinutes, closeMinutes] business-local.
+    hours: { 0: null, 1: [540, 1140], 2: [540, 1140], 3: [540, 1140], 4: [540, 1200], 5: [540, 1200], 6: [540, 1020] }
+    // Mon–Thu 9:00–19:00 · Fri–Sat 9:00–20:00 · Sun closed
+  };
+
+  const SERVICES = [
+    { id: "svc-cut", name: "Signature Cut & Style", description: "Consultation, precision cut, and styling", price: 65, durationMinutes: 45, isAvailable: true, ordering: 1 },
+    { id: "svc-color", name: "Color Service", description: "Full color, highlights, or balayage", price: 120, durationMinutes: 120, isAvailable: true, ordering: 2 },
+    { id: "svc-treatment", name: "Deep Treatment", description: "Repair mask and scalp therapy", price: 85, durationMinutes: 60, isAvailable: true, ordering: 3 },
+    { id: "svc-consult", name: "Consultation", description: "15-minute style consultation — free", price: 0, durationMinutes: 15, isAvailable: true, ordering: 4 },
+    { id: "svc-blowout", name: "Blowout & Styling", description: "Shampoo, blow-dry, and finish", price: 45, durationMinutes: 30, isAvailable: true, ordering: 5 },
+    { id: "svc-updo", name: "Bridal Updo", description: "Special-occasion styling", price: 150, durationMinutes: 90, isAvailable: false, ordering: 6 }
+  ];
+
+  const STYLISTS = [
+    { id: "sty-sarah", name: "Sarah Chen", specialty: "Master Colorist", years: 12, rating: 4.9, ratingCount: 156, initials: "SC", serviceIds: ["svc-cut", "svc-color", "svc-treatment", "svc-consult"], isActive: true, availabilityNote: "Available today" },
+    { id: "sty-marcus", name: "Marcus Rodriguez", specialty: "Senior Stylist", years: 8, rating: 4.8, ratingCount: 98, initials: "MR", serviceIds: ["svc-cut", "svc-blowout", "svc-consult"], isActive: true, availabilityNote: "Available tomorrow" },
+    { id: "sty-emma", name: "Emma Thompson", specialty: "Treatment Specialist", years: 6, rating: 4.7, ratingCount: 71, initials: "ET", serviceIds: ["svc-treatment", "svc-blowout", "svc-consult"], isActive: true, availabilityNote: "Available today" }
+  ];
+
+  const STATUS_META = {
+    requested: { label: "Requested", chip: "amber", visitorHint: "Waiting for the salon to confirm." },
+    confirmed: { label: "Confirmed", chip: "green", visitorHint: "The salon confirmed your appointment." },
+    declined: { label: "Declined", chip: "red", visitorHint: "The salon could not take this appointment." },
+    cancelled: { label: "Cancelled", chip: "slate", visitorHint: "This appointment was cancelled." }
+  };
+
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  /* ── date/time helpers (pure) ─────────────────────────────────── */
+
+  function dateKeyParts(dateKey) {
+    const parts = dateKey.split("-").map(Number);
+    return { y: parts[0], m: parts[1], d: parts[2] };
+  }
+
+  function wallClockUtcMs(date, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone, hour12: false, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit"
+    }).formatToParts(date);
+    const get = (t) => Number(parts.find((p) => p.type === t).value);
+    const hour = get("hour") === 24 ? 0 : get("hour");
+    return Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+  }
+
+  // Business-local wall time → absolute Date (stored as UTC ISO by callers).
+  function zonedTimeToUtc(dateKey, minutesFromMidnight, timeZone) {
+    const p = dateKeyParts(dateKey);
+    const hh = Math.floor(minutesFromMidnight / 60);
+    const mm = minutesFromMidnight % 60;
+    const target = Date.UTC(p.y, p.m - 1, p.d, hh, mm);
+    let guess = target;
+    for (let i = 0; i < 2; i++) {
+      guess += target - wallClockUtcMs(new Date(guess), timeZone);
+    }
+    return new Date(guess);
+  }
+
+  function formatInTz(date, timeZone, options) {
+    return new Intl.DateTimeFormat("en-US", Object.assign({ timeZone: timeZone }, options)).format(date);
+  }
+
+  function tzAbbreviation(date, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timeZone, timeZoneName: "short" }).formatToParts(date);
+    const found = parts.find((p) => p.type === "timeZoneName");
+    return found ? found.value : timeZone;
+  }
+
+  function dateKeyInTz(date, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+    const get = (t) => parts.find((p) => p.type === t).value;
+    return get("year") + "-" + get("month") + "-" + get("day");
+  }
+
+  function addDays(dateKey, n) {
+    const p = dateKeyParts(dateKey);
+    return new Date(Date.UTC(p.y, p.m - 1, p.d + n)).toISOString().slice(0, 10);
+  }
+
+  function weekdayOf(dateKey) {
+    const p = dateKeyParts(dateKey);
+    return new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay();
+  }
+
+  function minutesOfTime(time) {
+    const parts = time.split(":").map(Number);
+    return parts[0] * 60 + parts[1];
+  }
+
+  function minutesToLabel(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return h12 + ":" + String(m).padStart(2, "0") + " " + ampm;
+  }
+
+  function formatMinutes(minutes) {
+    return String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
+  }
+
+  function weekdayShort(dateKey) {
+    const p = dateKeyParts(dateKey);
+    return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(p.y, p.m - 1, p.d)));
+  }
+
+  function dateLabel(dateKey, now) {
+    const todayKey = dateKeyInTz(now, BUSINESS.timezone);
+    if (dateKey === todayKey) return "Today";
+    if (dateKey === addDays(todayKey, 1)) return "Tomorrow";
+    return weekdayShort(dateKey) + ", " + longDateLabel(dateKey).split(", ")[1];
+  }
+
+  function longDateLabel(dateKey) {
+    const p = dateKeyParts(dateKey);
+    return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })
+      .format(new Date(Date.UTC(p.y, p.m - 1, p.d)));
+  }
+
+  function timeLabelFromIso(iso, withZone) {
+    const d = new Date(iso);
+    const t = formatInTz(d, BUSINESS.timezone, { hour: "numeric", minute: "2-digit" });
+    return withZone ? t + " " + tzAbbreviation(d, BUSINESS.timezone) : t;
+  }
+
+  function utcLabelFromIso(iso) {
+    const d = new Date(iso);
+    return formatInTz(d, "UTC", { hour: "2-digit", minute: "2-digit" }) + " UTC";
+  }
+
+  function money(amount) {
+    return amount === 0 ? "Free" : "$" + amount;
+  }
+
+  /* ── availability ─────────────────────────────────────────────── */
+
+  function serviceById(id) {
+    return SERVICES.find((s) => s.id === id) || null;
+  }
+
+  function stylistById(id) {
+    return STYLISTS.find((s) => s.id === id) || null;
+  }
+
+  function eligibleStylists(serviceId) {
+    return STYLISTS.filter((s) => s.isActive && (!serviceId || s.serviceIds.indexOf(serviceId) !== -1));
+  }
+
+  function overlaps(aStartIso, aMinutes, bStartIso, bMinutes) {
+    const aS = new Date(aStartIso).getTime();
+    const aE = aS + aMinutes * 60000;
+    const bS = new Date(bStartIso).getTime();
+    const bE = bS + bMinutes * 60000;
+    return aS < bE && bS < aE;
+  }
+
+  // Naive slot marking (SPEC §7 — no per-stylist calendar):
+  //  · 30-min grid from open to close − duration, in the business timezone
+  //  · a named-stylist booking blocks that stylist's slot
+  //  · an unassigned ("Any available") booking blocks the slot for everyone (conservative)
+  //  · "any available" is open while at least one eligible stylist is free
+  function deriveSlots(args) {
+    const dateKey = args.dateKey, serviceId = args.serviceId, stylistId = args.stylistId, bookings = args.bookings, now = args.now;
+    const service = serviceById(serviceId);
+    if (!service) return { status: "invalid", message: "Choose a service to see available times.", slots: [] };
+    if (!service.isAvailable) return { status: "unavailable", message: "This service is not currently offered.", slots: [] };
+    const weekday = weekdayOf(dateKey);
+    const dayHours = BUSINESS.hours[weekday];
+    if (!dayHours) return { status: "closed", message: BUSINESS.name + " is closed on " + DAY_NAMES[weekday] + "s.", slots: [] };
+    const openMin = dayHours[0], closeMin = dayHours[1], duration = service.durationMinutes;
+    const wantsAny = !stylistId || stylistId === "any";
+    const slots = [];
+    for (let start = openMin; start + duration <= closeMin; start += SLOT_STEP_MINUTES) {
+      const startDate = zonedTimeToUtc(dateKey, start, BUSINESS.timezone);
+      const startIso = startDate.toISOString();
+      let available = true;
+      let reason = null;
+      if (startDate.getTime() <= now.getTime()) { available = false; reason = "past"; }
+      if (available) {
+        const overlapping = bookings.filter((b) =>
+          (b.status === "requested" || b.status === "confirmed") &&
+          overlaps(b.startAtUtc, b.durationMinutes, startIso, duration));
+        const unassignedBusy = overlapping.some((b) => !b.stylistId);
+        if (unassignedBusy) { available = false; reason = "booked"; }
+        else if (wantsAny) {
+          const busyIds = overlapping.map((b) => b.stylistId);
+          const someFree = eligibleStylists(serviceId).some((s) => busyIds.indexOf(s.id) === -1);
+          if (!someFree) { available = false; reason = "booked"; }
+        } else if (overlapping.some((b) => b.stylistId === stylistId)) { available = false; reason = "booked"; }
+      }
+      slots.push({ time: formatMinutes(start), minutes: start, startIso: startIso, label: minutesToLabel(start), available: available, reason: reason });
+    }
+    return { status: "ok", slots: slots, message: null };
+  }
+
+  /* ── contact + booking workflow ───────────────────────────────── */
+
+  function validateContact(contact) {
+    const errors = {};
+    const name = (contact.name || "").trim();
+    const phone = (contact.phone || "").trim();
+    const email = (contact.email || "").trim();
+    if (name.length < 2) errors.name = "Enter the name for the appointment.";
+    if (!/^[+()\-.\s\d]{7,}$/.test(phone)) errors.phone = "Enter a phone number the salon can reach you on.";
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "That email doesn't look right.";
+    return { ok: Object.keys(errors).length === 0, errors: errors };
+  }
+
+  let tokenCounter = 100;
+  function makeToken() {
+    tokenCounter++;
+    return "lk_" + tokenCounter.toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function createBookingRequest(args) {
+    const bookings = args.bookings, serviceId = args.serviceId, stylistId = args.stylistId;
+    const dateKey = args.dateKey, time = args.time, contact = args.contact, now = args.now;
+    const service = serviceById(serviceId);
+    if (!service || !service.isAvailable) return { ok: false, error: "Pick an available service first.", code: "invalid_service" };
+    if (!dateKey || !time) return { ok: false, error: "Pick a date and time first.", code: "missing_slot" };
+    // Stale-slot guard: re-derive availability at submit time.
+    const fresh = deriveSlots({ dateKey: dateKey, serviceId: serviceId, stylistId: stylistId, bookings: bookings, now: now });
+    const slot = fresh.status === "ok" ? fresh.slots.find((s) => s.time === time) : null;
+    if (!slot || !slot.available) return { ok: false, error: "That time was just taken — pick another slot.", code: "slot_taken" };
+    const contactCheck = validateContact(contact);
+    if (!contactCheck.ok) return { ok: false, error: "Check the contact details.", code: "invalid_contact", errors: contactCheck.errors };
+    const booking = {
+      id: "bkg-" + Math.random().toString(36).slice(2, 9),
+      serviceOfferingId: serviceId,
+      stylistId: (stylistId && stylistId !== "any") ? stylistId : null,
+      customerName: contact.name.trim(),
+      customerPhone: contact.phone.trim(),
+      customerEmail: (contact.email || "").trim(),
+      startAtUtc: slot.startIso,
+      durationMinutes: service.durationMinutes,
+      timezone: BUSINESS.timezone,
+      status: "requested",
+      cancelToken: makeToken(),
+      createdAt: now.toISOString(),
+      trail: [{ at: now.toISOString(), label: "Appointment requested" }]
+    };
+    return { ok: true, booking: booking, bookings: bookings.concat([booking]) };
+  }
+
+  function bookingAction(bookings, action) {
+    const idx = action.bookingId
+      ? bookings.findIndex((b) => b.id === action.bookingId)
+      : bookings.findIndex((b) => b.cancelToken === action.token);
+    if (idx === -1) return { ok: false, error: "Booking not found.", code: "not_found" };
+    const current = bookings[idx];
+    const at = action.now.toISOString();
+    const replace = (patch, label) => {
+      const next = Object.assign({}, current, patch, { trail: current.trail.concat([{ at: at, label: label }]) });
+      const list = bookings.slice();
+      list[idx] = next;
+      return { ok: true, booking: next, bookings: list };
+    };
+    if (action.type === "confirm") {
+      if (current.status !== "requested") return { ok: false, error: "Cannot confirm a " + current.status + " booking.", code: "invalid_transition" };
+      return replace({ status: "confirmed" }, "Confirmed by " + BUSINESS.name);
+    }
+    if (action.type === "decline") {
+      if (current.status !== "requested") return { ok: false, error: "Cannot decline a " + current.status + " booking.", code: "invalid_transition" };
+      return replace({ status: "declined" }, "Declined by " + BUSINESS.name);
+    }
+    if (action.type === "cancel") {
+      if (action.token && current.cancelToken !== action.token) return { ok: false, error: "Invalid cancellation link.", code: "invalid_token" };
+      if (current.status === "cancelled") return { ok: false, error: "This appointment was already cancelled.", code: "already_cancelled" };
+      if (current.status === "declined") return { ok: false, error: "The salon declined this appointment — nothing to cancel.", code: "declined" };
+      return replace({ status: "cancelled" }, "Cancelled by visitor");
+    }
+    return { ok: false, error: "Unknown action.", code: "unknown" };
+  }
+
+  function findByToken(bookings, token) {
+    return bookings.find((b) => b.cancelToken === token) || null;
+  }
+
+  /* ── demo seeding + profile status (data helpers, still pure) ─── */
+
+  let seedCounter = 0;
+  function makeSeedBooking(args) {
+    seedCounter++;
+    const service = serviceById(args.serviceId);
+    const start = zonedTimeToUtc(args.dateKey, minutesOfTime(args.time), BUSINESS.timezone);
+    const trail = [{ at: new Date(start.getTime() - 86400000).toISOString(), label: "Appointment requested" }];
+    if (args.status === "confirmed") trail.push({ at: new Date(start.getTime() - 43200000).toISOString(), label: "Confirmed by " + BUSINESS.name });
+    return {
+      id: "seed-" + seedCounter,
+      serviceOfferingId: args.serviceId,
+      stylistId: args.stylistId || null,
+      customerName: args.name,
+      customerPhone: args.phone,
+      customerEmail: args.email || "",
+      startAtUtc: start.toISOString(),
+      durationMinutes: service.durationMinutes,
+      timezone: BUSINESS.timezone,
+      status: args.status,
+      cancelToken: "lk_seed_" + seedCounter,
+      createdAt: trail[0].at,
+      trail: trail
+    };
+  }
+
+  function nextOpenDateKey(now, n) {
+    const todayKey = dateKeyInTz(now, BUSINESS.timezone);
+    let count = 0;
+    for (let d = 1; d <= 60; d++) {
+      const key = addDays(todayKey, d);
+      if (BUSINESS.hours[weekdayOf(key)]) {
+        count++;
+        if (count === n) return key;
+      }
+    }
+    return null;
+  }
+
+  function nextClosedDateKey(now) {
+    const todayKey = dateKeyInTz(now, BUSINESS.timezone);
+    for (let d = 1; d <= 7; d++) {
+      const key = addDays(todayKey, d);
+      if (!BUSINESS.hours[weekdayOf(key)]) return key;
+    }
+    return null;
+  }
+
+  function initialBookings(now) {
+    const day1 = nextOpenDateKey(now, 1);
+    const day2 = nextOpenDateKey(now, 2);
+    return [
+      makeSeedBooking({ serviceId: "svc-color", stylistId: "sty-sarah", dateKey: day1, time: "10:00", name: "Dana R.", phone: "(512) 555-0102", email: "dana@example.com", status: "confirmed", now: now }),
+      makeSeedBooking({ serviceId: "svc-cut", stylistId: "sty-sarah", dateKey: day1, time: "14:30", name: "Priya N.", phone: "(512) 555-0114", email: "priya@example.com", status: "requested", now: now }),
+      makeSeedBooking({ serviceId: "svc-blowout", stylistId: "sty-marcus", dateKey: day2, time: "11:00", name: "Leo M.", phone: "(512) 555-0177", email: "", status: "confirmed", now: now })
+    ];
+  }
+
+  function currentMinutesInTz(now, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timeZone, hour12: false, hour: "2-digit", minute: "2-digit" }).formatToParts(now);
+    const get = (t) => parts.find((p) => p.type === t).value;
+    return (Number(get("hour")) % 24) * 60 + Number(get("minute"));
+  }
+
+  function openStatus(now) {
+    const nowKey = dateKeyInTz(now, BUSINESS.timezone);
+    const mins = currentMinutesInTz(now, BUSINESS.timezone);
+    const hours = BUSINESS.hours[weekdayOf(nowKey)];
+    if (hours && mins >= hours[0] && mins < hours[1]) {
+      return { open: true, label: "Open until " + minutesToLabel(hours[1]) };
+    }
+    for (let d = 0; d <= 7; d++) {
+      const key = addDays(nowKey, d);
+      const h = BUSINESS.hours[weekdayOf(key)];
+      if (!h) continue;
+      if (d === 0 && mins < h[0]) return { open: false, label: "Opens " + minutesToLabel(h[0]) + " today" };
+      if (d > 0) return { open: false, label: "Closed — opens " + minutesToLabel(h[0]) + " " + weekdayShort(key) };
+    }
+    return { open: false, label: "Closed" };
+  }
+
+  return {
+    SLOT_STEP_MINUTES: SLOT_STEP_MINUTES,
+    BUSINESS: BUSINESS,
+    SERVICES: SERVICES,
+    STYLISTS: STYLISTS,
+    STATUS_META: STATUS_META,
+    serviceById: serviceById,
+    stylistById: stylistById,
+    eligibleStylists: eligibleStylists,
+    deriveSlots: deriveSlots,
+    validateContact: validateContact,
+    createBookingRequest: createBookingRequest,
+    bookingAction: bookingAction,
+    findByToken: findByToken,
+    makeSeedBooking: makeSeedBooking,
+    dateKeyInTz: dateKeyInTz,
+    addDays: addDays,
+    weekdayOf: weekdayOf,
+    weekdayShort: weekdayShort,
+    dateLabel: dateLabel,
+    longDateLabel: longDateLabel,
+    minutesToLabel: minutesToLabel,
+    timeLabelFromIso: timeLabelFromIso,
+    utcLabelFromIso: utcLabelFromIso,
+    tzAbbreviation: tzAbbreviation,
+    money: money,
+    nextOpenDateKey: nextOpenDateKey,
+    nextClosedDateKey: nextClosedDateKey,
+    initialBookings: initialBookings,
+    openStatus: openStatus
+  };
+})();
+
+/* ════════════════════════════════════════════════════════════════════
+   PAGE SHELL (throwaway) — rendering, guided scenarios, state inspector.
+   Everything below touches the DOM; nothing above does.
+   ════════════════════════════════════════════════════════════════════ */
+
+const DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const ui = {
+  view: "visitor",
+  viewport: "desktop",
+  profileSim: "ok",            // ok | skeleton | error
+  serviceId: null,
+  stylistId: "any",
+  dateKey: null,
+  time: null,
+  slotIso: null,
+  slots: null,                 // { status, slots, message }
+  slotLoading: false,
+  forceSlotError: false,
+  contact: { name: "", phone: "", email: "" },
+  contactErrors: {},
+  submitState: "idle",         // idle | submitting | error
+  submitError: "",
+  bookings: [],
+  lastBookingId: null,
+  cancelTokenInput: "",
+  cancelResult: null,          // { kind: invalid | active | terminal, booking? }
+  cancelConfirming: false,
+  ownerFilter: "all",
+  ownerLoading: false,
+  log: [],
+  scenarioId: "",
+  stepIndex: 0,
+  inspectorOpen: false,
+  inspectorTab: "state",
+  statesOpen: false,
+  demoCollapsed: false,
+  decisionStatus: {}
+};
+
+function $(id) { return document.getElementById(id); }
+
+function esc(value) {
+  return String(value === undefined || value === null ? "" : value).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function logAction(text, ok) {
+  ui.log.unshift({ time: new Date().toLocaleTimeString("en-US", { hour12: false }), text: text, ok: ok !== false });
+  ui.log = ui.log.slice(0, 40);
+}
+
+function activeBooking() { return ui.bookings.find((b) => b.id === ui.lastBookingId) || null; }
+function currentScenario() { return scenarios.find((s) => s.id === ui.scenarioId) || null; }
+
+function pulse(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  el.classList.add("pulse");
+  setTimeout(() => el.classList.remove("pulse"), 2200);
+}
+
+function scrollToBooking() {
+  const el = $("booking-widget");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* ── Review checkpoints: the 12 decisions this session should settle ── */
+
+const decisions = [
+  { id: "d1", title: "Booking widget placement", choice: "Sidebar card on desktop; moves above the main content on mobile (grid areas).", note: "Keeps the Book CTA reachable without scrolling past services on phones." },
+  { id: "d2", title: "Form pattern", choice: "Single progressive card — all steps visible, enabled as you go. Not a multi-step wizard.", note: "Matches the mockup's single widget; everything stays on one screen." },
+  { id: "d3", title: "Service selection", choice: "Choice rows show name, description, price, and duration inline.", note: "Price/duration are decision inputs for visitors; plain selects hide them." },
+  { id: "d4", title: "Stylist selection", choice: "\"Any available\" is the default; stylist chips filter to those who offer the chosen service.", note: "Prevents invalid service + stylist pairs." },
+  { id: "d5", title: "Slot display", choice: "Taken/past slots render disabled (visible, not hidden); 30-min grid from hours + service duration.", note: "Scarcity is visible; naive marking per SPEC §7 — no per-stylist calendar." },
+  { id: "d6", title: "\"Any available\" bookings", choice: "Stored with stylistId = null; owner assigns at confirmation. Until assigned, an overlapping request blocks the slot.", note: "Conservative naive rule — review if too strict.", open: true },
+  { id: "d7", title: "Confirmation model", choice: "Request-first: submit → Requested → owner confirms/declines. Cancellation link shown immediately.", note: "SPEC §7: owner confirms/declines; no payment in v1." },
+  { id: "d8", title: "Contact capture", choice: "Name + phone required; email optional.", note: "Bookings schema currently has customerEmail non-optional — confirm at B9.", open: true },
+  { id: "d9", title: "Cancellation link behavior", choice: "Valid token on requested/confirmed → cancel. Used token (cancelled/declined) → status page, not an error. Unknown token → error.", note: "Terminal states must explain, not alarm." },
+  { id: "d10", title: "Owner booking list", choice: "Filter tabs All/Requested/Confirmed/Declined/Cancelled; inline Confirm/Decline on requested; trail per booking.", note: "Notification badge is a stub — B5 wires the real trigger." },
+  { id: "d11", title: "Timezone rendering", choice: "startAt stored UTC; visitor and owner times rendered in the business timezone with abbreviation.", note: "B9 verification: stored UTC, rendered business-local." },
+  { id: "d12", title: "States coverage", choice: "Profile skeleton/error; slot skeleton/error/closed/fully-booked; owner skeleton/empty; invalid-token and stale-slot errors.", note: "Per SPEC §13 — each flow ships its own states." },
+  { id: "d13", title: "Brand token source", choice: "Root design.md (Neuform \"Ecosystem Visualization\", orange/slate) is scoped to landing/template sections. Product surfaces use the mockup blue brand; the starter's neutral globals.css tokens are replaced by the LocalConnect palette at B2/B11.", note: "Prototype CSS is token-only (55 tokens, no raw values outside :root) — re-skinning is a values-only swap. Decided in the issue #20 prototype session." }
+];
+
+/* ── Demo controller helpers (drive the shell from scenarios) ─────── */
+
+const demo = {
+  chooseService: (id) => chooseService(id),
+  chooseStylist: (id) => chooseStylist(id),
+  chooseNextOpen: (n) => chooseDate(SalonWorkflow.nextOpenDateKey(new Date(), n)),
+  chooseNextClosed: () => chooseDate(SalonWorkflow.nextClosedDateKey(new Date())),
+  chooseFirstSlot: () => {
+    if (!ui.slots || ui.slots.status !== "ok") return;
+    const free = ui.slots.slots.find((s) => s.available);
+    if (free) chooseSlot(free);
+  },
+  fill: (name, phone, email) => {
+    ui.contact = { name: name, phone: phone, email: email };
+    ui.contactErrors = {};
+  },
+  submit: (instant) => submitRequest({ instant: instant }),
+  open: (view) => setView(view),
+  ownerFilter: (f) => setOwnerFilter(f),
+  ownerAction: (id, type) => ownerAction(id, type),
+  lastBookingId: () => ui.lastBookingId,
+  quickRequest: () => {
+    chooseService("svc-cut");
+    chooseStylist("sty-sarah");
+    chooseDate(SalonWorkflow.nextOpenDateKey(new Date(), 1), { instant: true });
+    demo.chooseFirstSlot();
+    demo.fill("Jamie Rivera", "(512) 555-0139", "jamie@example.com");
+    submitRequest({ instant: true });
+  },
+  openCancelLink: () => {
+    const b = activeBooking();
+    if (!b) return;
+    ui.cancelTokenInput = b.cancelToken;
+    setView("cancel");
+    lookupCancel();
+  },
+  confirmCancel: () => performCancel(),
+  lookupCurrent: () => lookupCancel(),
+  lookupBogus: () => { ui.cancelTokenInput = "lk_bogus_token"; setView("cancel"); lookupCancel(); },
+  seedFullDay: () => {
+    if (!ui.dateKey || !ui.serviceId) return;
+    const base = SalonWorkflow.deriveSlots({ dateKey: ui.dateKey, serviceId: ui.serviceId, stylistId: ui.stylistId, bookings: ui.bookings, now: new Date() });
+    if (base.status !== "ok") return;
+    let seeded = 0;
+    base.slots.forEach((s, i) => {
+      ui.bookings = ui.bookings.concat([SalonWorkflow.makeSeedBooking({
+        serviceId: ui.serviceId, stylistId: ui.stylistId === "any" ? null : ui.stylistId,
+        dateKey: ui.dateKey, time: s.time, name: "Blocked " + (i + 1), phone: "(512) 555-0000", email: "", status: "confirmed", now: new Date()
+      })]);
+      seeded++;
+    });
+    logAction("Seeded " + seeded + " bookings to fill every slot on " + ui.dateKey, true);
+    computeSlots();
+  },
+  reloadSlots: () => { computeSlots(); },
+  injectStale: () => {
+    if (!ui.time || !ui.dateKey || !ui.serviceId) return;
+    ui.bookings = ui.bookings.concat([SalonWorkflow.makeSeedBooking({
+      serviceId: ui.serviceId, stylistId: ui.stylistId === "any" ? null : ui.stylistId,
+      dateKey: ui.dateKey, time: ui.time, name: "Walk-in W.", phone: "(512) 555-0001", email: "", status: "confirmed", now: new Date()
+    })]);
+    logAction("A competing booking just took " + ui.time, true);
+  }
+};
+
+/* ── Guided scenarios (the awkward cases, one tab each) ───────────── */
+
+const scenarios = [
+  {
+    id: "happy",
+    title: "1 · Happy path — request, then owner confirms",
+    intro: "A visitor books Color Service with Sarah; the salon confirms it.",
+    steps: [
+      { label: "Pick “Color Service”", target: "#booking-widget", run: () => demo.chooseService("svc-color") },
+      { label: "Pick stylist “Sarah Chen”", target: "#booking-widget", run: () => demo.chooseStylist("sty-sarah") },
+      { label: "Pick the next open day", target: "#booking-widget", run: () => demo.chooseNextOpen(1) },
+      { label: "Select the first available time", target: "#booking-widget", run: () => demo.chooseFirstSlot() },
+      { label: "Fill contact details and request the appointment", target: "#booking-widget", run: () => { demo.fill("Jamie Rivera", "(512) 555-0139", "jamie@example.com"); demo.submit(true); } },
+      { label: "Open the Owner view — the request is waiting", target: "#view-owner", run: () => { demo.open("owner"); demo.ownerFilter("requested"); } },
+      { label: "Owner confirms the booking", target: "#owner-list", run: () => demo.ownerAction(demo.lastBookingId(), "confirm") },
+      { label: "Back to the visitor — status is Confirmed", target: "#booking-widget", run: () => demo.open("visitor") }
+    ]
+  },
+  {
+    id: "cancel",
+    title: "2 · Visitor cancels via the tokenized link",
+    intro: "Request an appointment, then drive the cancellation link.",
+    steps: [
+      { label: "Request an appointment (quick-fill)", target: "#booking-widget", run: () => demo.quickRequest() },
+      { label: "Open the cancellation link from the confirmation", target: "#cancel-token-input", run: () => demo.openCancelLink() },
+      { label: "Cancel the appointment", target: "#cancel-result", run: () => demo.confirmCancel() },
+      { label: "Reopen the same link — terminal “Cancelled”, not an error", target: "#cancel-result", run: () => demo.lookupCurrent() }
+    ]
+  },
+  {
+    id: "decline",
+    title: "3 · Owner declines a request",
+    intro: "The salon can't take the appointment; the visitor sees the state, not an error.",
+    steps: [
+      { label: "Request an appointment (quick-fill)", target: "#booking-widget", run: () => demo.quickRequest() },
+      { label: "Owner declines the request", target: "#owner-list", run: () => { demo.open("owner"); demo.ownerFilter("requested"); demo.ownerAction(demo.lastBookingId(), "decline"); } },
+      { label: "Visitor sees Declined — no cancel action offered", target: "#booking-widget", run: () => demo.open("visitor") }
+    ]
+  },
+  {
+    id: "closed",
+    title: "4 · Closed day (Sunday)",
+    intro: "The business has no hours that day — the slot step explains instead of dead-ending.",
+    steps: [
+      { label: "Pick a service and stylist", target: "#booking-widget", run: () => { demo.chooseService("svc-cut"); demo.chooseStylist("sty-marcus"); } },
+      { label: "Jump to the next closed day — empty state explains why", target: "#booking-widget", run: () => demo.chooseNextClosed() }
+    ]
+  },
+  {
+    id: "full",
+    title: "5 · Fully booked day",
+    intro: "Every slot gets taken; the empty state offers a way out.",
+    steps: [
+      { label: "Pick “Blowout & Styling” with Emma", target: "#booking-widget", run: () => { demo.chooseService("svc-blowout"); demo.chooseStylist("sty-emma"); } },
+      { label: "Pick the next open day", target: "#booking-widget", run: () => demo.chooseNextOpen(1) },
+      { label: "Simulate every slot getting booked", target: "#booking-widget", run: () => demo.seedFullDay() },
+      { label: "All slots taken — empty state appears", target: "#booking-widget", run: () => demo.reloadSlots() }
+    ]
+  },
+  {
+    id: "stale",
+    title: "6 · Stale slot — someone books it first",
+    intro: "The visitor is mid-form when the slot disappears; submit must fail safely.",
+    steps: [
+      { label: "Pick a service, stylist, date, and slot", target: "#booking-widget", run: () => { demo.chooseService("svc-cut"); demo.chooseStylist("sty-sarah"); demo.chooseNextOpen(1); demo.chooseFirstSlot(); } },
+      { label: "Fill contact details", target: "#booking-widget", run: () => demo.fill("Alex Kim", "(512) 555-0147", "") },
+      { label: "Someone else takes the same slot", target: "#booking-widget", run: () => demo.injectStale() },
+      { label: "Submit — the guard rejects the stale slot", target: "#booking-widget", run: () => demo.submit(true) },
+      { label: "Pick the next free slot and submit again", target: "#booking-widget", run: () => { demo.chooseFirstSlot(); demo.submit(true); } }
+    ]
+  },
+  {
+    id: "invalid",
+    title: "7 · Invalid cancellation token",
+    intro: "Unknown tokens error; used tokens show terminal status.",
+    steps: [
+      { label: "Open the cancellation view", target: "#cancel-token-input", run: () => { ui.cancelResult = null; demo.open("cancel"); } },
+      { label: "Look up a token that does not exist — error state", target: "#cancel-result", run: () => demo.lookupBogus() },
+      { label: "Recover: request a real booking to get a valid link", target: "#booking-widget", run: () => { demo.open("visitor"); demo.quickRequest(); } }
+    ]
+  }
+];
+
+/* ── Visitor profile rendering ────────────────────────────────────── */
+
+function profileSkeletonHtml() {
+  return `<div class="app-frame-inner" style="padding: 0 0 var(--space-6)">
+    <div class="skeleton" style="height: 14rem; border-radius: var(--radius-lg); margin-bottom: var(--space-4)"></div>
+    <div class="card" style="padding: var(--space-5); margin-bottom: var(--space-4)"><div class="skeleton" style="height: 1.5rem; width: 40%; margin-bottom: 0.75rem"></div><div class="skeleton" style="height: 0.9rem; width: 60%"></div></div>
+    <div class="profile-body">
+      <div class="main-content">
+        <div class="card section-card"><div class="skeleton" style="height: 1.1rem; width: 35%; margin-bottom: 1rem"></div><div class="skeleton" style="height: 8rem"></div></div>
+        <div class="card section-card"><div class="skeleton" style="height: 1.1rem; width: 30%; margin-bottom: 1rem"></div><div class="skeleton" style="height: 10rem"></div></div>
+      </div>
+      <div class="booking-area"><div class="skeleton" style="height: 24rem; border-radius: var(--radius-xl)"></div></div>
+    </div>
+  </div>`;
+}
+
+function profileErrorHtml() {
+  return `<div class="card section-card" style="margin-top: var(--space-4)">
+    <div class="inline-state error" style="padding: var(--space-8)">
+      <strong>We couldn't load this business</strong>
+      The profile service didn't respond. <span class="muted">(Simulated state — shared profile foundation error.)</span>
+      <div style="margin-top: var(--space-4)"><button class="btn primary" data-act="sim-profile" data-mode="ok">Retry</button></div>
+    </div>
+  </div>`;
+}
+
+function stylistCardHtml(s) {
+  return `<div class="stylist-card">
+    <div class="stylist-photo">${esc(s.initials)}</div>
+    <div class="stylist-name">${esc(s.name)}</div>
+    <div class="stylist-specialty">${esc(s.specialty)} · ${s.years} yrs</div>
+    <div class="stylist-rating"><span class="stars">★★★★★</span> ${s.rating} (${s.ratingCount})</div>
+    <div class="availability-status">● ${esc(s.availabilityNote)}</div>
+    <button class="btn small" data-act="book-with" data-id="${s.id}">Book with ${esc(s.name.split(" ")[0])}</button>
+  </div>`;
+}
+
+function serviceRowHtml(s) {
+  return `<div class="service-item ${s.isAvailable ? "" : "unavailable"}">
+    <div>
+      <div class="service-name">${esc(s.name)} ${s.isAvailable ? "" : '<span class="chip slate">Unavailable</span>'}</div>
+      <div class="service-description">${esc(s.description)}</div>
+    </div>
+    <div class="service-meta">
+      <div class="service-price">${SalonWorkflow.money(s.price)}</div>
+      <div class="service-duration">${s.durationMinutes} min</div>
+    </div>
+  </div>`;
+}
+
+function profileHtml() {
+  const biz = SalonWorkflow.BUSINESS;
+  const now = new Date();
+  const todayKey = SalonWorkflow.dateKeyInTz(now, biz.timezone);
+  const status = SalonWorkflow.openStatus(now);
+  const tz = SalonWorkflow.tzAbbreviation(now, biz.timezone);
+  const hoursRows = [1, 2, 3, 4, 5, 6, 0].map((day) => {
+    const h = biz.hours[day];
+    const value = h ? SalonWorkflow.minutesToLabel(h[0]) + " – " + SalonWorkflow.minutesToLabel(h[1]) : "Closed";
+    const isToday = day === SalonWorkflow.weekdayOf(todayKey);
+    return `<div class="hours-row ${isToday ? "today" : ""}"><span>${DAY_FULL[day]}</span><span>${value}</span></div>`;
+  }).join("");
+  const stylists = SalonWorkflow.STYLISTS.map(stylistCardHtml).join("");
+  const services = SalonWorkflow.SERVICES.map(serviceRowHtml).join("");
+  const portfolio = ["Balayage · Sarah", "Precision cut · Marcus", "Gloss + blowout · Emma", "Bridal updo · Sarah"]
+    .map((label) => `<div class="portfolio-item"><span class="portfolio-info">${esc(label)}</span></div>`).join("");
+  return `
+  <div class="breadcrumb">Home › Beauty &amp; Wellness › <a href="#" data-act="noop">${esc(biz.name)}</a></div>
+  <div class="hero"><span class="hero-label">Hero gallery placeholder (media from B7)</span><div class="gallery-dots"><i class="active"></i><i></i><i></i><i></i></div></div>
+  <div class="card identity-bar">
+    <div class="identity-main">
+      <div class="identity-name">${esc(biz.name)} <span class="verified" title="Verified">✔</span></div>
+      <div class="identity-meta">
+        <span>${esc(biz.category)}</span>
+        <span><span class="stars">★</span> ${biz.rating} (${biz.ratingCount})</span>
+        <span class="open-now ${status.open ? "open" : "closed"}">${esc(status.label)}</span>
+        <span class="tiny">${esc(biz.address)}</span>
+      </div>
+    </div>
+  </div>
+  <div class="card actions-bar">
+    <button class="btn primary" data-act="scroll-to-booking">Book Appointment</button>
+    <button class="btn" data-act="noop">Call Now</button>
+    <button class="btn" data-act="noop">View Portfolio</button>
+  </div>
+  <div class="profile-body">
+    <main class="main-content">
+      <section class="card section-card">
+        <h2 class="section-title">Meet Our Master Stylists</h2>
+        <div class="stylist-grid">${stylists}</div>
+      </section>
+      <section class="card section-card">
+        <h2 class="section-title">Services &amp; Pricing</h2>
+        <div class="service-list">${services}</div>
+      </section>
+      <section class="card section-card">
+        <h2 class="section-title">Before &amp; After Portfolio</h2>
+        <div class="portfolio-grid">${portfolio}</div>
+      </section>
+    </main>
+    <div class="booking-area"><div class="booking-widget" id="booking-widget"></div></div>
+    <aside class="aside-info">
+      <div class="card info-card">
+        <h3 class="card-title">Quick Contact</h3>
+        <div class="meta-item"><span class="meta-label">Phone</span><span>${esc(biz.phone)}</span></div>
+        <div class="meta-item"><span class="meta-label">Email</span><span>${esc(biz.email)}</span></div>
+        <div class="meta-item"><span class="meta-label">Website</span><span>${esc(biz.website)}</span></div>
+      </div>
+      <div class="card info-card">
+        <h3 class="card-title">Hours &amp; Location</h3>
+        ${hoursRows}
+        <p class="tiny" style="margin-top: var(--space-3)">${esc(biz.address)} · map embed deferred in v1.</p>
+      </div>
+      <div class="card info-card">
+        <h3 class="card-title">Special Offers</h3>
+        <p style="font-size:0.8125rem">20% off a first Color Service when booked online.</p>
+      </div>
+      <div class="card info-card">
+        <h3 class="card-title">Premium Products</h3>
+        <p class="muted" style="font-size:0.8125rem">Olaplex · Kérastase · Virtue — retail available in-studio.</p>
+      </div>
+    </aside>
+  </div>
+  <footer class="profile-footer">Owner-maintained · Last updated ${esc(biz.lastUpdated)} · Times shown in ${esc(tz)} (${esc(biz.timezone)}); bookings stored in UTC.</footer>`;
+}
+
+/* ── Booking widget rendering ─────────────────────────────────────── */
+
+function stepShell(n, title, body) {
+  return `<div class="step"><div class="step-label"><span class="step-num">${n}</span> ${title}</div>${body}</div>`;
+}
+
+function lockedState(message) {
+  return `<div class="inline-state">${esc(message)}</div>`;
+}
+
+function serviceStepHtml() {
+  const rows = SalonWorkflow.SERVICES.map((s) => `
+    <button class="choice ${ui.serviceId === s.id ? "selected" : ""}" data-act="choose-service" data-id="${s.id}" ${s.isAvailable ? "" : "disabled"}>
+      <span><span class="service-name">${esc(s.name)}</span><div class="service-description">${esc(s.description)}</div></span>
+      <span style="text-align:right"><span class="choice-price">${SalonWorkflow.money(s.price)}</span><div class="choice-duration">${s.durationMinutes} min${s.isAvailable ? "" : " · unavailable"}</div></span>
+    </button>`).join("");
+  return stepShell(1, "Choose a service", `<div class="choice-list">${rows}</div>`);
+}
+
+function stylistStepHtml() {
+  if (!ui.serviceId) return stepShell(2, "Choose a stylist (optional)", lockedState("Pick a service first — the chips filter to stylists who offer it."));
+  const chips = SalonWorkflow.eligibleStylists(ui.serviceId).map((s) =>
+    `<button class="person-chip ${ui.stylistId === s.id ? "selected" : ""}" data-act="choose-stylist" data-id="${s.id}">${esc(s.name)}</button>`).join("");
+  return stepShell(2, "Choose a stylist (optional)", `<div class="chip-row">
+    <button class="person-chip ${ui.stylistId === "any" ? "selected" : ""}" data-act="choose-stylist" data-id="any">Any available</button>
+    ${chips}
+  </div>`);
+}
+
+function dateStepHtml() {
+  if (!ui.serviceId) return stepShell(3, "Pick a date", lockedState("Choose a service first."));
+  const now = new Date();
+  const todayKey = SalonWorkflow.dateKeyInTz(now, SalonWorkflow.BUSINESS.timezone);
+  let chips = "";
+  for (let i = 0; i < 14; i++) {
+    const key = SalonWorkflow.addDays(todayKey, i);
+    const closed = !SalonWorkflow.BUSINESS.hours[SalonWorkflow.weekdayOf(key)];
+    const selected = ui.dateKey === key;
+    chips += `<button class="date-chip ${selected ? "selected" : ""}" data-act="choose-date" data-key="${key}" ${closed ? "disabled" : ""} title="${closed ? "Closed" : ""}">
+      <span class="dow">${closed ? "Closed" : SalonWorkflow.weekdayShort(key)}</span><span class="dom">${Number(key.slice(8, 10))}</span></button>`;
+  }
+  return stepShell(3, "Pick a date", `<div class="date-strip">${chips}</div>`);
+}
+
+function slotStepHtml() {
+  if (!ui.serviceId || !ui.dateKey) return stepShell(4, "Pick a time", lockedState("Choose a service and a date to see times."));
+  if (ui.slotLoading) {
+    const cells = Array.from({ length: 6 }).map(() => '<div class="slot-btn skeleton-cell skeleton"></div>').join("");
+    return stepShell(4, "Pick a time", `<div class="slot-grid">${cells}</div>`);
+  }
+  if (!ui.slots) return stepShell(4, "Pick a time", lockedState("Choose a service and a date to see times."));
+  if (ui.slots.status === "closed") return stepShell(4, "Pick a time", `<div class="inline-state"><strong>Closed this day</strong>${esc(ui.slots.message)} Pick another day.</div>`);
+  if (ui.slots.status === "unavailable" || ui.slots.status === "invalid") return stepShell(4, "Pick a time", lockedState(ui.slots.message));
+  if (ui.slots.status === "error") return stepShell(4, "Pick a time", `<div class="inline-state error"><strong>Couldn't load times</strong>The booking service didn't respond.<div style="margin-top: var(--space-3)"><button class="btn small" data-act="retry-slots">Retry</button></div></div>`);
+  const free = ui.slots.slots.filter((s) => s.available);
+  if (!free.length) return stepShell(4, "Pick a time", `<div class="inline-state"><strong>No open times</strong>Every slot for this day is taken. Try another day or switch to “Any available”.</div>`);
+  const buttons = ui.slots.slots.map((s) => `
+    <button class="slot-btn ${ui.time === s.time ? "selected" : ""}" data-act="choose-slot" data-time="${s.time}" data-iso="${s.startIso}"
+      ${s.available ? "" : "disabled"} title="${s.available ? "" : (s.reason === "past" ? "Already passed" : "Already booked")}">${esc(s.label)}</button>`).join("");
+  return stepShell(4, "Pick a time", `<div class="slot-grid">${buttons}</div>`);
+}
+
+function contactStepHtml() {
+  const locked = ui.time ? "" : "disabled";
+  const c = ui.contact;
+  const errs = ui.contactErrors || {};
+  return stepShell(5, "Your details", `
+    <p class="tiny" style="margin-bottom: var(--space-3)">No account needed — the salon uses these only to confirm.</p>
+    <div class="field"><label for="c-name">Name *</label>
+      <input id="c-name" data-field="name" value="${esc(c.name)}" ${locked} placeholder="Full name" autocomplete="name">
+      ${errs.name ? `<div class="error-text">${esc(errs.name)}</div>` : ""}</div>
+    <div class="field"><label for="c-phone">Phone *</label>
+      <input id="c-phone" data-field="phone" value="${esc(c.phone)}" ${locked} placeholder="(512) 555-0000" autocomplete="tel">
+      ${errs.phone ? `<div class="error-text">${esc(errs.phone)}</div>` : ""}</div>
+    <div class="field" style="margin-bottom:0"><label for="c-email">Email <span class="muted">(optional in this prototype — OPEN decision)</span></label>
+      <input id="c-email" data-field="email" value="${esc(c.email)}" ${locked} placeholder="you@example.com" autocomplete="email">
+      ${errs.email ? `<div class="error-text">${esc(errs.email)}</div>` : ""}</div>`);
+}
+
+function reviewText() {
+  const svc = SalonWorkflow.serviceById(ui.serviceId);
+  const stylist = ui.stylistId === "any" ? "Any available" : (SalonWorkflow.stylistById(ui.stylistId) || { name: "—" }).name;
+  const parts = [];
+  if (svc) { parts.push("<strong>" + esc(svc.name) + "</strong>"); parts.push(SalonWorkflow.money(svc.price) + " · " + svc.durationMinutes + " min"); }
+  if (ui.serviceId) parts.push(esc(stylist));
+  if (ui.dateKey) parts.push(esc(SalonWorkflow.dateLabel(ui.dateKey, new Date())));
+  if (ui.slotIso) parts.push("<strong>" + esc(SalonWorkflow.timeLabelFromIso(ui.slotIso, true)) + "</strong>");
+  return parts.length ? parts.join(" · ") : "Complete steps 1–4 to review your appointment.";
+}
+
+function submitReady() {
+  return !!(ui.serviceId && ui.dateKey && ui.time && ui.slotIso)
+    && SalonWorkflow.validateContact(ui.contact).ok
+    && ui.submitState !== "submitting";
+}
+
+function confirmationHtml(booking) {
+  const meta = SalonWorkflow.STATUS_META[booking.status];
+  const svc = SalonWorkflow.serviceById(booking.serviceOfferingId);
+  const sty = booking.stylistId ? SalonWorkflow.stylistById(booking.stylistId) : null;
+  const dateKey = SalonWorkflow.dateKeyInTz(new Date(booking.startAtUtc), SalonWorkflow.BUSINESS.timezone);
+  return `
+  <div class="widget-head">
+    <div class="confirm-icon">✓</div>
+    <div class="widget-title">${booking.status === "requested" ? "Appointment requested" : "Your appointment"}</div>
+    <div class="widget-sub">${booking.status === "requested" ? "The salon will confirm shortly — no payment needed." : esc(meta.visitorHint)}</div>
+  </div>
+  <div class="widget-body">
+    <div><span class="chip ${meta.chip}">${meta.label}</span></div>
+    <dl class="confirm-list">
+      <div><dt>Service</dt><dd>${esc(svc.name)} · ${esc(SalonWorkflow.money(svc.price))}</dd></div>
+      <div><dt>Stylist</dt><dd>${sty ? esc(sty.name) : "Any available"}</dd></div>
+      <div><dt>When</dt><dd>${esc(SalonWorkflow.longDateLabel(dateKey))} · ${esc(SalonWorkflow.timeLabelFromIso(booking.startAtUtc, true))}</dd></div>
+      <div><dt>Where</dt><dd>${esc(SalonWorkflow.BUSINESS.name)}</dd></div>
+    </dl>
+    ${booking.status === "cancelled" || booking.status === "declined" ? "" : `
+    <div class="cancel-link-box">
+      <div style="font-size:0.72rem;font-weight:700">Your cancellation link (no account needed)</div>
+      <code>prototype://salon-booking/cancel?token=${esc(booking.cancelToken)}</code>
+      <div class="row">
+        <button class="btn small" data-act="open-cancel" data-token="${esc(booking.cancelToken)}">Open cancellation link</button>
+        <button class="btn small ghost" data-act="book-another">Book another</button>
+      </div>
+    </div>`}
+    <p class="widget-note">Status trail: ${esc(booking.trail.map((t) => t.label).join(" → "))}</p>
+  </div>`;
+}
+
+function renderWidget() {
+  const host = $("booking-widget");
+  if (!host) return;
+  const booking = activeBooking();
+  if (booking) { host.innerHTML = confirmationHtml(booking); return; }
+  host.innerHTML = `
+  <div class="widget-head">
+    <div class="widget-title">Book an Appointment</div>
+    <div class="widget-sub">No account needed — the salon confirms your request.</div>
+  </div>
+  <div class="widget-body">
+    ${serviceStepHtml()}
+    ${stylistStepHtml()}
+    ${dateStepHtml()}
+    ${slotStepHtml()}
+    ${contactStepHtml()}
+    <div class="review-line" id="review-line">${reviewText()}</div>
+    ${ui.submitState === "error" && ui.submitError ? `<div class="inline-state error">${esc(ui.submitError)}</div>` : ""}
+    <button class="btn primary block" id="submit-btn" data-act="submit" ${submitReady() ? "" : "disabled"}>${ui.submitState === "submitting" ? "Requesting…" : "Request appointment"}</button>
+    <p class="widget-note">Times shown in ${esc(SalonWorkflow.BUSINESS.timezone)} (${esc(SalonWorkflow.tzAbbreviation(new Date(), SalonWorkflow.BUSINESS.timezone))}); stored as UTC.</p>
+  </div>`;
+}
+
+function renderProfile() {
+  const host = $("profile-region");
+  if (ui.profileSim === "skeleton") { host.innerHTML = profileSkeletonHtml(); return; }
+  if (ui.profileSim === "error") { host.innerHTML = profileErrorHtml(); return; }
+  host.innerHTML = profileHtml();
+  renderWidget();
+}
+
+/* ── Cancellation view rendering ──────────────────────────────────── */
+
+function renderCancel() {
+  const input = $("cancel-token-input");
+  if (input && input.value !== ui.cancelTokenInput) input.value = ui.cancelTokenInput;
+  const host = $("cancel-result");
+  const r = ui.cancelResult;
+  if (!r) { host.innerHTML = '<p class="tiny">Paste the token from your confirmation, or open the link from the booking panel.</p>'; return; }
+  if (r.kind === "invalid") {
+    host.innerHTML = `<div class="inline-state error"><strong>We couldn't find that booking link</strong>Check the link, or call the salon at ${esc(SalonWorkflow.BUSINESS.phone)}.</div>`;
+    return;
+  }
+  const b = r.booking;
+  const svc = SalonWorkflow.serviceById(b.serviceOfferingId);
+  const meta = SalonWorkflow.STATUS_META[b.status];
+  const dateKey = SalonWorkflow.dateKeyInTz(new Date(b.startAtUtc), SalonWorkflow.BUSINESS.timezone);
+  const summary = `<dl class="confirm-list">
+    <div><dt>Service</dt><dd>${esc(svc.name)}</dd></div>
+    <div><dt>When</dt><dd>${esc(SalonWorkflow.longDateLabel(dateKey))} · ${esc(SalonWorkflow.timeLabelFromIso(b.startAtUtc, true))}</dd></div>
+    <div><dt>Status</dt><dd><span class="chip ${meta.chip}">${meta.label}</span></dd></div>
+  </dl>`;
+  if (r.kind === "terminal") {
+    host.innerHTML = `<div class="terminal">${summary}<p class="tiny" style="margin-top: var(--space-3)">${esc(meta.visitorHint)} This link remains a record of the appointment; no further action is possible.</p></div>`;
+    return;
+  }
+  if (ui.cancelConfirming) {
+    host.innerHTML = `${summary}
+      <div class="inline-state" style="margin-top: var(--space-4)">
+        <strong>Cancel this appointment?</strong>This frees the slot for other visitors and can't be undone.
+        <div class="row" style="justify-content:center;margin-top: var(--space-3)">
+          <button class="btn danger" data-act="cancel-confirm">Yes, cancel it</button>
+          <button class="btn" data-act="cancel-keep">Keep appointment</button>
+        </div>
+      </div>`;
+    return;
+  }
+  host.innerHTML = `${summary}<div class="row" style="margin-top: var(--space-4)"><button class="btn danger" data-act="cancel-ask">Cancel appointment</button></div>`;
+}
+
+/* ── Owner view rendering ─────────────────────────────────────────── */
+
+function ownerRowHtml(b) {
+  const svc = SalonWorkflow.serviceById(b.serviceOfferingId);
+  const sty = b.stylistId ? SalonWorkflow.stylistById(b.stylistId) : null;
+  const meta = SalonWorkflow.STATUS_META[b.status];
+  const dateKey = SalonWorkflow.dateKeyInTz(new Date(b.startAtUtc), SalonWorkflow.BUSINESS.timezone);
+  const last = b.trail[b.trail.length - 1];
+  return `<div class="card booking-row">
+    <div class="booking-main">
+      <div class="booking-visitor">${esc(b.customerName)} <span class="chip ${meta.chip}">${meta.label}</span></div>
+      <div class="booking-detail">${esc(svc.name)} · ${b.durationMinutes} min · ${sty ? esc(sty.name) : "Any available (unassigned)"}</div>
+      <div class="booking-detail">${esc(b.customerPhone)}${b.customerEmail ? " · " + esc(b.customerEmail) : ""}</div>
+      <div class="booking-when">${esc(SalonWorkflow.longDateLabel(dateKey))} · ${esc(SalonWorkflow.timeLabelFromIso(b.startAtUtc, true))} <span class="booking-utc">(${esc(SalonWorkflow.utcLabelFromIso(b.startAtUtc))})</span></div>
+      <div class="booking-trail">Last: ${esc(last.label)} · token <span style="font-family:var(--font-mono)">${esc(b.cancelToken)}</span></div>
+    </div>
+    <div class="booking-actions">
+      ${b.status === "requested"
+        ? `<button class="btn small success" data-act="owner-confirm" data-id="${b.id}">Confirm</button><button class="btn small danger" data-act="owner-decline" data-id="${b.id}">Decline</button>`
+        : '<span class="tiny">No actions</span>'}
+    </div>
+  </div>`;
+}
+
+function renderOwner() {
+  const all = ui.bookings.slice().sort((a, b) => new Date(a.startAtUtc) - new Date(b.startAtUtc));
+  const counts = { requested: 0, confirmed: 0, declined: 0, cancelled: 0 };
+  all.forEach((b) => { counts[b.status] = (counts[b.status] || 0) + 1; });
+  $("owner-count-chip").textContent = all.length + " total · " + counts.requested + " requested";
+  $("owner-notif").innerHTML = counts.requested
+    ? `<div class="notif-banner">🔔 ${counts.requested} booking request${counts.requested > 1 ? "s" : ""} waiting — in-app notification stub (B5 wires the trigger).</div>`
+    : "";
+  const filters = ["all", "requested", "confirmed", "declined", "cancelled"];
+  $("owner-filters").innerHTML = filters.map((f) => {
+    const label = f === "all" ? "All" : SalonWorkflow.STATUS_META[f].label;
+    const count = f === "all" ? all.length : (counts[f] || 0);
+    return `<button class="filter-tab ${ui.ownerFilter === f ? "active" : ""}" data-act="owner-filter" data-filter="${f}">${label} (${count})</button>`;
+  }).join("");
+  const host = $("owner-list");
+  if (ui.ownerLoading) {
+    host.innerHTML = `<div class="booking-list">${Array.from({ length: 3 }).map(() => `
+      <div class="card booking-row"><div class="booking-main">
+        <div class="skeleton" style="height:1rem;width:40%;margin-bottom:0.5rem"></div>
+        <div class="skeleton" style="height:0.8rem;width:70%"></div>
+      </div></div>`).join("")}</div>`;
+    return;
+  }
+  const rows = ui.ownerFilter === "all" ? all : all.filter((b) => b.status === ui.ownerFilter);
+  if (!rows.length) {
+    host.innerHTML = `<div class="inline-state" style="background:var(--surface)"><strong>Nothing here</strong>${ui.ownerFilter === "all" ? "No bookings yet — try a scenario." : "No " + esc(ui.ownerFilter) + " bookings right now."}</div>`;
+    return;
+  }
+  host.innerHTML = `<div class="booking-list">${rows.map(ownerRowHtml).join("")}</div>`;
+}
+
+/* ── Inspector + decisions ────────────────────────────────────────── */
+
+function renderInspector() {
+  $("inspector").classList.toggle("hidden", !ui.inspectorOpen);
+  document.querySelectorAll(".inspector-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === ui.inspectorTab));
+  renderInspectorBody();
+}
+
+function renderInspectorBody() {
+  const host = $("inspector-body");
+  if (ui.inspectorTab === "state") {
+    const rows = ui.bookings.slice().sort((a, b) => new Date(a.startAtUtc) - new Date(b.startAtUtc)).map((b) => {
+      const meta = SalonWorkflow.STATUS_META[b.status];
+      const svc = SalonWorkflow.serviceById(b.serviceOfferingId);
+      const sty = b.stylistId ? SalonWorkflow.stylistById(b.stylistId) : null;
+      const last = b.trail[b.trail.length - 1];
+      return `<tr>
+        <td><span class="chip ${meta.chip}">${meta.label}</span></td>
+        <td>${esc(b.customerName)}<div class="mono">${esc(b.cancelToken)}</div></td>
+        <td>${esc(svc.name)}<div class="mono">${sty ? esc(sty.name) : "any → unassigned"}</div></td>
+        <td>${esc(SalonWorkflow.dateKeyInTz(new Date(b.startAtUtc), SalonWorkflow.BUSINESS.timezone))} ${esc(SalonWorkflow.timeLabelFromIso(b.startAtUtc, false))}<div class="mono">${esc(SalonWorkflow.utcLabelFromIso(b.startAtUtc))}</div></td>
+        <td class="mono">${esc(last.label)}</td>
+      </tr>`;
+    }).join("");
+    host.innerHTML = `
+      <h3 style="font-size:0.85rem;margin-bottom:var(--space-2)">Bookings (${ui.bookings.length})</h3>
+      <table class="state-table"><thead><tr><th>Status</th><th>Visitor / token</th><th>Service / stylist</th><th>Start (tz / UTC)</th><th>Last event</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="tiny">No bookings.</td></tr>'}</tbody></table>
+      <h3 style="font-size:0.85rem;margin:var(--space-5) 0 var(--space-2)">Action log</h3>
+      <div class="log-list">${ui.log.map((l) => `<div class="log-item ${l.ok ? "ok" : "fail"}"><span class="log-time">${esc(l.time)}</span>${esc(l.text)}</div>`).join("") || '<div class="tiny">No actions yet.</div>'}</div>`;
+    return;
+  }
+  host.innerHTML = decisions.map((d) => {
+    const st = ui.decisionStatus[d.id] || "pending";
+    return `<div class="decision-item">
+      <h4>${esc(d.title)}${d.open ? '<span class="open-tag">OPEN</span>' : ""}</h4>
+      <p><strong>Chosen:</strong> ${esc(d.choice)}<br>${esc(d.note)}</p>
+      <div class="decision-status">
+        <button class="${st === "accept" ? "on-accept" : ""}" data-act="decision" data-id="${d.id}" data-status="accept">✓ Accept</button>
+        <button class="${st === "discuss" ? "on-discuss" : ""}" data-act="decision" data-id="${d.id}" data-status="discuss">Discuss</button>
+        <button class="${st === "reject" ? "on-reject" : ""}" data-act="decision" data-id="${d.id}" data-status="reject">Reject</button>
+      </div>
+    </div>`;
+  }).join("") + `<button class="btn primary block" style="margin-top:var(--space-2)" data-act="open-summary">Generate decisions summary</button>`;
+}
+
+function buildSummary() {
+  const lines = ["## Prototype review — issue #20 (B9 salon booking)", "", "Prototype: `screens/wayfinder/prototype/salon-booking.html`", ""];
+  decisions.forEach((d) => {
+    const st = ui.decisionStatus[d.id] || "pending";
+    lines.push("- **" + st + "** — " + d.title + ": " + d.choice);
+  });
+  lines.push("", "Open items: " + decisions.filter((d) => d.open).map((d) => d.title).join("; "), "", "Session notes: (add here)");
+  return lines.join("\n");
+}
+
+function openSummary() { $("summary-text").value = buildSummary(); $("summary-modal").classList.remove("hidden"); }
+
+function copySummary() {
+  const area = $("summary-text");
+  area.select();
+  let copied = false;
+  try { copied = document.execCommand("copy"); } catch (err) { copied = false; }
+  logAction(copied ? "Decisions summary copied to clipboard" : "Clipboard unavailable — select the textarea and copy manually", true);
+  if (copied) $("summary-modal").classList.add("hidden");
+}
+
+/* ── Demo bar + states panel ──────────────────────────────────────── */
+
+function renderDemoBar() {
+  const sc = currentScenario();
+  const counter = $("demo-counter");
+  const text = $("demo-step-text");
+  if (!sc) {
+    counter.textContent = "";
+    text.textContent = "Free play: pick a service in the booking widget, choose a stylist and date, then a time slot. The inspector shows the booking records live.";
+    return;
+  }
+  counter.textContent = ui.stepIndex + " / " + sc.steps.length;
+  const done = ui.stepIndex >= sc.steps.length;
+  text.innerHTML = done
+    ? `<strong>Scenario complete.</strong> ${esc(sc.title)} — use Reset or pick another scenario.`
+    : `<strong>${esc(sc.title)}.</strong> ${esc(sc.intro)}<br><strong>Next:</strong> ${esc(sc.steps[ui.stepIndex].label)}`;
+}
+
+function renderStates() {
+  $("demo-states").classList.toggle("hidden", !ui.statesOpen);
+  document.querySelectorAll('[data-act="sim-profile"]').forEach((b) => b.classList.toggle("on", b.dataset.mode === ui.profileSim));
+  const slotBtn = document.querySelector('[data-act="sim-slot-error"]');
+  if (slotBtn) slotBtn.classList.toggle("on", ui.forceSlotError);
+}
+
+/* ── Actions ──────────────────────────────────────────────────────── */
+
+function chooseService(id) {
+  const svc = SalonWorkflow.serviceById(id);
+  if (!svc || !svc.isAvailable) return;
+  ui.serviceId = id; ui.stylistId = "any"; ui.dateKey = null; ui.time = null; ui.slotIso = null; ui.slots = null;
+  ui.contactErrors = {}; ui.submitState = "idle"; ui.submitError = "";
+  logAction("Service chosen: " + svc.name, true);
+  renderAll();
+}
+
+function chooseStylist(id) {
+  ui.stylistId = id; ui.time = null; ui.slotIso = null;
+  logAction("Stylist chosen: " + (id === "any" ? "Any available" : (SalonWorkflow.stylistById(id) || { name: id }).name), true);
+  if (ui.dateKey && ui.serviceId) loadSlots(); else renderAll();
+}
+
+function chooseDate(key, opts) {
+  ui.dateKey = key; ui.time = null; ui.slotIso = null;
+  logAction("Date chosen: " + key, true);
+  if (opts && opts.instant) { computeSlots(); renderAll(); } else { loadSlots(); }
+}
+
+function chooseSlot(slot) {
+  ui.time = slot.time; ui.slotIso = slot.startIso; ui.submitState = "idle"; ui.submitError = "";
+  logAction("Slot chosen: " + slot.time + " (" + SalonWorkflow.timeLabelFromIso(slot.startIso, true) + ")", true);
+  renderAll();
+}
+
+function computeSlots() {
+  ui.slots = SalonWorkflow.deriveSlots({ dateKey: ui.dateKey, serviceId: ui.serviceId, stylistId: ui.stylistId, bookings: ui.bookings, now: new Date() });
+}
+
+function loadSlots() {
+  ui.slotLoading = true; ui.slots = null; renderWidget();
+  const key = ui.dateKey;
+  setTimeout(() => {
+    if (key !== ui.dateKey) return; // stale fetch guard
+    ui.slotLoading = false;
+    if (ui.forceSlotError) {
+      ui.slots = { status: "error", message: "The booking service didn't respond.", slots: [] };
+      ui.forceSlotError = false;
+      logAction("Slot fetch failed (simulated)", false);
+    } else {
+      computeSlots();
+    }
+    renderAll();
+  }, 650);
+}
+
+function submitRequest(opts) {
+  const instant = !!(opts && opts.instant);
+  const run = () => {
+    const result = SalonWorkflow.createBookingRequest({
+      bookings: ui.bookings, serviceId: ui.serviceId, stylistId: ui.stylistId,
+      dateKey: ui.dateKey, time: ui.time, contact: ui.contact, now: new Date()
+    });
+    if (!result.ok) {
+      ui.submitState = "error"; ui.submitError = result.error;
+      if (result.errors) ui.contactErrors = result.errors;
+      logAction("Request rejected: " + result.error, false);
+      renderAll();
+      return;
+    }
+    ui.bookings = result.bookings; ui.lastBookingId = result.booking.id;
+    ui.submitState = "idle"; ui.submitError = ""; ui.contactErrors = {};
+    logAction("Booking requested → " + result.booking.id + " (token " + result.booking.cancelToken + ")", true);
+    renderAll();
+  };
+  ui.submitState = "submitting"; ui.submitError = "";
+  if (instant) { run(); return; }
+  renderAll();
+  setTimeout(run, 650);
+}
+
+function bookWithStylist(id) {
+  const sty = SalonWorkflow.stylistById(id);
+  if (!sty) return;
+  if (!ui.serviceId || sty.serviceIds.indexOf(ui.serviceId) === -1) {
+    const svc = SalonWorkflow.SERVICES.find((s) => s.isAvailable && sty.serviceIds.indexOf(s.id) !== -1);
+    if (svc) ui.serviceId = svc.id;
+  }
+  ui.stylistId = id; ui.time = null; ui.slotIso = null;
+  if (ui.dateKey) computeSlots();
+  logAction("Booking with " + sty.name, true);
+  renderAll();
+  scrollToBooking();
+}
+
+function lookupCancel() {
+  ui.cancelConfirming = false;
+  const token = (ui.cancelTokenInput || "").trim();
+  if (!token) { ui.cancelResult = null; renderCancel(); return; }
+  const booking = SalonWorkflow.findByToken(ui.bookings, token);
+  if (!booking) { ui.cancelResult = { kind: "invalid" }; logAction("Cancel lookup: token not found", false); renderAll(); return; }
+  const terminal = booking.status === "cancelled" || booking.status === "declined";
+  ui.cancelResult = { kind: terminal ? "terminal" : "active", booking: booking };
+  logAction("Cancel lookup: " + booking.status, true);
+  renderAll();
+}
+
+function performCancel() {
+  const r = ui.cancelResult;
+  if (!r || r.kind !== "active") return;
+  const result = SalonWorkflow.bookingAction(ui.bookings, { type: "cancel", token: r.booking.cancelToken, now: new Date() });
+  if (result.ok) { ui.bookings = result.bookings; logAction("Booking cancelled via token", true); }
+  else { logAction("Cancel rejected: " + result.error, false); }
+  ui.cancelConfirming = false;
+  lookupCancel();
+}
+
+function setOwnerFilter(f) { ui.ownerFilter = f; renderOwner(); }
+
+function ownerAction(id, type) {
+  const result = SalonWorkflow.bookingAction(ui.bookings, { type: type, bookingId: id, now: new Date() });
+  if (!result.ok) { logAction("Owner " + type + " rejected: " + result.error, false); renderAll(); return; }
+  ui.bookings = result.bookings;
+  logAction("Owner " + (type === "confirm" ? "confirmed" : "declined") + " " + id, true);
+  renderAll();
+}
+
+function setView(view) {
+  ui.view = view;
+  if (view === "owner") {
+    ui.ownerLoading = true;
+    renderAll();
+    setTimeout(() => { ui.ownerLoading = false; renderAll(); }, 500);
+    return;
+  }
+  renderAll();
+}
+
+function setViewport(vp) { ui.viewport = vp; renderAll(); }
+
+function simulateOwnerLoading() {
+  ui.ownerLoading = true;
+  if (ui.view !== "owner") ui.view = "owner";
+  renderAll();
+  setTimeout(() => { ui.ownerLoading = false; renderAll(); }, 800);
+}
+
+/* ── Scenario runner ──────────────────────────────────────────────── */
+
+let runTimer = null;
+
+function setScenario(id) {
+  ui.scenarioId = id;
+  ui.stepIndex = 0;
+  resetDemo();
+  logAction(id ? "Scenario started" : "Free play mode", true);
+  renderAll();
+}
+
+function runNext() {
+  const sc = currentScenario();
+  if (!sc || ui.stepIndex >= sc.steps.length) return;
+  const step = sc.steps[ui.stepIndex];
+  try { step.run(); logAction("Scenario step: " + step.label, true); }
+  catch (err) { logAction("Scenario step failed: " + err.message, false); }
+  ui.stepIndex++;
+  renderAll();
+  if (step.target) pulse(step.target);
+}
+
+function runPrev() {
+  if (ui.stepIndex > 0) { ui.stepIndex--; logAction("Pointer moved back (state is not rewound)", true); renderAll(); }
+}
+
+function runAll() {
+  if (runTimer) return;
+  const tick = () => {
+    const sc = currentScenario();
+    if (!sc || ui.stepIndex >= sc.steps.length) { runTimer = null; return; }
+    runNext();
+    runTimer = setTimeout(tick, 1300);
+  };
+  tick();
+}
+
+function resetDemo() {
+  ui.bookings = SalonWorkflow.initialBookings(new Date());
+  ui.serviceId = null; ui.stylistId = "any"; ui.dateKey = null; ui.time = null; ui.slotIso = null; ui.slots = null;
+  ui.contact = { name: "", phone: "", email: "" }; ui.contactErrors = {};
+  ui.submitState = "idle"; ui.submitError = "";
+  ui.lastBookingId = null; ui.cancelTokenInput = ""; ui.cancelResult = null; ui.cancelConfirming = false;
+  ui.ownerFilter = "all"; ui.ownerLoading = false; ui.profileSim = "ok"; ui.forceSlotError = false;
+  ui.view = "visitor";
+  logAction("Demo data reset (" + ui.bookings.length + " seeded bookings)", true);
+}
+
+/* ── Contact field input handling ─────────────────────────────────── */
+
+function updateContactUI() {
+  const errs = ui.contactErrors || {};
+  ["name", "phone", "email"].forEach((fieldName) => {
+    const field = document.querySelector('[data-field="' + fieldName + '"]');
+    if (!field) return;
+    const msg = errs[fieldName] || "";
+    field.classList.toggle("invalid", !!msg);
+    let holder = field.parentElement.querySelector(".error-text");
+    if (msg && !holder) {
+      holder = document.createElement("div");
+      holder.className = "error-text";
+      field.after(holder);
+    }
+    if (holder) holder.textContent = msg;
+  });
+  const btn = $("submit-btn");
+  if (btn) btn.disabled = !submitReady();
+  const review = $("review-line");
+  if (review) review.innerHTML = reviewText();
+}
+
+document.addEventListener("input", (event) => {
+  const fieldName = event.target.dataset ? event.target.dataset.field : null;
+  if (!fieldName) return;
+  ui.contact[fieldName] = event.target.value;
+  ui.contactErrors = SalonWorkflow.validateContact(ui.contact).errors;
+  updateContactUI();
+});
+
+/* ── Event wiring ─────────────────────────────────────────────────── */
+
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-act]");
+  if (!trigger) return;
+  const act = trigger.dataset.act;
+  switch (act) {
+    case "mode": setView(trigger.dataset.mode); break;
+    case "viewport": setViewport(trigger.dataset.vp); break;
+    case "choose-service": chooseService(trigger.dataset.id); break;
+    case "choose-stylist": chooseStylist(trigger.dataset.id); break;
+    case "choose-date": chooseDate(trigger.dataset.key); break;
+    case "choose-slot": chooseSlot({ time: trigger.dataset.time, startIso: trigger.dataset.iso }); break;
+    case "retry-slots": loadSlots(); break;
+    case "submit": submitRequest({}); break;
+    case "book-with": bookWithStylist(trigger.dataset.id); break;
+    case "book-another":
+      ui.lastBookingId = null;
+      ui.serviceId = null; ui.stylistId = "any"; ui.dateKey = null; ui.time = null; ui.slotIso = null; ui.slots = null;
+      ui.contact = { name: "", phone: "", email: "" }; ui.contactErrors = {}; ui.submitState = "idle"; ui.submitError = "";
+      logAction("Ready for another booking", true);
+      renderAll();
+      break;
+    case "open-cancel":
+      ui.cancelTokenInput = trigger.dataset.token;
+      setView("cancel");
+      lookupCancel();
+      break;
+    case "cancel-lookup":
+      ui.cancelTokenInput = $("cancel-token-input").value.trim();
+      lookupCancel();
+      break;
+    case "cancel-ask": ui.cancelConfirming = true; renderCancel(); break;
+    case "cancel-keep": ui.cancelConfirming = false; renderCancel(); break;
+    case "cancel-confirm": performCancel(); break;
+    case "owner-filter": setOwnerFilter(trigger.dataset.filter); break;
+    case "owner-confirm": ownerAction(trigger.dataset.id, "confirm"); break;
+    case "owner-decline": ownerAction(trigger.dataset.id, "decline"); break;
+    case "scenario-next": runNext(); break;
+    case "scenario-prev": runPrev(); break;
+    case "scenario-run": runAll(); break;
+    case "scenario-reset": resetDemo(); renderAll(); break;
+    case "toggle-states": ui.statesOpen = !ui.statesOpen; renderStates(); break;
+    case "toggle-inspector": ui.inspectorOpen = !ui.inspectorOpen; renderInspector(); break;
+    case "inspector-tab": ui.inspectorTab = trigger.dataset.tab; renderInspector(); break;
+    case "decision": ui.decisionStatus[trigger.dataset.id] = trigger.dataset.status; renderInspectorBody(); break;
+    case "open-summary": openSummary(); break;
+    case "close-summary": $("summary-modal").classList.add("hidden"); break;
+    case "copy-summary": copySummary(); break;
+    case "sim-profile": ui.profileSim = trigger.dataset.mode; renderAll(); break;
+    case "sim-slot-error":
+      ui.forceSlotError = !ui.forceSlotError;
+      logAction(ui.forceSlotError ? "Next slot fetch will fail (simulated)" : "Next slot fetch will succeed", true);
+      renderStates(); renderInspectorBody();
+      break;
+    case "sim-owner-loading": simulateOwnerLoading(); break;
+    case "sim-owner-empty":
+      ui.bookings = []; ui.lastBookingId = null;
+      logAction("Owner list emptied (in-memory)", true);
+      renderAll();
+      break;
+    case "demo-collapse": ui.demoCollapsed = !ui.demoCollapsed; $("demo-bar").classList.toggle("collapsed", ui.demoCollapsed); break;
+    case "scroll-to-booking": scrollToBooking(); break;
+    case "noop": logAction("Stub control — visual intent only", true); renderInspectorBody(); break;
+    default: break;
+  }
+});
+
+/* ── Render everything ────────────────────────────────────────────── */
+
+function renderAll() {
+  document.querySelectorAll(".mode-tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === ui.view));
+  document.querySelectorAll('[data-act="viewport"]').forEach((b) => b.classList.toggle("active", b.dataset.vp === ui.viewport));
+  $("app-frame").classList.toggle("mobile", ui.viewport === "mobile");
+  $("view-visitor").classList.toggle("hidden", ui.view !== "visitor");
+  $("view-cancel").classList.toggle("hidden", ui.view !== "cancel");
+  $("view-owner").classList.toggle("hidden", ui.view !== "owner");
+  renderProfile();
+  if (ui.view === "cancel") renderCancel();
+  if (ui.view === "owner") renderOwner();
+  renderDemoBar();
+  renderStates();
+  renderInspector();
+}
+
+/* ── Init ─────────────────────────────────────────────────────────── */
+
+function init() {
+  ui.bookings = SalonWorkflow.initialBookings(new Date());
+  const select = $("scenario-select");
+  scenarios.forEach((sc) => {
+    const opt = document.createElement("option");
+    opt.value = sc.id;
+    opt.textContent = sc.title;
+    select.appendChild(opt);
+  });
+  select.addEventListener("change", (e) => setScenario(e.target.value));
+  logAction("Prototype loaded — " + ui.bookings.length + " seeded bookings. Business date: "
+    + SalonWorkflow.dateKeyInTz(new Date(), SalonWorkflow.BUSINESS.timezone)
+    + " (" + SalonWorkflow.BUSINESS.timezone + ")", true);
+  renderAll();
+}
+
+init();
+</script>
+</body>
+</html>
+</body>
+</html>
