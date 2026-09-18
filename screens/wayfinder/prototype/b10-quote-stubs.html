@@ -1,0 +1,1242 @@
+<!doctype html>
+<!--
+  PROTOTYPE — issue #21 · B10: Quote workflow + non-exemplar vertical stubs
+  ─────────────────────────────────────────────────────────────────────────
+  QUESTION: What profile/configuration prototype should be accepted before B10
+  implementation so quote actions and the generic vet, legal, auto, food-drink,
+  retail, and professional-services presentations are consistent without cloning pages?
+
+  PLAN: One self-contained clickable prototype. One shared profile foundation is
+  rendered from six vertical configs (the prototype of lib/verticals.ts),
+  switchable with the ‹ › config switcher or ?vertical=<slug>. The generic quote
+  form carries the action's sourceLabel; the vet Book Appointment uses the same
+  booking record shape as the salon (B9); the config inspector shows exactly what
+  each vertical declares and what the generic fallback rules are.
+
+  THROWAWAY: prototype constraints (no tests, minimal error handling). Do not merge
+  to main. Capture on a throwaway branch after the live review session (issue #21).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE #21 — B10 quote workflow + non-exemplar stubs</title>
+<style>
+/* ═══════════ Design tokens — values-only swap (matches salon-booking.html, issue #20) ═══════════ */
+:root {
+  --brand: #2563eb; --brand-dark: #1e40af; --brand-soft: #eff6ff; --brand-border: #bfdbfe;
+  --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9;
+  --border: #e2e8f0; --border-strong: #cbd5e1;
+  --text: #0f172a; --text-muted: #64748b; --text-faint: #94a3b8;
+  --green: #16a34a; --green-soft: #dcfce7; --green-dark: #166534;
+  --amber: #d97706; --amber-soft: #fef3c7; --amber-dark: #92400e;
+  --red: #dc2626; --red-soft: #fee2e2; --red-dark: #991b1b;
+  --slate-chip: #e2e8f0; --slate-chip-text: #475569;
+  --radius-sm: 0.375rem; --radius: 0.625rem; --radius-lg: 0.875rem; --radius-xl: 1rem;
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --brand-100: #dbeafe; --brand-200: #bfdbfe; --brand-300: #93c5fd; --brand-500: #3b82f6; --brand-900: #1e3a8a;
+  --on-brand: #ffffff;
+  --star: #f59e0b; --amber-border: #fcd34d;
+  --accent-lavender: #e0e7ff; --accent-pink: #fae8ff;
+  --chrome-900: #0f172a; --chrome-800: #1e293b; --chrome-700: #334155;
+  --chrome-300: #cbd5e1; --chrome-200: #e2e8f0; --chrome-accent: #7dd3fc; --chrome-muted: #64748b;
+  --w-hair: 0.0625rem;
+  --overlay: rgba(15, 23, 42, 0.6);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; }
+button { font: inherit; cursor: pointer; }
+.hidden { display: none !important; }
+.muted { color: var(--text-muted); }
+.tiny { font-size: 0.8125rem; }
+.spacer { flex: 1; }
+.row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.pill { background: var(--chrome-700); color: var(--chrome-200); border-radius: var(--radius-xl); padding: 0.125rem var(--space-2); font-size: 0.6875rem; }
+
+/* Prototype chrome */
+.proto-ribbon { display: flex; gap: var(--space-3); align-items: center; background: var(--chrome-900); color: var(--chrome-200); padding: var(--space-2) var(--space-4); font-size: 0.8125rem; flex-wrap: wrap; }
+.proto-ribbon strong { color: var(--chrome-accent); letter-spacing: 0.08em; }
+.session-card { background: var(--chrome-800); color: var(--chrome-200); padding: var(--space-3) var(--space-4); font-size: 0.875rem; border-bottom: var(--w-hair) solid var(--chrome-700); }
+.session-card strong { display: block; color: var(--chrome-accent); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-1); }
+.session-card em { color: var(--on-brand); font-style: normal; }
+
+.topbar { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--surface); border-bottom: var(--w-hair) solid var(--border); position: sticky; top: 0; z-index: 30; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 1.125rem; color: var(--brand); }
+.brand span { color: var(--text); }
+.brand small { font-size: 0.625rem; color: var(--text-faint); margin-left: var(--space-2); letter-spacing: 0.06em; }
+.mode-tabs { display: flex; gap: var(--space-1); background: var(--surface-2); padding: var(--space-1); border-radius: var(--radius); }
+.mode-tab { border: 0; background: transparent; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.875rem; }
+.mode-tab.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+.vertical-switch { display: flex; align-items: center; gap: var(--space-1); background: var(--chrome-900); color: var(--on-brand); border-radius: var(--radius-xl); padding: var(--space-1) var(--space-2); font-size: 0.8125rem; }
+.vertical-switch button { background: transparent; border: 0; color: var(--chrome-accent); font-size: 1rem; padding: 0 var(--space-2); }
+.vertical-switch .vs-label { min-width: 15rem; text-align: center; }
+.vertical-switch .vs-label b { color: var(--chrome-accent); }
+.viewport-switch { display: flex; gap: var(--space-1); align-items: center; font-size: 0.8125rem; color: var(--text-muted); }
+.viewport-switch button { border: var(--w-hair) solid var(--border); background: var(--surface); padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); color: var(--text-muted); }
+.viewport-switch button.active { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+
+.app-shell { padding: var(--space-5) var(--space-4) 8rem; display: flex; justify-content: center; }
+.app-frame { width: 100%; max-width: 72rem; transition: max-width 0.15s ease; }
+.app-frame.mobile { max-width: 24.375rem; }
+.app-frame.mobile .layout { grid-template-columns: 1fr; }
+.app-frame.mobile .side-col { order: -1; }
+.app-frame.mobile .side-col .widget { order: -1; } /* widget is the first block on mobile (#20 decision) */
+
+/* Profile foundation */
+.vtabs { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.vtab { border: var(--w-hair) solid var(--border); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-xl); padding: var(--space-1) var(--space-3); font-size: 0.8125rem; }
+.vtab.active { background: var(--brand-soft); border-color: var(--brand-border); color: var(--brand-dark); font-weight: 600; }
+.vtab small { display: block; font-size: 0.625rem; font-weight: 400; color: var(--text-faint); }
+.vtab.active small { color: var(--brand-dark); }
+.crumbs { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-3); }
+.crumbs b { color: var(--text); font-weight: 600; }
+.hero { border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); box-shadow: var(--shadow-sm); margin-bottom: var(--space-4); }
+.hero-media { display: grid; grid-template-columns: 2fr 1fr; gap: var(--w-hair); background: var(--border); }
+.hero-photo { min-height: 13rem; background: linear-gradient(135deg, var(--brand-100), var(--brand-500) 60%, var(--brand-900)); display: flex; align-items: flex-end; padding: var(--space-4); color: var(--on-brand); font-size: 0.75rem; letter-spacing: 0.06em; }
+.hero-photo.small { min-height: 6.25rem; }
+.hero-media.no-gallery { grid-template-columns: 1fr; }
+.hero-media.no-gallery .hero-photo.small { display: none; }
+.identity { padding: var(--space-4); }
+.identity h1 { font-size: 1.5rem; }
+.identity .badges { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); align-items: center; font-size: 0.8125rem; color: var(--text-muted); }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-xl); padding: 0.125rem var(--space-2); font-size: 0.75rem; font-weight: 600; }
+.chip.green { background: var(--green-soft); color: var(--green-dark); }
+.chip.blue { background: var(--brand-soft); color: var(--brand-dark); }
+.chip.slate { background: var(--slate-chip); color: var(--slate-chip-text); }
+.chip.amber { background: var(--amber-soft); color: var(--amber-dark); }
+.dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--green); display: inline-block; }
+.actions-bar { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: 0 var(--space-4) var(--space-4); align-items: center; }
+.action-btn { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: var(--space-2) var(--space-4); font-size: 0.875rem; font-weight: 600; color: var(--text); }
+.action-btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: var(--space-4); align-items: start; }
+.main-col, .side-col { display: grid; gap: var(--space-4); }
+.card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-5); }
+.card h2 { font-size: 1.0625rem; margin-bottom: var(--space-1); }
+.card .card-sub { margin-bottom: var(--space-4); }
+.svc-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-3); }
+.svc-list { display: grid; }
+.svc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-3); align-items: baseline; padding: var(--space-3) 0; border-top: var(--w-hair) solid var(--border); }
+.svc-row:first-child { border-top: 0; }
+.svc-name { font-weight: 600; }
+.svc-blurb { grid-column: 1 / -1; color: var(--text-muted); font-size: 0.8125rem; margin-top: calc(-1 * var(--space-2)); }
+.svc-price { font-weight: 700; color: var(--brand-dark); font-variant-numeric: tabular-nums; }
+.svc-dur { color: var(--text-faint); font-size: 0.8125rem; }
+.cred-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.cred-list li { display: flex; gap: var(--space-2); align-items: center; font-size: 0.875rem; }
+.tick { color: var(--green); font-weight: 700; }
+.team-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); padding: var(--space-3) 0; border-top: var(--w-hair) solid var(--border); align-items: baseline; }
+.team-row:first-child { border-top: 0; }
+.degrade-note { margin-top: var(--space-3); }
+.note { background: var(--amber-soft); color: var(--amber-dark); border: var(--w-hair) solid var(--amber-border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-size: 0.8125rem; }
+.info-list { display: grid; gap: var(--space-2); font-size: 0.875rem; }
+.info-list div { display: grid; grid-template-columns: 5rem 1fr; gap: var(--space-2); }
+.info-list .k { color: var(--text-muted); }
+.hours { display: grid; gap: var(--space-1); font-size: 0.875rem; }
+.hours div { display: flex; justify-content: space-between; }
+.footer-note { text-align: center; color: var(--text-faint); font-size: 0.75rem; padding: var(--space-3); }
+/* Workflow widgets */
+.widget h3 { font-size: 1rem; margin-bottom: var(--space-1); }
+.widget .src { font-family: var(--font-mono); font-size: 0.75rem; background: var(--brand-soft); color: var(--brand-dark); border-radius: var(--radius-sm); padding: 0.0625rem var(--space-2); }
+.field { display: grid; gap: var(--space-1); margin-bottom: var(--space-3); }
+.field label { font-size: 0.8125rem; color: var(--text-muted); font-weight: 600; }
+.field input, .field textarea, .field select { width: 100%; border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); font: inherit; font-size: 0.875rem; background: var(--surface); color: var(--text); }
+.field textarea { resize: vertical; min-height: 4.5rem; }
+.field .err { color: var(--red); font-size: 0.75rem; }
+.btn { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-size: 0.875rem; font-weight: 600; color: var(--text); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.small { padding: var(--space-1) var(--space-2); font-size: 0.75rem; border-radius: var(--radius-sm); }
+.btn.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-dark); }
+.btn.success { background: var(--green-soft); border-color: var(--green); color: var(--green-dark); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.stepper { display: grid; gap: var(--space-3); }
+.step-block { border-top: var(--w-hair) solid var(--border); padding-top: var(--space-3); }
+.step-block:first-child { border-top: 0; padding-top: 0; }
+.step-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; color: var(--text-faint); text-transform: uppercase; margin-bottom: var(--space-2); }
+.chip-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.choice { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-size: 0.8125rem; text-align: left; color: var(--text); }
+.choice small { display: block; color: var(--text-muted); font-weight: 400; margin-top: 0.0625rem; }
+.choice.active { border-color: var(--brand); background: var(--brand-soft); }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: var(--space-2); }
+.slot { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: 0.8125rem; color: var(--text); }
+.slot.active { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.slot:disabled { background: var(--surface-2); color: var(--text-faint); text-decoration: line-through; cursor: not-allowed; }
+.confirm-box { background: var(--green-soft); border: var(--w-hair) solid var(--green); color: var(--green-dark); border-radius: var(--radius); padding: var(--space-3); font-size: 0.875rem; }
+.confirm-box b { display: block; }
+
+/* Owner view */
+.owner-wrap { display: grid; gap: var(--space-4); }
+.owner-head { display: flex; align-items: center; gap: var(--space-3); }
+.filter-tabs { display: flex; gap: var(--space-1); background: var(--surface-2); padding: var(--space-1); border-radius: var(--radius); width: max-content; }
+.filter-tab { border: 0; background: transparent; padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); font-size: 0.8125rem; color: var(--text-muted); }
+.filter-tab.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+.owner-list { display: grid; gap: var(--space-3); }
+.owner-row { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: var(--space-4); display: grid; gap: var(--space-2); }
+.owner-row .top { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+.owner-row .who { font-weight: 600; }
+.owner-row .msg { color: var(--text-muted); font-size: 0.875rem; }
+.owner-row .meta { font-size: 0.75rem; color: var(--text-faint); font-family: var(--font-mono); }
+.owner-row .btns { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.skeleton-row { height: 5.5rem; border-radius: var(--radius); background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.empty-box { background: var(--surface); border: var(--w-hair) dashed var(--border-strong); border-radius: var(--radius); padding: var(--space-6); text-align: center; color: var(--text-muted); }
+
+/* Demo bar + inspector */
+.demo-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--space-3); width: min(70rem, calc(100% - 2rem)); background: var(--chrome-900); color: var(--chrome-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); z-index: 40; }
+.demo-row { display: flex; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.demo-tag { font-size: 0.625rem; letter-spacing: 0.08em; color: var(--chrome-accent); font-weight: 700; }
+.demo-bar select { background: var(--chrome-800); color: var(--chrome-200); border: var(--w-hair) solid var(--chrome-700); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: 0.75rem; max-width: 22rem; }
+.demo-bar .btn { background: var(--chrome-800); border-color: var(--chrome-700); color: var(--chrome-200); }
+.demo-bar .btn.primary { background: var(--chrome-accent); border-color: var(--chrome-accent); color: var(--chrome-900); }
+.demo-counter { font-size: 0.75rem; color: var(--chrome-muted); }
+.demo-step { padding: 0 var(--space-3) var(--space-2); font-size: 0.8125rem; color: var(--chrome-300); }
+.demo-states { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; padding: 0 var(--space-3) var(--space-3); }
+.group-label { font-size: 0.6875rem; color: var(--chrome-muted); }
+.inspector { position: fixed; top: 0; right: 0; bottom: 0; width: min(28rem, 92vw); background: var(--chrome-900); color: var(--chrome-200); z-index: 50; display: flex; flex-direction: column; box-shadow: var(--shadow-md); }
+.inspector-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border-bottom: var(--w-hair) solid var(--chrome-700); }
+.inspector-tabs { display: flex; gap: var(--space-1); }
+.inspector-tab { border: 0; background: transparent; color: var(--chrome-muted); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: 0.8125rem; }
+.inspector-tab.active { background: var(--chrome-800); color: var(--chrome-accent); font-weight: 600; }
+.inspector-close { margin-left: auto; background: transparent; border: 0; color: var(--chrome-200); font-size: 1.25rem; }
+.inspector-body { overflow: auto; padding: var(--space-3); font-size: 0.8125rem; }
+.inspector h4 { color: var(--chrome-accent); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; margin: var(--space-4) 0 var(--space-2); }
+.inspector h4:first-child { margin-top: 0; }
+.code { font-family: var(--font-mono); font-size: 0.75rem; background: var(--chrome-800); border-radius: var(--radius-sm); padding: var(--space-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.kv { display: grid; grid-template-columns: 9rem 1fr; gap: var(--space-1) var(--space-2); font-size: 0.75rem; }
+.kv .k { color: var(--chrome-muted); }
+.config-card { background: var(--chrome-800); border-radius: var(--radius); padding: var(--space-3); margin-bottom: var(--space-2); }
+.config-card b { color: var(--chrome-accent); }
+.config-card.active { outline: var(--w-hair) solid var(--chrome-accent); }
+.tag { display: inline-block; background: var(--chrome-700); border-radius: var(--radius-sm); padding: 0 var(--space-1); margin: 0 var(--space-1) var(--space-1) 0; font-family: var(--font-mono); font-size: 0.6875rem; }
+.decision-row { background: var(--chrome-800); border-radius: var(--radius); padding: var(--space-3); margin-bottom: var(--space-2); }
+.decision-row .q { margin-bottom: var(--space-2); }
+.decision-row .marks { display: flex; gap: var(--space-1); align-items: center; flex-wrap: wrap; }
+.mark-btn { border: var(--w-hair) solid var(--chrome-700); background: transparent; color: var(--chrome-300); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-size: 0.6875rem; }
+.mark-btn.on-accept { background: var(--green); border-color: var(--green); color: var(--on-brand); }
+.mark-btn.on-discuss { background: var(--amber); border-color: var(--amber); color: var(--on-brand); }
+.mark-btn.on-reject { background: var(--red); border-color: var(--red); color: var(--on-brand); }
+.mark-done { font-size: 0.6875rem; color: var(--chrome-muted); }
+.modal-backdrop { position: fixed; inset: 0; background: var(--overlay); z-index: 60; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.modal { background: var(--surface); color: var(--text); border-radius: var(--radius-lg); padding: var(--space-5); width: min(42rem, 100%); }
+.modal h3 { margin-bottom: var(--space-2); }
+.modal textarea { width: 100%; font-family: var(--font-mono); font-size: 0.75rem; border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-3); margin: var(--space-3) 0; }
+
+@media (max-width: 56rem) {
+  .layout { grid-template-columns: 1fr; }
+  .side-col { order: -1; }
+  .vertical-switch .vs-label { min-width: 8rem; }
+}
+</style>
+</head>
+<body>
+<div class="proto-ribbon">
+  <strong>PROTOTYPE</strong>
+  <span>issue #21 · B10 quote workflow + non-exemplar vertical stubs — throwaway artifact, not production code</span>
+  <span class="pill">double-click to run</span>
+  <span class="pill">reload = reset data</span>
+  <span class="pill" id="err-chip" style="display:none"></span>
+</div>
+
+<div class="session-card">
+  <strong>Question this prototype answers</strong>
+  What profile/configuration prototype should be accepted before B10 implementation so quote actions and the generic
+  <em>vet, legal, auto, food-drink, retail, and professional-services</em> presentations are consistent without cloning pages?
+  Use the <em>‹ › config switcher</em> (or <em>?vertical=…</em>) to flip between vertical configs; open the
+  <em>Configs</em> inspector tab to see exactly what each vertical declares; run the guided scenarios in the bottom bar.
+</div>
+
+<header class="topbar">
+  <div class="brand">Local<span>Connect</span><small>PROTOTYPE · #21</small></div>
+  <nav class="mode-tabs" id="mode-tabs">
+    <button class="mode-tab active" data-act="mode" data-mode="visitor">Visitor profile</button>
+    <button class="mode-tab" data-act="mode" data-mode="owner">Owner inbox</button>
+  </nav>
+  <div class="vertical-switch" title="Config switcher — same foundation, different vertical config">
+    <button data-act="vertical-prev" title="Previous config (Left arrow)">‹</button>
+    <span class="vs-label" id="vs-label"></span>
+    <button data-act="vertical-next" title="Next config (Right arrow)">›</button>
+  </div>
+  <span class="spacer"></span>
+  <div class="viewport-switch">
+    <span>Preview:</span>
+    <button data-act="viewport" data-vp="desktop" class="active">Desktop</button>
+    <button data-act="viewport" data-vp="mobile">Mobile 390px</button>
+  </div>
+</header>
+
+<div class="app-shell">
+  <div class="app-frame" id="app-frame">
+
+    <div class="view" id="view-visitor">
+      <div class="vtabs" id="vtabs"></div>
+      <div id="profile-region"></div>
+    </div>
+
+    <div class="view hidden" id="view-owner">
+      <div class="owner-wrap">
+        <div class="card owner-head">
+          <h2>Visitor workflows <span class="muted" style="font-weight:500;font-size:0.85rem">· prototype: one inbox aggregated across the demo businesses so records are comparable</span></h2>
+        </div>
+        <div class="filter-tabs" id="owner-filters"></div>
+        <div class="owner-list" id="owner-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="demo-bar" id="demo-bar">
+  <div class="demo-row">
+    <span class="demo-tag">PROTOTYPE CONTROLS</span>
+    <select id="scenario-select" title="Guided scenarios"><option value="">Free play — click anything</option></select>
+    <span class="demo-counter" id="demo-counter"></span>
+    <button class="btn small" data-act="scenario-prev">‹ Prev</button>
+    <button class="btn small primary" data-act="scenario-next">Next step ›</button>
+    <button class="btn small" data-act="scenario-run">Run all</button>
+    <button class="btn small" data-act="scenario-reset">Reset</button>
+    <span class="spacer"></span>
+    <button class="btn small" data-act="toggle-states">State toggles</button>
+    <button class="btn small" data-act="toggle-inspector">Configs &amp; decisions</button>
+  </div>
+  <div class="demo-step" id="demo-step-text">Free play: flip the config switcher, click a profile action, and watch the quote / booking records build up in the Owner inbox. The inspector shows live state and every vertical config.</div>
+  <div class="demo-states hidden" id="demo-states">
+    <span class="group-label">Profile:</span>
+    <button class="btn small" data-act="sim-profile" data-mode="ok">Normal</button>
+    <button class="btn small" data-act="sim-profile" data-mode="skeleton">Skeleton</button>
+    <button class="btn small" data-act="sim-profile" data-mode="error">Error</button>
+    <span class="group-label">Modules:</span>
+    <button class="btn small" data-act="sim-empty-services">Toggle “no services data” on this vertical</button>
+    <span class="group-label">Owner:</span>
+    <button class="btn small" data-act="sim-owner-loading">Simulate loading</button>
+    <button class="btn small" data-act="sim-owner-empty">Empty inbox</button>
+    <span class="group-label">Data:</span>
+    <button class="btn small" data-act="reset-data">Reset demo data</button>
+  </div>
+</div>
+
+<aside class="inspector" id="inspector">
+  <div class="inspector-head">
+    <div class="inspector-tabs">
+      <button class="inspector-tab active" data-act="inspector-tab" data-tab="state">Live state</button>
+      <button class="inspector-tab" data-act="inspector-tab" data-tab="configs">Configs (6)</button>
+      <button class="inspector-tab" data-act="inspector-tab" data-tab="decisions">Decisions (12)</button>
+    </div>
+    <button class="inspector-close" data-act="toggle-inspector" title="Close">×</button>
+  </div>
+  <div class="inspector-body" id="inspector-body"></div>
+</aside>
+
+<div class="modal-backdrop hidden" id="summary-modal">
+  <div class="modal">
+    <h3>Decisions summary — paste into issue #21</h3>
+    <p class="muted tiny">Generated from the Accept / Discuss / Reject marks in the Decisions tab.</p>
+    <textarea id="summary-text" rows="16" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="btn primary" data-act="copy-summary">Copy to clipboard</button>
+      <button class="btn" data-act="close-summary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  window.__protoErrors = [];
+  window.addEventListener('error', function (e) { window.__protoErrors.push(String(e.message || e)); });
+
+  /* 1. Vertical config registry — prototype of lib/verticals.ts (SPEC §6).
+     Keyed by category slug. Developer artifact, not admin-editable data. */
+  var HOURS = { startMin: 9 * 60, endMin: 18 * 60 }; // 09:00–18:00 shared demo hours
+
+  var VERTICALS = {
+    'automotive': {
+      slug: 'automotive', name: 'Automotive', configName: 'Auto price-list config',
+      business: {
+        id: 'biz-auto', name: 'Elite Auto Service', category: 'Auto Repair',
+        verified: true, rating: 4.9, ratingCount: 214, openUntil: '6:00 PM',
+        address: '1420 W Monroe St, Springfield, IL', phone: '(217) 555-2300',
+        emergencyPhone: '(217) 555-2301', email: 'service@eliteautoservice.com', website: 'eliteautoservice.com',
+        description: 'Full-service auto repair with ASE-certified technicians, 3 service bays, and 24/7 emergency towing.',
+        lastUpdated: '2 days ago', servicesStyle: 'priceList',
+        services: [
+          { id: 'svc-oil', name: 'Oil Change & Filter', price: '$45 - $85', durationLabel: '30-45 minutes' },
+          { id: 'svc-brake', name: 'Brake Pad Replacement', price: '$200 - $400', durationLabel: '2-3 hours' },
+          { id: 'svc-diag', name: 'Engine Diagnostic', price: '$120 - $180', durationLabel: '1-2 hours' },
+          { id: 'svc-trans', name: 'Transmission Service', price: '$180 - $350', durationLabel: '3-4 hours' },
+          { id: 'svc-ac', name: 'AC Repair', price: '$200 - $800', durationLabel: '2-5 hours' },
+          { id: 'svc-engine', name: 'Major Engine Repair', price: '$500 - $1,200', durationLabel: '1-2 days' }
+        ],
+        credentials: [], team: []
+      },
+      modules: ['services'],
+      actions: [
+        { kind: 'call', label: 'Call for Service' },
+        { kind: 'quote', label: 'Request Towing', sourceLabel: 'Request Towing' },
+        { kind: 'quote', label: 'Get Free Quote', sourceLabel: 'Free Quote' }
+      ]
+    },
+    'healthcare': {
+      slug: 'healthcare', name: 'Healthcare (vet)', configName: 'Vet booking config',
+      business: {
+        id: 'biz-vet', name: 'Oakwood Veterinary Clinic', category: 'Veterinary Services',
+        verified: true, rating: 4.8, ratingCount: 163, openUntil: '7:00 PM',
+        address: '88 Oakwood Ave, Springfield, IL', phone: '(217) 555-9911',
+        emergencyPhone: '(217) 555-4827', email: 'care@oakwoodvet.com', website: 'oakwoodvetclinic.com',
+        description: 'Neighborhood veterinary clinic for routine care, dentistry, and urgent concerns — with a 24/7 emergency line.',
+        lastUpdated: '5 days ago', servicesStyle: 'list',
+        services: [
+          { id: 'svc-wellness', name: 'Wellness Exam', blurb: 'Annual check-up and preventative care', durationMinutes: 30 },
+          { id: 'svc-vax', name: 'Vaccination', blurb: 'Core and lifestyle vaccines', durationMinutes: 15 },
+          { id: 'svc-dental', name: 'Dental Cleaning', blurb: 'Cleanings, extractions & oral health', durationMinutes: 60 },
+          { id: 'svc-surgery-consult', name: 'Surgery Consultation', blurb: 'Soft tissue & orthopedic evaluation', durationMinutes: 45 }
+        ],
+        credentials: ['AVMA Accredited Hospital', 'Licensed Veterinary Facility', 'Serving the community since 2019'],
+        team: [
+          { name: 'Dr. Sarah Chen', role: 'Lead Veterinarian & Owner', note: 'DVM, Board Certified in Small Animal Medicine' },
+          { name: 'Dr. Marcus Bell', role: 'Associate Veterinarian', note: 'Emergency & Critical Care' }
+        ]
+      },
+      modules: ['services', 'credentials', 'team'],
+      actions: [
+        { kind: 'book', label: 'Book Appointment', workflow: 'booking' },
+        { kind: 'call', label: 'Call Clinic' },
+        { kind: 'call', label: 'Emergency Line', href: 'emergency' }
+      ]
+    },
+    'legal-services': {
+      slug: 'legal-services', name: 'Legal services', configName: 'Legal lead-gen config',
+      business: {
+        id: 'biz-legal', name: 'Sterling & Associates Law Firm', category: 'Legal Services',
+        verified: true, rating: 4.9, ratingCount: 98, openUntil: '5:30 PM',
+        address: '301 Capitol Plaza, Springfield, IL', phone: '(217) 555-2468',
+        emergencyPhone: '(217) 555-2469', email: 'info@sterlinglaw.com', website: 'sterlinglaw.com',
+        description: 'Trust-heavy professional-services firm — practice areas, attorneys, credentials, and lead-gen actions.',
+        lastUpdated: '1 week ago', servicesStyle: 'list',
+        services: [
+          { id: 'svc-injury', name: 'Personal Injury', blurb: 'Car accidents, slip and fall, medical malpractice, wrongful death' },
+          { id: 'svc-family', name: 'Family Law', blurb: 'Divorce, child custody, adoption, domestic relations' },
+          { id: 'svc-business', name: 'Business Law', blurb: 'Contract disputes, formation, employment law' },
+          { id: 'svc-estate', name: 'Estate Planning', blurb: 'Wills, trusts, probate guidance' }
+        ],
+        credentials: ['Illinois State Bar Association', 'American Bar Association', 'Illinois Trial Lawyers Association'],
+        team: [
+          { name: 'Michael J. Sterling', role: 'Senior Partner', note: 'J.D. University of Illinois, Illinois Bar 2008' },
+          { name: 'Sarah L. Chen', role: 'Partner', note: 'J.D. Northwestern University, Illinois Bar 2012' }
+        ]
+      },
+      modules: ['services', 'credentials', 'team'],
+      actions: [
+        { kind: 'quote', label: 'Schedule Consultation', sourceLabel: 'Free Consultation' },
+        { kind: 'call', label: 'Call Now' },
+        { kind: 'quote', label: 'Send Message', sourceLabel: 'Send Message' }
+      ]
+    },
+    'food-drink': {
+      slug: 'food-drink', name: 'Food & drink', configName: 'Food-drink config',
+      business: {
+        id: 'biz-food', name: 'Sunrise Bakery & Café', category: 'Food & Drink',
+        verified: true, rating: 4.7, ratingCount: 141, openUntil: '4:00 PM',
+        address: '17 Main St, Springfield, IL', phone: '(217) 555-3310',
+        emergencyPhone: '', email: 'hello@sunrisebakery.com', website: 'sunrisebakery.com',
+        description: 'Neighborhood bakery and café — gallery emphasis, services list, contact-only profile.',
+        lastUpdated: '3 days ago', servicesStyle: 'list', galleryEmphasis: true,
+        services: [
+          { id: 'svc-bread', name: 'Fresh Breads & Pastries', blurb: 'Baked daily from organic ingredients' },
+          { id: 'svc-cakes', name: 'Custom Cakes', blurb: 'Celebration cakes with 48h notice' },
+          { id: 'svc-catering', name: 'Catering', blurb: 'Office and event platters' },
+          { id: 'svc-coffee', name: 'Coffee & Espresso', blurb: 'Single-origin roasts, espresso bar' }
+        ],
+        credentials: [], team: []
+      },
+      modules: ['galleryEmphasis', 'services'],
+      actions: [
+        { kind: 'call', label: 'Call Now' },
+        { kind: 'directions', label: 'Get Directions' },
+        { kind: 'website', label: 'Visit Website' }
+      ]
+    },
+    'retail': {
+      slug: 'retail', name: 'Retail', configName: 'Retail generic config',
+      business: {
+        id: 'biz-retail', name: 'Northside Hardware & Home', category: 'Retail',
+        verified: false, rating: 4.5, ratingCount: 62, openUntil: '8:00 PM',
+        address: '2201 Northside Dr, Springfield, IL', phone: '(217) 555-7742',
+        emergencyPhone: '', email: 'shop@northsidehardware.com', website: 'northsidehardware.com',
+        description: 'Family hardware store — services module only, contact-only profile.',
+        lastUpdated: '2 weeks ago', servicesStyle: 'list',
+        services: [
+          { id: 'svc-keys', name: 'Key Cutting', blurb: 'House, car, and specialty keys' },
+          { id: 'svc-paint', name: 'Paint Color Matching', blurb: 'Bring a sample, we match it' },
+          { id: 'svc-tools', name: 'Tool Rental', blurb: 'Daily and weekend rates' },
+          { id: 'svc-screen', name: 'Screen & Window Repair', blurb: 'Re-screening and glass replacement' }
+        ],
+        credentials: [], team: []
+      },
+      modules: ['services'],
+      actions: [
+        { kind: 'call', label: 'Call' },
+        { kind: 'directions', label: 'Directions' },
+        { kind: 'website', label: 'Website' }
+      ]
+    },
+    'professional-services': {
+      slug: 'professional-services', name: 'Professional services', configName: 'Professional-services config',
+      business: {
+        id: 'biz-pro', name: 'Beacon Accounting Group', category: 'Professional Services',
+        verified: true, rating: 4.8, ratingCount: 77, openUntil: '5:00 PM',
+        address: '640 Beacon Way, Springfield, IL', phone: '(217) 555-8890',
+        emergencyPhone: '', email: 'hello@beaconaccounting.com', website: 'beaconaccounting.com',
+        description: 'Accounting and advisory practice — services + credentials, quote lead-gen.',
+        lastUpdated: '4 days ago', servicesStyle: 'list',
+        services: [
+          { id: 'svc-tax', name: 'Tax Preparation', blurb: 'Individual and small-business returns' },
+          { id: 'svc-books', name: 'Bookkeeping', blurb: 'Monthly close and reconciliations' },
+          { id: 'svc-payroll', name: 'Payroll Services', blurb: 'Runs, filings, and year-end forms' },
+          { id: 'svc-advisory', name: 'Business Advisory', blurb: 'Planning, forecasting, and systems' }
+        ],
+        credentials: ['CPA Licensed (Illinois)', 'QuickBooks ProAdvisor', '15+ Years in Practice'],
+        team: []
+      },
+      modules: ['services', 'credentials'],
+      actions: [
+        { kind: 'quote', label: 'Get a Quote' },
+        { kind: 'call', label: 'Call' }
+      ]
+    }
+  };
+  var VERTICAL_ORDER = ['automotive', 'healthcare', 'legal-services', 'food-drink', 'retail', 'professional-services'];
+  /* 2. Pure workflow logic — liftable into the real modules later (no DOM here) */
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateKeyOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function addDays(base, n) { var d = new Date(base); d.setDate(d.getDate() + n); return d; }
+  function nextDays(n) { var out = [], base = new Date(); base.setHours(0, 0, 0, 0); for (var i = 0; i < n; i++) out.push(addDays(base, i)); return out; }
+  function dayLabel(d) { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+  function minutesToLabel(m) { var h = Math.floor(m / 60), mm = m % 60, ampm = h >= 12 ? 'PM' : 'AM', h12 = h % 12; if (h12 === 0) h12 = 12; return h12 + ':' + pad2(mm) + ' ' + ampm; }
+  function nowStamp() { return new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function validateQuote(draft) {
+    var errors = {};
+    if (!draft.name || !draft.name.trim()) errors.name = 'Please add your name.';
+    if (!draft.contact || !draft.contact.trim()) errors.contact = 'Please add a phone number or email.';
+    if (!draft.message || !draft.message.trim()) errors.message = 'Please add a short message.';
+    return errors;
+  }
+  function createQuoteRequest(store, input) {
+    var errors = validateQuote(input);
+    if (Object.keys(errors).length) return { ok: false, errors: errors };
+    var record = {
+      id: 'q' + (++store.seq), businessId: input.businessId, vertical: input.vertical,
+      customerName: input.name.trim(), customerContact: input.contact.trim(), message: input.message.trim(),
+      sourceLabel: input.sourceLabel || 'Quote', status: 'new', createdAt: nowStamp()
+    };
+    store.quotes.push(record);
+    return { ok: true, record: record };
+  }
+  function quoteTransition(store, id, action) {
+    var r = store.quotes.filter(function (q) { return q.id === id; })[0];
+    if (!r) return null;
+    if (action === 'respond' && r.status === 'new') r.status = 'responded';
+    if (action === 'close' && (r.status === 'new' || r.status === 'responded')) r.status = 'closed';
+    return r;
+  }
+  function createBookingRequest(store, input) {
+    var record = {
+      id: 'b' + (++store.seq), businessId: input.businessId, vertical: input.vertical,
+      serviceOfferingId: input.serviceOfferingId, serviceName: input.serviceName, durationMinutes: input.durationMinutes,
+      dateKey: input.dateKey, startMinutes: input.startMinutes, startAt: input.dateKey + ' ' + minutesToLabel(input.startMinutes),
+      customerName: input.name.trim(), customerPhone: input.phone.trim(), customerEmail: (input.email || '').trim(),
+      status: 'requested', createdAt: nowStamp()
+    };
+    store.bookings.push(record);
+    return record;
+  }
+  function bookingTransition(store, id, action) {
+    var r = store.bookings.filter(function (b) { return b.id === id; })[0];
+    if (!r || r.status !== 'requested') return r || null;
+    if (action === 'confirm') r.status = 'confirmed';
+    if (action === 'decline') r.status = 'declined';
+    return r;
+  }
+  function deriveSlots(durationMinutes, takenMinutes) {
+    var out = [];
+    for (var m = HOURS.startMin; m + durationMinutes <= HOURS.endMin; m += durationMinutes) {
+      out.push({ minutes: m, label: minutesToLabel(m), taken: takenMinutes.indexOf(m) !== -1 });
+    }
+    return out;
+  }
+  function moduleVisible(moduleId, c, emptyServices) {
+    if (moduleId === 'services') return !emptyServices && c.business.services.length > 0;
+    if (moduleId === 'credentials') return c.business.credentials.length > 0;
+    if (moduleId === 'team') return !!(c.business.team && c.business.team.length > 0);
+    return true;
+  }
+  function quoteActions(c) { return c.actions.filter(function (a) { return a.kind === 'quote'; }); }
+  function bookingAction(c) { return c.actions.filter(function (a) { return a.kind === 'book'; })[0] || null; }
+
+  /* 3. State + deterministic seed data */
+  function seedQuote() {
+    return { id: 'q-seed-1', businessId: 'biz-auto', vertical: 'automotive', customerName: 'Marcus Hale',
+      customerContact: '(217) 555-0144', message: 'Truck will not start — need a tow to the shop this afternoon.',
+      sourceLabel: 'Request Towing', status: 'new', createdAt: 'seed' };
+  }
+  function seedBooking() {
+    var d = nextDays(3)[1];
+    return { id: 'b-seed-1', businessId: 'biz-vet', vertical: 'healthcare', serviceOfferingId: 'svc-wellness',
+      serviceName: 'Wellness Exam', durationMinutes: 30, dateKey: dateKeyOf(d), startMinutes: 11 * 60,
+      startAt: dateKeyOf(d) + ' 11:00 AM', customerName: 'Priya Nair', customerPhone: '(217) 555-0303',
+      customerEmail: '', status: 'requested', createdAt: 'seed' };
+  }
+  function freshState() {
+    return {
+      seq: 100, vertical: 'automotive', mode: 'visitor', viewport: 'desktop', ownerFilter: 'all',
+      inspectorTab: 'state', inspectorOpen: false, statesOpen: false,
+      form: null, emptyServices: {}, profileSim: 'ok', ownerSim: 'ok',
+      scenario: '', step: 0, decisions: {}, log: [],
+      quotes: [seedQuote()], bookings: [seedBooking()],
+      draft: { name: '', contact: '', message: '', phone: '', email: '' }
+    };
+  }
+  var S = freshState();
+
+  /* 4. Rendering — one foundation, config-driven modules */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]; }); }
+  function $(sel) { return document.querySelector(sel); }
+  function cfg() { return VERTICALS[S.vertical]; }
+
+  function fallbackNote() {
+    var hidden = cfg().modules.filter(function (m) { return !moduleVisible(m, cfg(), !!S.emptyServices[S.vertical]); });
+    if (!hidden.length) return '';
+    return '<div class="note">Fallback state · module(s) hidden because the business has no data: <b>' + hidden.join(', ') +
+      '</b>. The shared foundation still renders in full — no empty headings, no cloned page.</div>';
+  }
+  function servicesTitle() {
+    if (S.vertical === 'healthcare') return 'Our Specializations';
+    if (S.vertical === 'legal-services') return 'Practice Areas';
+    return 'Services';
+  }
+  function servicesHtml() {
+    var b = cfg().business, priceList = b.servicesStyle === 'priceList';
+    var rows = b.services.map(function (s) {
+      if (priceList) {
+        return '<div class="svc-row"><span class="svc-name">' + esc(s.name) + '</span>' +
+          '<span class="svc-price">' + esc(s.price) + '</span><span class="svc-dur">' + esc(s.durationLabel) + '</span></div>';
+      }
+      return '<div class="svc-row"><span class="svc-name">' + esc(s.name) + '</span>' +
+        (s.durationMinutes ? '<span class="svc-dur">' + s.durationMinutes + ' min</span>' : '<span></span>') +
+        '<span></span><span class="svc-blurb">' + esc(s.blurb || '') + '</span></div>';
+    }).join('');
+    return '<div class="card"><div class="svc-head"><h2>' + esc(servicesTitle()) + '</h2>' +
+      '<span class="chip slate">' + esc(priceList ? 'price-list styling' : 'generic list') + '</span></div>' +
+      '<div class="svc-list">' + rows + '</div></div>';
+  }
+  function credentialsHtml() {
+    var list = cfg().business.credentials.map(function (c) { return '<li><span class="tick">✓</span>' + esc(c) + '</li>'; }).join('');
+    return '<div class="card"><h2>Credentials &amp; Certifications</h2><p class="muted tiny card-sub">Shared credentials module — display only.</p><ul class="cred-list">' + list + '</ul></div>';
+  }
+  function teamHtml() {
+    var rows = cfg().business.team.map(function (t) {
+      return '<div class="team-row"><div><div class="svc-name">' + esc(t.name) + '</div><div class="muted tiny">' + esc(t.role) + '</div></div>' +
+        '<div class="muted tiny">' + esc(t.note) + '</div></div>';
+    }).join('');
+    return '<div class="card"><h2>Our Team</h2><div class="svc-list">' + rows + '</div>' +
+      '<div class="note degrade-note">v1 degrade rule: team cards render as services-list rows (no photo cards / profiles). See Decisions tab.</div></div>';
+  }
+  function actionButtonsHtml() {
+    return cfg().actions.map(function (a) {
+      var cls = a.kind === 'book' || a.kind === 'quote' ? 'action-btn primary' : 'action-btn';
+      return '<button class="' + cls + '" data-act="profile-action" data-kind="' + a.kind + '" data-label="' + esc(a.label) + '"' +
+        (a.sourceLabel ? ' data-sourcelabel="' + esc(a.sourceLabel) + '"' : '') + '>' + esc(a.label) + '</button>';
+    }).join('');
+  }
+  function workflowWidgetHtml() {
+    if (bookingAction(cfg())) return bookingWidgetHtml();
+    var qs = quoteActions(cfg());
+    if (qs.length) return quoteWidgetHtml(qs);
+    return '<div class="card widget"><h3>No visitor workflow</h3>' +
+      '<p class="muted tiny">Contact-only config (food-drink / retail): the foundation + services render, no quote or booking widget — generic fallback state for v1.</p></div>';
+  }
+  function currentQuoteLabel() {
+    if (S.form && S.form.type === 'quote') return S.form.sourceLabel;
+    var qs = quoteActions(cfg());
+    return qs.length ? (qs[0].sourceLabel || 'Quote') : 'Quote';
+  }
+  function quoteWidgetHtml(qs) {
+    if (S.form && S.form.type === 'quote' && S.form.record) {
+      var r = S.form.record;
+      return '<div class="card widget"><h3>Quote request sent</h3>' +
+        '<div class="confirm-box"><b>' + esc(r.customerName) + '</b>status: <b>' + esc(r.status) + '</b><br>' +
+        'sourceLabel shown to owner: <span class="src">' + esc(r.sourceLabel) + '</span></div>' +
+        '<p class="muted tiny" style="margin-top:var(--space-3)">Owner sees this in the inbox as <b>' + esc(r.status) + '</b> → responds by phone/email → closes.</p>' +
+        '<button class="btn primary" data-act="mode" data-mode="owner" style="margin-top:var(--space-3)">Open owner inbox</button></div>';
+    }
+    var labels = qs.map(function (q) {
+      var active = S.form && S.form.type === 'quote' && S.form.sourceLabel === (q.sourceLabel || 'Quote');
+      return '<button class="choice' + (active ? ' active' : '') + '" data-act="quote-entry" data-label="' + esc(q.label) + '" data-sourcelabel="' + esc(q.sourceLabel || 'Quote') + '">' +
+        'From “' + esc(q.label) + '”<small>sourceLabel: ' + esc(q.sourceLabel || 'Quote') + '</small></button>';
+    }).join('');
+    var err = S.form && S.form.type === 'quote' && S.form.errors ? S.form.errors : {};
+    return '<div class="card widget"><h3>Quote request</h3>' +
+      '<p class="muted tiny card-sub">Generic quote workflow — one form for every quote action; the entry point travels as the sourceLabel.</p>' +
+      '<div class="step-label">Entry point</div><div class="chip-row" style="margin-bottom:var(--space-3)">' + labels + '</div>' +
+      '<div class="field"><label>Name</label><input data-input="name" value="' + esc(S.draft.name) + '" placeholder="Your name" />' +
+      (err.name ? '<span class="err">' + esc(err.name) + '</span>' : '') + '</div>' +
+      '<div class="field"><label>Phone or email</label><input data-input="contact" value="' + esc(S.draft.contact) + '" placeholder="How should they reach you?" />' +
+      (err.contact ? '<span class="err">' + esc(err.contact) + '</span>' : '') + '</div>' +
+      '<div class="field"><label>Message</label><textarea data-input="message" placeholder="What do you need?">' + esc(S.draft.message) + '</textarea>' +
+      (err.message ? '<span class="err">' + esc(err.message) + '</span>' : '') + '</div>' +
+      '<button class="btn primary" data-act="quote-submit" style="width:100%">Send quote request</button>' +
+      '<p class="muted tiny" style="margin-top:var(--space-2)">Current sourceLabel: <span class="src">' + esc(currentQuoteLabel()) + '</span></p></div>';
+  }
+  function bookingWidgetHtml() {
+    var b = cfg().business;
+    if (S.form && S.form.type === 'booking' && S.form.record) {
+      var r = S.form.record;
+      return '<div class="card widget"><h3>Appointment requested</h3>' +
+        '<div class="confirm-box"><b>' + esc(r.serviceName) + ' · ' + esc(r.startAt) + '</b>' +
+        'status: <b>' + esc(r.status) + '</b> — shared booking workflow, same record shape as the salon (#20).</div>' +
+        '<p class="muted tiny" style="margin-top:var(--space-3)">Owner confirms/declines; visitor cancellation uses the same tokenized link as the salon.</p>' +
+        '<button class="btn primary" data-act="mode" data-mode="owner" style="margin-top:var(--space-3)">Open owner inbox</button></div>';
+    }
+    var f = S.form && S.form.type === 'booking' ? S.form : null;
+    var serviceBtns = b.services.map(function (s) {
+      var active = f && f.serviceId === s.id;
+      return '<button class="choice' + (active ? ' active' : '') + '" data-act="booking-service" data-id="' + s.id + '">' + esc(s.name) +
+        '<small>' + s.durationMinutes + ' min · ' + esc(s.blurb || '') + '</small></button>';
+    }).join('');
+    var dateBtns = nextDays(6).slice(1, 6).map(function (d) {
+      var key = dateKeyOf(d), active = f && f.dateKey === key;
+      return '<button class="choice' + (active ? ' active' : '') + '" data-act="booking-date" data-key="' + key + '">' + dayLabel(d) + '</button>';
+    }).join('');
+    var slotsHtml = '<p class="muted tiny">Pick a service and a day to load slots.</p>';
+    if (f && f.serviceId && f.dateKey) {
+      var svc = b.services.filter(function (s) { return s.id === f.serviceId; })[0];
+      var taken = S.bookings.filter(function (bk) { return bk.dateKey === f.dateKey && bk.status !== 'declined' && bk.businessId === b.id; }).map(function (bk) { return bk.startMinutes; });
+      slotsHtml = '<div class="slot-grid">' + deriveSlots(svc.durationMinutes, taken).map(function (s) {
+        var active = f.slot === s.minutes;
+        return '<button class="slot' + (active ? ' active' : '') + '" data-act="booking-slot" data-min="' + s.minutes + '" data-label="' + esc(s.label) + '"' +
+          (s.taken ? ' disabled title="Already booked"' : '') + '>' + s.label + '</button>';
+      }).join('') + '</div><p class="muted tiny" style="margin-top:var(--space-2)">Slots derive from business hours + service duration · taken slots visible-disabled (naive marking per SPEC §7).</p>';
+    }
+    var errs = f && f.errors ? f.errors : {};
+    var ready = f && f.serviceId && f.dateKey && f.slot != null && S.draft.name && S.draft.phone;
+    return '<div class="card widget"><h3>Book appointment</h3>' +
+      '<p class="muted tiny card-sub">Same booking workflow as the salon (B9) — vet is not a fork.</p>' +
+      '<div class="stepper">' +
+      '<div class="step-block"><div class="step-label">1 · Service (duration drives slots)</div><div class="chip-row">' + serviceBtns + '</div></div>' +
+      '<div class="step-block"><div class="step-label">2 · Day</div><div class="chip-row">' + dateBtns + '</div></div>' +
+      '<div class="step-block"><div class="step-label">3 · Time</div>' + slotsHtml + '</div>' +
+      '<div class="step-block"><div class="step-label">4 · Contact</div>' +
+      '<div class="field"><label>Name</label><input data-input="name" value="' + esc(S.draft.name) + '" />' + (errs.name ? '<span class="err">' + esc(errs.name) + '</span>' : '') + '</div>' +
+      '<div class="field"><label>Phone</label><input data-input="phone" value="' + esc(S.draft.phone) + '" />' + (errs.phone ? '<span class="err">' + esc(errs.phone) + '</span>' : '') + '</div>' +
+      '<div class="field"><label>Email (optional)</label><input data-input="email" value="' + esc(S.draft.email) + '" /></div>' +
+      '</div></div>' +
+      '<button class="btn primary" data-act="booking-submit" style="width:100%"' + (ready ? '' : ' disabled') + '>Request appointment</button></div>';
+  }
+  function profileHtml() {
+    if (S.profileSim === 'skeleton') {
+      return '<div class="card"><div class="skeleton-row" style="height:12rem"></div></div>' +
+        '<div class="card" style="margin-top:var(--space-4)"><div class="skeleton-row"></div><div class="skeleton-row" style="margin-top:var(--space-2)"></div></div>';
+    }
+    if (S.profileSim === 'error') {
+      return '<div class="card"><h2>Could not load this profile</h2><p class="muted">Error state — the foundation owns skeleton / error / empty handling uniformly for every vertical.</p>' +
+        '<button class="btn" data-act="sim-profile" data-mode="ok">Back to normal</button></div>';
+    }
+    var b = cfg().business, gallery = !!(cfg().business.galleryEmphasis || cfg().modules.indexOf('galleryEmphasis') !== -1);
+    var modules = cfg().modules.filter(function (m) { return moduleVisible(m, cfg(), !!S.emptyServices[S.vertical]); });
+    return '' +
+      '<div class="crumbs">Home › ' + esc(b.category) + ' › <b>' + esc(b.name) + '</b></div>' +
+      '<div class="hero">' +
+      '<div class="hero-media' + (gallery ? '' : ' no-gallery') + '">' +
+      '<div class="hero-photo">HERO / GALLERY · shared foundation</div>' +
+      '<div class="hero-photo small">PHOTO 2</div>' +
+      '</div>' +
+      '<div class="identity"><h1>' + esc(b.name) + '</h1>' +
+      '<div class="badges">' + (b.verified ? '<span class="chip green">✓ Verified</span>' : '<span class="chip slate">Unverified</span>') +
+      '<span><b>' + b.rating + '</b> ★ (' + b.ratingCount + ')</span><span>· ' + esc(b.category) + '</span>' +
+      '<span>· <span class="dot"></span> Open until ' + esc(b.openUntil) + '</span></div>' +
+      '<p class="muted" style="margin:var(--space-3) 0 0">' + esc(b.description) + '</p></div>' +
+      '<div class="actions-bar">' + actionButtonsHtml() + '<span class="spacer"></span>' +
+      '<span class="chip slate" data-testid="action-count">' + cfg().actions.length + ' actions · from config</span></div>' +
+      '</div>' +
+      '<div class="layout">' +
+      '<div class="main-col">' + modules.map(function (m) {
+        if (m === 'services') return servicesHtml();
+        if (m === 'credentials') return credentialsHtml();
+        if (m === 'team') return teamHtml();
+        return '';
+      }).join('') + '</div>' +
+      '<div class="side-col">' +
+      '<div class="card"><h2>Contact information</h2><div class="info-list">' +
+      '<div><span class="k">Address</span><span>' + esc(b.address) + '</span></div>' +
+      '<div><span class="k">Phone</span><span>' + esc(b.phone) + '</span></div>' +
+      (b.emergencyPhone ? '<div><span class="k">Emergency</span><span>' + esc(b.emergencyPhone) + '</span></div>' : '') +
+      '<div><span class="k">Email</span><span>' + esc(b.email) + '</span></div>' +
+      '<div><span class="k">Website</span><span>' + esc(b.website) + '</span></div></div></div>' +
+      '<div class="card"><h2>Hours of operation</h2><div class="hours">' +
+      ['Mon – Fri', 'Saturday', 'Sunday'].map(function (d, i) {
+        return '<div><span>' + d + '</span><span>' + (i === 2 ? 'Closed' : '9:00 AM – ' + (i === 1 ? '4:00 PM' : '6:00 PM')) + '</span></div>';
+      }).join('') +
+      '</div></div>' +
+      workflowWidgetHtml() +
+      fallbackNote() +
+      '<div class="footer-note">Last updated by owner: ' + esc(b.lastUpdated) + ' · config: ' + esc(cfg().configName) + '</div>' +
+      '</div></div>';
+  }
+  /* 5. Owner inbox — generic workflow records, all verticals */
+  function statusChip(st) {
+    var cls = (st === 'new' || st === 'requested') ? 'blue' : (st === 'responded' || st === 'confirmed') ? 'green' : (st === 'closed' || st === 'declined') ? 'slate' : 'amber';
+    return '<span class="chip ' + cls + '">' + esc(st) + '</span>';
+  }
+  function ownerRows() {
+    if (S.ownerSim === 'loading') return '<div class="skeleton-row"></div><div class="skeleton-row"></div>';
+    var rows = [];
+    if (S.ownerFilter !== 'bookings') {
+      rows = rows.concat(S.quotes.map(function (q) {
+        var biz = VERTICALS[q.vertical] ? VERTICALS[q.vertical].business.name : q.businessId;
+        var btns = '';
+        if (q.status === 'new') btns += '<button class="btn small success" data-act="quote-respond" data-id="' + q.id + '">Respond</button>';
+        if (q.status === 'new' || q.status === 'responded') btns += '<button class="btn small" data-act="quote-close" data-id="' + q.id + '">Close</button>';
+        if (q.status === 'closed') btns = '<span class="muted tiny">replied by phone/email — no in-app thread (SPEC §7)</span>';
+        return '<div class="owner-row" data-testid="quote-row-' + q.id + '"><div class="top"><span class="chip slate">QUOTE</span>' +
+          statusChip(q.status) + '<span class="who">' + esc(q.customerName) + '</span><span class="muted tiny">' + esc(q.customerContact) + '</span>' +
+          '<span class="spacer"></span><span class="chip blue" data-testid="source-label">entry: ' + esc(q.sourceLabel) + '</span></div>' +
+          '<div class="msg">“' + esc(q.message) + '”</div>' +
+          '<div class="meta">' + esc(biz) + ' · ' + esc(q.id) + ' · ' + esc(q.createdAt) + '</div>' +
+          '<div class="btns">' + btns + '</div></div>';
+      }));
+    }
+    if (S.ownerFilter !== 'quotes') {
+      rows = rows.concat(S.bookings.map(function (bk) {
+        var biz = VERTICALS[bk.vertical] ? VERTICALS[bk.vertical].business.name : bk.businessId;
+        var btns;
+        if (bk.status === 'requested') {
+          btns = '<button class="btn small success" data-act="booking-confirm" data-id="' + bk.id + '">Confirm</button>' +
+            '<button class="btn small danger" data-act="booking-decline" data-id="' + bk.id + '">Decline</button>';
+        } else {
+          btns = '<span class="muted tiny">tokenized cancel link issued to visitor (#20 model)</span>';
+        }
+        return '<div class="owner-row" data-testid="booking-row-' + bk.id + '"><div class="top"><span class="chip slate">BOOKING</span>' +
+          statusChip(bk.status) + '<span class="who">' + esc(bk.customerName) + '</span><span class="muted tiny">' + esc(bk.customerPhone) + '</span></div>' +
+          '<div class="msg">' + esc(bk.serviceName) + ' · ' + esc(bk.startAt) + ' · ' + bk.durationMinutes + ' min</div>' +
+          '<div class="meta">' + esc(biz) + ' · ' + esc(bk.id) + ' · ' + esc(bk.createdAt) + '</div>' +
+          '<div class="btns">' + btns + '</div></div>';
+      }));
+    }
+    if (S.ownerSim === 'empty' || !rows.length) {
+      return '<div class="empty-box">No workflow records here yet.<br><span class="tiny">Submit a quote or booking from a visitor profile — records appear in this inbox.</span></div>';
+    }
+    return rows.join('');
+  }
+
+  /* 6. Inspector: live state / vertical configs / decision marks */
+  var DECISIONS = [
+    { id: 'd1', q: 'Auto services render as price-list rows (name + price range + duration), display-only.' },
+    { id: 'd2', q: 'Auto actions = Call for Service + Request Towing (sourceLabel “Request Towing”) + Get Free Quote.' },
+    { id: 'd3', q: 'Legal actions = Schedule Consultation (sourceLabel “Free Consultation”) + Call Now + Send Message (quote).' },
+    { id: 'd4', q: 'Vet “Book Appointment” uses the shared booking workflow — same record shape and UI as the salon (B9), not a fork.' },
+    { id: 'd5', q: 'Vet services carry durationMinutes; slots derive from business hours + duration (naive marking per SPEC §7).' },
+    { id: 'd6', q: 'Emergency Line renders as a call link — no workflow behind it.' },
+    { id: 'd7', q: 'Team cards (vet team, legal attorneys) degrade to services-list presentation in v1.' },
+    { id: 'd8', q: 'One generic quote form (name + contact + message) serves every quote action; the entry point travels as sourceLabel.' },
+    { id: 'd9', q: 'Modules with no data hide entirely; a business with no module data still renders the full foundation (generic fallback).' },
+    { id: 'd10', q: 'Food-drink / retail show no visitor workflow widget (contact-only); professional-services shows the quote widget.' },
+    { id: 'd11', q: 'The owner inbox shows the sourceLabel as the entry-point chip on every quote row.' },
+    { id: 'd12', q: 'Quote statuses new → responded → closed, owner-driven; no in-app thread (reply is phone/email per SPEC §7).' }
+  ];
+  function renderInspector() {
+    var body = $('#inspector-body');
+    if (S.inspectorTab === 'state') {
+      var c = cfg();
+      var moduleStates = c.modules.map(function (m) {
+        return m + ': ' + (moduleVisible(m, c, !!S.emptyServices[S.vertical]) ? 'rendered' : 'HIDDEN (no data)');
+      }).join('\n');
+      var actions = c.actions.map(function (a) { return a.label + ' [' + a.kind + (a.sourceLabel ? ' · label: ' + a.sourceLabel : '') + ']'; }).join('\n');
+      var quoteLines = S.quotes.map(function (q) { return q.id + '  ' + q.vertical + '  ' + q.status + '  src="' + q.sourceLabel + '"  ' + q.customerName; }).join('\n') || '(none)';
+      var bookingLines = S.bookings.map(function (b) { return b.id + '  ' + b.vertical + '  ' + b.status + '  ' + b.serviceName + ' @ ' + b.startAt; }).join('\n') || '(none)';
+      var logLines = S.log.slice(-10).join('\n') || '(no actions yet)';
+      body.innerHTML =
+        '<h4>Active vertical</h4><div class="kv"><span class="k">slug</span><span>' + esc(S.vertical) + '</span>' +
+        '<span class="k">config name</span><span>' + esc(c.configName) + '</span>' +
+        '<span class="k">business</span><span>' + esc(c.business.name) + '</span></div>' +
+        '<h4>Modules declared → rendered</h4><div class="code">' + esc(moduleStates) + '</div>' +
+        '<h4>Actions from config</h4><div class="code">' + esc(actions) + '</div>' +
+        '<h4>Quote requests (in-memory)</h4><div class="code">' + esc(quoteLines) + '</div>' +
+        '<h4>Bookings (in-memory)</h4><div class="code">' + esc(bookingLines) + '</div>' +
+        '<h4>Action trail</h4><div class="code">' + esc(logLines) + '</div>';
+    } else if (S.inspectorTab === 'configs') {
+      var cards = VERTICAL_ORDER.map(function (slug) {
+        var c = VERTICALS[slug];
+        return '<div class="config-card' + (slug === S.vertical ? ' active' : '') + '"><b>' + esc(slug) + '</b> — ' + esc(c.name) + '<br>' +
+          '<span class="tag">modules</span> ' + c.modules.map(function (m) { return '<span class="tag">' + esc(m) + '</span>'; }).join('') + '<br>' +
+          '<span class="tag">actions</span> ' + c.actions.map(function (a) { return '<span class="tag">' + esc(a.label) + '</span>'; }).join('') + '</div>';
+      }).join('');
+      body.innerHTML = '<h4>Prototype of lib/verticals.ts — developer artifact, not admin data</h4>' + cards +
+        '<h4>Generic fallback rules</h4><div class="code">' +
+        esc('• Modules with no data hide entirely (never render an empty heading).\n' +
+            '• No module data → the foundation still renders in full.\n' +
+            '• No workflow action → no visitor widget (contact-only profile).\n' +
+            '• Unknown slug → generic config fallback: foundation + services, actions Call/Directions/Website.\n' +
+            '• Exemplars restaurants + beauty-wellness use this same registry (B8/B9) — no page clones.') + '</div>' +
+        '<h4>Sub-shape note</h4><div class="code">' +
+        esc('Standalone throwaway prototype: the app has no /business/[id] route yet (B2 not built).\nWhen B2 lands, this foundation becomes the real page and these configs move into lib/verticals.ts.') + '</div>';
+    } else {
+      var rows = DECISIONS.map(function (d) {
+        var mark = S.decisions[d.id];
+        return '<div class="decision-row"><div class="q">' + esc(d.q) + '</div><div class="marks">' +
+          ['accept', 'discuss', 'reject'].map(function (m) {
+            return '<button class="mark-btn' + (mark === m ? ' on-' + m : '') + '" data-act="decision" data-id="' + d.id + '" data-mark="' + m + '">' +
+              m.charAt(0).toUpperCase() + m.slice(1) + '</button>';
+          }).join('') + '<span class="mark-done">' + (mark ? 'marked: ' + mark : 'not marked') + '</span></div></div>';
+      }).join('');
+      body.innerHTML = '<h4>Decision marks — record the accepted baseline</h4>' + rows +
+        '<button class="btn small primary" data-act="open-summary" style="margin-top:var(--space-2)">Generate summary for issue #21</button>';
+    }
+  }
+
+  /* 7. Chrome rendering */
+  function renderVtabs() {
+    $('#vtabs').innerHTML = VERTICAL_ORDER.map(function (slug) {
+      var c = VERTICALS[slug];
+      return '<button class="vtab' + (slug === S.vertical ? ' active' : '') + '" data-act="vertical" data-slug="' + slug + '">' +
+        esc(c.name) + '<small>' + esc(c.configName) + '</small></button>';
+    }).join('');
+  }
+  function renderVerticalLabel() {
+    $('#vs-label').innerHTML = '<b>' + esc(cfg().name) + '</b> — ' + esc(cfg().configName);
+  }
+  function renderFilters() {
+    $('#owner-filters').innerHTML = ['all', 'quotes', 'bookings'].map(function (f) {
+      return '<button class="filter-tab' + (S.ownerFilter === f ? ' active' : '') + '" data-act="owner-filter" data-filter="' + f + '">' +
+        ({ all: 'All records', quotes: 'Quote requests', bookings: 'Bookings' })[f] + '</button>';
+    }).join('');
+  }
+  function renderScenarioSelect() {
+    var sel = $('#scenario-select');
+    sel.innerHTML = '<option value="">Free play — click anything</option>' + SCENARIOS.map(function (s) {
+      return '<option value="' + s.id + '"' + (S.scenario === s.id ? ' selected' : '') + '>' + s.title + '</option>';
+    }).join('');
+    var sc = SCENARIOS.filter(function (s) { return s.id === S.scenario; })[0];
+    $('#demo-counter').textContent = sc ? 'Step ' + Math.min(S.step, sc.steps.length) + '/' + sc.steps.length : '';
+    $('#demo-step-text').textContent = !sc
+      ? 'Free play: flip the config switcher, click a profile action, and watch the quote / booking records build up in the Owner inbox. The inspector shows live state and every vertical config.'
+      : (S.step === 0 ? sc.intro : sc.steps[Math.min(S.step, sc.steps.length) - 1].label);
+  }
+  function renderAll() {
+    document.body.dataset.mode = S.mode;
+    document.body.dataset.vertical = S.vertical;
+    $('#view-visitor').classList.toggle('hidden', S.mode !== 'visitor');
+    $('#view-owner').classList.toggle('hidden', S.mode !== 'owner');
+    document.querySelectorAll('.mode-tab').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === S.mode); });
+    $('#app-frame').classList.toggle('mobile', S.viewport === 'mobile');
+    document.querySelectorAll('.viewport-switch button').forEach(function (b) { b.classList.toggle('active', b.dataset.vp === S.viewport); });
+    $('#inspector').classList.toggle('hidden', !S.inspectorOpen);
+    document.querySelectorAll('.inspector-tab').forEach(function (b) { b.classList.toggle('active', b.dataset.tab === S.inspectorTab); });
+    renderVerticalLabel();
+    renderVtabs();
+    $('#profile-region').innerHTML = profileHtml();
+    renderFilters();
+    $('#owner-list').innerHTML = ownerRows();
+    renderInspector();
+    renderScenarioSelect();
+    $('#demo-states').classList.toggle('hidden', !S.statesOpen);
+    var errChip = $('#err-chip');
+    if (window.__protoErrors.length) { errChip.style.display = ''; errChip.textContent = 'JS errors: ' + window.__protoErrors.length; }
+  }
+  /* 8. Actions */
+  function log(line) { S.log.push(line); }
+  function scrollTo(sel) { var n = $(sel); if (n && n.scrollIntoView) n.scrollIntoView({ block: 'start' }); }
+  function setVertical(slug) {
+    if (!VERTICALS[slug]) return;
+    S.vertical = slug;
+    S.form = null;
+    S.draft = { name: '', contact: '', message: '', phone: '', email: '' };
+    log('switch config → ' + slug);
+    try { history.replaceState(null, '', '?vertical=' + slug); } catch (err) { /* file:// guard */ }
+    renderAll();
+  }
+  function cycleVertical(dir) {
+    var i = VERTICAL_ORDER.indexOf(S.vertical);
+    setVertical(VERTICAL_ORDER[(i + dir + VERTICAL_ORDER.length) % VERTICAL_ORDER.length]);
+  }
+  function setMode(mode) { S.mode = mode; log('mode → ' + mode); renderAll(); }
+  function openQuoteForm(sourceLabel) {
+    S.form = { type: 'quote', sourceLabel: sourceLabel || 'Quote', errors: null, record: null };
+    log('quote form opened · sourceLabel=' + (sourceLabel || 'Quote'));
+    renderAll();
+  }
+  function openBookingForm() {
+    S.form = { type: 'booking', serviceId: null, dateKey: null, slot: null, errors: null, record: null };
+    log('booking widget opened');
+    renderAll();
+  }
+  function handleProfileAction(el) {
+    var kind = el.dataset.kind, label = el.dataset.label, sourceLabel = el.dataset.sourcelabel;
+    if (kind === 'quote') { openQuoteForm(sourceLabel || 'Quote'); scrollTo('#profile-region'); return; }
+    if (kind === 'book') { openBookingForm(); scrollTo('#profile-region'); return; }
+    log('would open ' + kind + ' → ' + label + ' (prototype intercepts external links)');
+    renderAll();
+  }
+  function submitQuote() {
+    if (!S.form || S.form.type !== 'quote') return;
+    var b = cfg().business;
+    var res = createQuoteRequest(S, { businessId: b.id, vertical: S.vertical, name: S.draft.name, contact: S.draft.contact, message: S.draft.message, sourceLabel: S.form.sourceLabel });
+    if (!res.ok) { S.form.errors = res.errors; log('quote validation failed'); }
+    else { S.form.record = res.record; S.form.errors = null; log('quote created → ' + res.record.id + ' (src ' + res.record.sourceLabel + ')'); }
+    renderAll();
+  }
+  function chooseService(id) {
+    if (!S.form || S.form.type !== 'booking') return;
+    S.form.serviceId = id; S.form.slot = null; S.form.record = null;
+    log('booking service → ' + id);
+    renderAll();
+  }
+  function chooseDate(key) {
+    if (!S.form || S.form.type !== 'booking') return;
+    S.form.dateKey = key; S.form.slot = null;
+    log('booking date → ' + key);
+    renderAll();
+  }
+  function chooseSlot(min, label) {
+    if (!S.form || S.form.type !== 'booking') return;
+    S.form.slot = min;
+    log('booking slot → ' + label);
+    renderAll();
+  }
+  function submitBooking() {
+    if (!S.form || S.form.type !== 'booking') return;
+    var b = cfg().business, f = S.form, errors = {};
+    if (!f.serviceId || !f.dateKey || f.slot == null) errors.slot = 'Pick a service, day, and time.';
+    if (!S.draft.name) errors.name = 'Please add your name.';
+    if (!S.draft.phone) errors.phone = 'Please add a phone number.';
+    if (Object.keys(errors).length) { f.errors = errors; log('booking validation failed'); renderAll(); return; }
+    var svc = b.services.filter(function (s) { return s.id === f.serviceId; })[0];
+    f.record = createBookingRequest(S, { businessId: b.id, vertical: S.vertical, serviceOfferingId: svc.id, serviceName: svc.name, durationMinutes: svc.durationMinutes, dateKey: f.dateKey, startMinutes: f.slot, name: S.draft.name, phone: S.draft.phone, email: S.draft.email });
+    f.errors = null;
+    log('booking created → ' + f.record.id + ' requested');
+    renderAll();
+  }
+  function ownerAction(type, id, action) {
+    if (type === 'quote') { var r = quoteTransition(S, id, action); log('quote ' + id + ' → ' + (r ? r.status : 'missing')); }
+    if (type === 'booking') { var b = bookingTransition(S, id, action); log('booking ' + id + ' → ' + (b ? b.status : 'missing')); }
+    renderAll();
+  }
+  function setProfileSim(mode) { S.profileSim = mode; log('profile state → ' + mode); renderAll(); }
+  function toggleEmptyServices() {
+    S.emptyServices[S.vertical] = !S.emptyServices[S.vertical];
+    log('module sim · empty services on ' + S.vertical + ' = ' + !!S.emptyServices[S.vertical]);
+    renderAll();
+  }
+  function setStateToggle(key, value) { S[key] = value; log('state → ' + key + '=' + value); renderAll(); }
+
+  /* 9. demo API — used by guided scenarios and the headless verification pass */
+  var demo = {
+    vertical: function (slug) { setVertical(slug); },
+    mode: function (m) { setMode(m); },
+    ownerFilter: function (f) { S.ownerFilter = f; renderAll(); },
+    action: function (label) {
+      var a = cfg().actions.filter(function (x) { return x.label === label; })[0];
+      if (a) handleProfileAction({ dataset: { kind: a.kind, label: a.label, sourcelabel: a.sourceLabel } });
+    },
+    fillQuote: function (name, contact, message) {
+      S.draft.name = name; S.draft.contact = contact; S.draft.message = message;
+      if (S.form && S.form.type === 'quote') { S.form.record = null; S.form.errors = null; }
+      renderAll();
+    },
+    submitQuote: submitQuote,
+    lastQuoteId: function () { var q = S.quotes[S.quotes.length - 1]; return q ? q.id : null; },
+    quoteAction: function (id, act) { ownerAction('quote', id, act); },
+    chooseService: chooseService,
+    chooseDate: function (idx) { var days = nextDays(6).slice(1, 6); if (days[idx]) chooseDate(dateKeyOf(days[idx])); },
+    chooseFirstSlot: function () {
+      if (!S.form || S.form.type !== 'booking' || !S.form.dateKey || !S.form.serviceId) return;
+      var svc = cfg().business.services.filter(function (s) { return s.id === S.form.serviceId; })[0];
+      var taken = S.bookings.filter(function (bk) { return bk.dateKey === S.form.dateKey && bk.status !== 'declined' && bk.businessId === cfg().business.id; }).map(function (bk) { return bk.startMinutes; });
+      var free = deriveSlots(svc.durationMinutes, taken).filter(function (s) { return !s.taken; });
+      if (free[0]) chooseSlot(free[0].minutes, free[0].label);
+    },
+    fillBookingContact: function (name, phone, email) { S.draft.name = name; S.draft.phone = phone; S.draft.email = email || ''; renderAll(); },
+    submitBooking: submitBooking,
+    lastBookingId: function () { var b = S.bookings[S.bookings.length - 1]; return b ? b.id : null; },
+    bookingAction: function (id, act) { ownerAction('booking', id, act); },
+    toggleEmptyServices: toggleEmptyServices,
+    openInspectorTab: function (tab) { S.inspectorOpen = true; S.inspectorTab = tab; renderAll(); }
+  };
+  window.__demo = demo;
+
+  /* 10. Guided scenarios */
+  var SCENARIOS = [
+    { id: 'auto', title: '1 · Auto — towing quote with a custom label',
+      intro: 'A visitor requests a tow from the Auto config; the entry point travels as the sourceLabel and the owner works it new → responded → closed.',
+      steps: [
+        { label: 'Switch to the Automotive config', run: function () { demo.vertical('automotive'); } },
+        { label: 'Click “Request Towing” in the actions bar', run: function () { demo.action('Request Towing'); } },
+        { label: 'Fill the generic quote form and send it', run: function () { demo.fillQuote('Dana Whitfield', '(217) 555-0177', 'Truck will not start — need a tow to the shop.'); demo.submitQuote(); } },
+        { label: 'Open the Owner inbox filtered to quote requests', run: function () { demo.mode('owner'); demo.ownerFilter('quotes'); } },
+        { label: 'Owner responds (calls back)', run: function () { demo.quoteAction(demo.lastQuoteId(), 'respond'); } },
+        { label: 'Owner closes the request', run: function () { demo.quoteAction(demo.lastQuoteId(), 'close'); } }
+      ] },
+    { id: 'legal', title: '2 · Legal — two quote entry points, two source labels',
+      intro: 'The same quote form serves “Schedule Consultation” (Free Consultation) and “Send Message”; the owner inbox distinguishes the entry point on the record.',
+      steps: [
+        { label: 'Switch to the Legal services config', run: function () { demo.vertical('legal-services'); } },
+        { label: 'Click “Schedule Consultation”', run: function () { demo.action('Schedule Consultation'); } },
+        { label: 'Send the consultation request', run: function () { demo.fillQuote('Alicia Gomez', 'alicia@example.com', 'Need help with a contract dispute.'); demo.submitQuote(); } },
+        { label: 'Back on the profile — click “Send Message”', run: function () { demo.vertical('legal-services'); demo.action('Send Message'); } },
+        { label: 'Send the message request', run: function () { demo.fillQuote('Alicia Gomez', 'alicia@example.com', 'Following up on estate planning — please call me.'); demo.submitQuote(); } },
+        { label: 'Open the Owner inbox — two records, two entry chips', run: function () { demo.mode('owner'); demo.ownerFilter('quotes'); } }
+      ] },
+    { id: 'vet', title: '3 · Vet — Book Appointment on the shared booking workflow',
+      intro: 'Vet booking uses the same record shape as the salon (B9): service with durationMinutes → day → derived slots → contact → requested → owner confirms.',
+      steps: [
+        { label: 'Switch to the Healthcare (vet) config', run: function () { demo.vertical('healthcare'); } },
+        { label: 'Click “Book Appointment”', run: function () { demo.action('Book Appointment'); } },
+        { label: 'Pick “Wellness Exam” (30 min duration)', run: function () { demo.chooseService('svc-wellness'); } },
+        { label: 'Pick a day', run: function () { demo.chooseDate(1); } },
+        { label: 'Select the first available slot', run: function () { demo.chooseFirstSlot(); } },
+        { label: 'Fill visitor contact details and request', run: function () { demo.fillBookingContact('Jordan Ellis', '(217) 555-0221', 'jordan@example.com'); demo.submitBooking(); } },
+        { label: 'Open the Owner inbox (bookings)', run: function () { demo.mode('owner'); demo.ownerFilter('bookings'); } },
+        { label: 'Owner confirms the appointment', run: function () { demo.bookingAction(demo.lastBookingId(), 'confirm'); } }
+      ] },
+    { id: 'fallback', title: '4 · Generic fallback — food-drink / retail / prof-services',
+      intro: 'Contact-only configs render foundation + services with no workflow widget; the “no services data” toggle shows empty modules hiding while the foundation still renders.',
+      steps: [
+        { label: 'Switch to Food & drink — note: no workflow widget (contact-only)', run: function () { demo.vertical('food-drink'); } },
+        { label: 'Switch to Retail — same generic shape', run: function () { demo.vertical('retail'); } },
+        { label: 'Toggle “no services data” on Retail', run: function () { demo.toggleEmptyServices(); } },
+        { label: 'Switch to Professional services — services + credentials + quote widget', run: function () { demo.vertical('professional-services'); } },
+        { label: 'Open the Configs inspector tab to see all six declarations', run: function () { demo.openInspectorTab('configs'); } }
+      ] },
+    { id: 'sweep', title: '5 · Consistency sweep — one foundation, six configs',
+      intro: 'The same foundation slots render for every vertical; only the modules list and the actions bar change with the config. Watch the action count chip and the sidebar widget swap.',
+      steps: [
+        { label: 'Automotive', run: function () { demo.vertical('automotive'); } },
+        { label: 'Healthcare (vet)', run: function () { demo.vertical('healthcare'); } },
+        { label: 'Legal services', run: function () { demo.vertical('legal-services'); } },
+        { label: 'Food & drink', run: function () { demo.vertical('food-drink'); } },
+        { label: 'Retail', run: function () { demo.vertical('retail'); } },
+        { label: 'Professional services', run: function () { demo.vertical('professional-services'); } }
+      ] }
+  ];
+  function currentScenario() { return SCENARIOS.filter(function (s) { return s.id === S.scenario; })[0] || null; }
+  function setScenario(id) { S.scenario = id || ''; S.step = 0; renderAll(); }
+  function runNext() {
+    var sc = currentScenario();
+    if (!sc || S.step >= sc.steps.length) return;
+    sc.steps[S.step].run();
+    S.step++;
+    renderAll();
+  }
+  function runPrev() { if (S.step > 0) { S.step--; renderAll(); } }
+  function runAll() {
+    var sc = currentScenario();
+    if (!sc) return;
+    while (S.step < sc.steps.length) { sc.steps[S.step].run(); S.step++; }
+    renderAll();
+  }
+  function resetDemo() {
+    var decisions = S.decisions, scenario = S.scenario;
+    S = freshState();
+    S.decisions = decisions;
+    S.scenario = scenario;
+    log('demo data reset');
+    renderAll();
+  }
+
+  /* 11. Decisions summary */
+  function buildSummary() {
+    var lines = ['## B10 prototype session (#21) — decision marks', '',
+      'Artifact: screens/wayfinder/prototype/b10-quote-stubs.html', ''];
+    DECISIONS.forEach(function (d, i) {
+      lines.push((i + 1) + '. [' + (S.decisions[d.id] || 'not marked').toUpperCase() + '] ' + d.q);
+    });
+    return lines.join('\n');
+  }
+  function openSummary() {
+    $('#summary-text').value = buildSummary();
+    $('#summary-modal').classList.remove('hidden');
+  }
+  function copySummary() {
+    var ta = $('#summary-text');
+    ta.select();
+    var done = function () { log('summary copied'); renderAll(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(done, function () { try { document.execCommand('copy'); done(); } catch (err) { /* manual copy */ } });
+    } else {
+      try { document.execCommand('copy'); done(); } catch (err) { /* manual copy */ }
+    }
+  }
+
+  /* 12. Events + init */
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!el) return;
+    var act = el.dataset.act;
+    if (act === 'vertical') setVertical(el.dataset.slug);
+    else if (act === 'vertical-prev') cycleVertical(-1);
+    else if (act === 'vertical-next') cycleVertical(1);
+    else if (act === 'mode') setMode(el.dataset.mode);
+    else if (act === 'viewport') { S.viewport = el.dataset.vp; renderAll(); }
+    else if (act === 'profile-action') handleProfileAction(el);
+    else if (act === 'quote-entry') openQuoteForm(el.dataset.sourcelabel);
+    else if (act === 'quote-submit') submitQuote();
+    else if (act === 'booking-service') chooseService(el.dataset.id);
+    else if (act === 'booking-date') chooseDate(el.dataset.key);
+    else if (act === 'booking-slot') chooseSlot(Number(el.dataset.min), el.dataset.label);
+    else if (act === 'booking-submit') submitBooking();
+    else if (act === 'owner-filter') { S.ownerFilter = el.dataset.filter; renderAll(); }
+    else if (act === 'quote-respond') ownerAction('quote', el.dataset.id, 'respond');
+    else if (act === 'quote-close') ownerAction('quote', el.dataset.id, 'close');
+    else if (act === 'booking-confirm') ownerAction('booking', el.dataset.id, 'confirm');
+    else if (act === 'booking-decline') ownerAction('booking', el.dataset.id, 'decline');
+    else if (act === 'toggle-inspector') { S.inspectorOpen = !S.inspectorOpen; renderAll(); }
+    else if (act === 'inspector-tab') { S.inspectorTab = el.dataset.tab; renderAll(); }
+    else if (act === 'toggle-states') { S.statesOpen = !S.statesOpen; renderAll(); }
+    else if (act === 'sim-profile') setProfileSim(el.dataset.mode);
+    else if (act === 'sim-empty-services') toggleEmptyServices();
+    else if (act === 'sim-owner-loading') setStateToggle('ownerSim', 'loading');
+    else if (act === 'sim-owner-empty') setStateToggle('ownerSim', 'empty');
+    else if (act === 'reset-data') resetDemo();
+    else if (act === 'scenario-next') runNext();
+    else if (act === 'scenario-prev') runPrev();
+    else if (act === 'scenario-run') runAll();
+    else if (act === 'scenario-reset') resetDemo();
+    else if (act === 'decision') { S.decisions[el.dataset.id] = el.dataset.mark; renderAll(); }
+    else if (act === 'open-summary') openSummary();
+    else if (act === 'copy-summary') copySummary();
+    else if (act === 'close-summary') $('#summary-modal').classList.add('hidden');
+  });
+  document.addEventListener('input', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-input]') : null;
+    if (!el) return;
+    S.draft[el.dataset.input] = el.value;
+    var btn = document.querySelector('[data-act="booking-submit"]');
+    if (btn && S.form && S.form.type === 'booking') {
+      btn.disabled = !(S.form.serviceId && S.form.dateKey && S.form.slot != null && S.draft.name && S.draft.phone);
+    }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'scenario-select') setScenario(e.target.value);
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (e.key === 'ArrowRight') cycleVertical(1);
+    else if (e.key === 'ArrowLeft') cycleVertical(-1);
+  });
+  function init() {
+    var params = new URLSearchParams(window.location.search);
+    var v = params.get('vertical');
+    if (v && VERTICALS[v]) S.vertical = v;
+    renderAll();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
