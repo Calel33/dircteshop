@@ -1,0 +1,613 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/ba7b6168ca94dbe9b24e4e8a3b8306ac54cde1f783a35a2af8104f2057483c65/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunrise Bakery &amp; Café - Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .breadcrumb {
+            padding: 24px 0 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 48px;
+            padding-bottom: 48px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .image-gallery {
+            position: relative;
+            height: 400px;
+            background: #e2e8f0;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gallery-dot.active {
+            background: white;
+        }
+
+        .business-header {
+            padding: 32px;
+        }
+
+        .business-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .title-left h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-category {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .verification-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .business-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stars {
+            color: #f59e0b;
+        }
+
+        .business-description {
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-icon {
+            color: #2563eb;
+            width: 20px;
+            margin-top: 2px;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            color: #64748b;
+        }
+
+        .info-value a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .hours-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .day {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .time {
+            color: #64748b;
+        }
+
+        .time.open {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .social-proof {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .proof-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .proof-icon {
+            width: 32px;
+            height: 32px;
+            background: #2563eb;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .proof-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .reviews-preview {
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .reviews-preview i {
+            font-size: 32px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+        }
+
+        .reviews-text {
+            color: #64748b;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#">Directory</a>
+                    <a href="#">Categories</a>
+                    <a href="#">Add Business</a>
+                    <a href="#">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="#">Home</a> / <a href="#">Restaurants</a> / <a href="#">Bakeries</a> / Sunrise Bakery &amp; Café
+        </div>
+
+        <div class="main-content">
+            <main>
+                <div class="hero-section">
+                    <div class="image-gallery">
+                        <img src="https://storage.googleapis.com/forge-sites/f6ad9c0b961ad2661e5e199576c218730149a5cc5ab049dedd079dc1f029d856.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154131Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=6d53207f74d0115d14be5bd6cae021e5139dddc057b72327f711e021a63c9561cfbe91eeecd5cbcac657f74bc6ce5785d657c5a3e77467ea2ddb835217c678ff3c2d55d92acd170a0758bf398a1ff6df7a98ff69f7fd146d3daa901d9f17f2d59d573323bcf67980a9b7d1a2a8bab850eee3f43fc9d528e25e6cf63690676bdb6935e0604c51b6ee7ab88730a69ba77605e6e88ca21246b71ef9c57a1f49d12661be557634d3e436b9745e2baca8f452667ce962dfd90a84c2e111919e1da33f23778c8b58a707e3d5a60835aabe89bf492de213aa2236ec8c18fab6521027482927687aa3f1d788f311bc637db2b9af656004aa829a667344a004700e6e7f41" alt="Warm and inviting bakery interior with wooden tables, exposed brick walls, display cases filled with fresh pastries, and soft lighting creating a cozy atmosphere" class="main-image">
+                        <div class="gallery-nav">
+                            <div class="gallery-dot active"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                        </div>
+                    </div>
+
+                    <div class="business-header">
+                        <div class="business-title">
+                            <div class="title-left">
+                                <h1>Sunrise Bakery &amp; Café</h1>
+                                <div class="business-category">Bakery • Café • Breakfast</div>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-shield-check"></i>
+                                Verified Business
+                            </div>
+                        </div>
+
+                        <div class="business-meta">
+                            <div class="rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.8 (127 reviews)</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>0.8 miles away</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                <span class="open">Open until 7:00 PM</span>
+                            </div>
+                        </div>
+
+                        <div class="business-description">
+                            Welcome to Sunrise Bakery &amp; Café, your neighborhood gathering place for freshly baked goods, artisan coffee, and hearty breakfast favorites. We've been serving the community with love and tradition since 2018, using locally sourced ingredients and time-honored recipes passed down through generations. From our signature sourdough bread to seasonal pastries, every item is crafted with care in our kitchen each morning.
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="#" class="btn btn-primary">
+                                <i class="fas fa-phone"></i>
+                                Call Now
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-directions"></i>
+                                Get Directions
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-globe"></i>
+                                Visit Website
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <aside class="sidebar">
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Business Information
+                    </h3>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Address</div>
+                            <div class="info-value">
+                                425 Oak Street<br>
+                                Springfield, IL 62701
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-phone info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Phone</div>
+                            <div class="info-value">
+                                <a href="tel:+12175551234">(217) 555-1234</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-globe info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Website</div>
+                            <div class="info-value">
+                                <a href="#" target="_blank">sunrisebakery.com</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Email</div>
+                            <div class="info-value">
+                                <a href="mailto:hello@sunrisebakery.com">hello@sunrisebakery.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Hours of Operation
+                    </h3>
+                    <div class="hours-grid">
+                        <div class="hour-row">
+                            <span class="day">Monday</span>
+                            <span class="time">6:00 AM - 7:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Tuesday</span>
+                            <span class="time open">6:00 AM - 7:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Wednesday</span>
+                            <span class="time">6:00 AM - 7:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Thursday</span>
+                            <span class="time">6:00 AM - 7:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Friday</span>
+                            <span class="time">6:00 AM - 8:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Saturday</span>
+                            <span class="time">7:00 AM - 8:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Sunday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-award"></i>
+                        Credentials &amp; Recognition
+                    </h3>
+                    <div class="social-proof">
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-calendar"></i>
+                            </div>
+                            <div class="proof-text">Established in 2018 • 6 years in business</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-certificate"></i>
+                            </div>
+                            <div class="proof-text">Licensed Food Service Establishment</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-leaf"></i>
+                            </div>
+                            <div class="proof-text">Certified Organic Ingredients</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-heart"></i>
+                            </div>
+                            <div class="proof-text">Community Choice Award 2023</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-star"></i>
+                        Customer Reviews
+                    </h3>
+                    <div class="reviews-preview">
+                        <i class="fas fa-comments"></i>
+                        <div class="reviews-text">
+                            Review system coming soon!<br>
+                            Help us build trust in our community.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="last-updated">
+                    <i class="fas fa-sync"></i>
+                    Last updated by owner on March 15, 2024
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>

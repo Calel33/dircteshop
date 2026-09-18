@@ -1,0 +1,928 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/52ff54a9d7ecdc026db9dd98d05d969d173f7e29efaaf00c7010658c924cc827/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Bowl Co. - Fresh, Healthy Bowls | Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Poppins:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 24px;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            color: #64748b;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .order-btn {
+            background: #16a34a;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .order-btn:hover {
+            background: #15803d;
+            transform: translateY(-1px);
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 32px;
+            margin-top: 32px;
+        }
+
+        /* Business Hero */
+        .business-hero {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .hero-images {
+            position: relative;
+            height: 300px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+        }
+
+        .hero-content {
+            padding: 32px;
+        }
+
+        .business-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .business-title {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 36px;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-tagline {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #16a34a;
+            margin-bottom: 16px;
+        }
+
+        .verification-badge {
+            background: #dcfce7;
+            color: #166534;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .business-description {
+            color: #64748b;
+            margin-bottom: 24px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .key-features {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .feature-card {
+            background: #f0fdf4;
+            border: 2px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 24px;
+            color: #16a34a;
+            margin-bottom: 8px;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* Menu Section */
+        .menu-section {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .menu-header {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .menu-title {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .menu-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .menu-nav {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .menu-tab {
+            flex: 1;
+            padding: 16px 24px;
+            background: transparent;
+            border: none;
+            color: #64748b;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .menu-tab.active {
+            color: #16a34a;
+            border-bottom-color: #16a34a;
+            background: white;
+        }
+
+        .menu-content {
+            padding: 32px;
+        }
+
+        .menu-category {
+            margin-bottom: 48px;
+        }
+
+        .category-title {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 24px;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .category-description {
+            color: #64748b;
+            margin-bottom: 24px;
+            font-size: 16px;
+        }
+
+        .menu-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .menu-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.2s;
+        }
+
+        .menu-item:hover {
+            border-color: #16a34a;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1);
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .item-name {
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #0f172a;
+        }
+
+        .item-calories {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .item-description {
+            color: #64748b;
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .item-details {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .allergen-info {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .allergen-tag {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .customize-btn {
+            background: #16a34a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .customize-btn:hover {
+            background: #15803d;
+        }
+
+        /* Loyalty Program */
+        .loyalty-section {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 2px solid #f59e0b;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .loyalty-title {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+            color: #92400e;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .loyalty-description {
+            color: #92400e;
+            margin-bottom: 16px;
+        }
+
+        .loyalty-benefits {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .benefit-item {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .benefit-number {
+            font-weight: 700;
+            color: #f59e0b;
+            font-size: 18px;
+        }
+
+        .benefit-text {
+            font-size: 12px;
+            color: #92400e;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 18px;
+            color: #0f172a;
+            margin-bottom: 16px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 8px 0;
+        }
+
+        .info-icon {
+            width: 20px;
+            color: #16a34a;
+        }
+
+        .action-buttons {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #15803d;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .hours-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .day {
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .time {
+            color: #0f172a;
+        }
+
+        .time.closed {
+            color: #dc2626;
+        }
+
+        .nutrition-legend {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 24px;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #0f172a;
+        }
+
+        .legend-items {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .legend-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+
+        .vegan { background: #16a34a; }
+        .vegetarian { background: #22c55e; }
+        .gluten-free { background: #f59e0b; }
+        .protein-plus { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#directory">Directory</a>
+                    <a href="#categories">Categories</a>
+                    <a href="#about">About</a>
+                    <a href="#contact">Contact</a>
+                    <a href="#" class="order-btn">Order Online</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="main-layout">
+            <main class="main-content">
+                <!-- Business Hero -->
+                <section class="business-hero">
+                    <div class="hero-images">
+                        <img src="https://storage.googleapis.com/forge-sites/4a4ca32560f6d77eb4e90d6e44a87a90cbe8644179be6ea1b0f590fcf92430de.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154636Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=18ef26793cdba0630f58d18174b14f48993337b79d2aaec5baf7aa459151e83fb7886282fd5593cd2474ac449a0329f7972303d71520a29a731f09e1de7f1013384f0d81a16f7cc7fc891078269315008cefae84c6f952912dd7d8be9f8e7140eefa11f6954f7ddd2309abc0d2ffa0b3f560a9afdc5dcebee9a0e696fdbece287d637c816219cf2360282be4bbf1dd260925092eee32194ed4c34ec1bbc51655eb271f7e105a7baaf19c9ad6b81f6cd170cee3459b2cbd878cc56bcda3f90464e5d4c5eb96b48a03d3773d242b5dc4ad2ce28abacc70976f6fc1ffddfade9083158b51fdbc0e1f88d1e6a7390e25483b7e4b2d493b44ce91ba9fe1ec0373ac9e" alt="Bright, modern Green Bowl Co. restaurant interior with fresh ingredients displayed and customers enjoying colorful, healthy bowls" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <div class="hero-content">
+                        <div class="business-header">
+                            <div>
+                                <h1 class="business-title">Green Bowl Co.</h1>
+                                <p class="business-tagline">Fresh. Healthy. Customizable.</p>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-check-circle"></i>
+                                Verified Business
+                            </div>
+                        </div>
+                        
+                        <p class="business-description">
+                            Build your perfect bowl with fresh, locally-sourced ingredients. Our fast-casual concept puts you in control of your nutrition with endless customization options, complete nutritional transparency, and bold flavors that make healthy eating exciting.
+                        </p>
+
+                        <div class="key-features">
+                            <div class="feature-card">
+                                <div class="feature-icon">
+                                    <i class="fas fa-leaf"></i>
+                                </div>
+                                <div class="feature-title">Fresh Daily</div>
+                                <div class="feature-desc">Ingredients sourced daily from local farms</div>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">
+                                    <i class="fas fa-calculator"></i>
+                                </div>
+                                <div class="feature-title">Calorie Counter</div>
+                                <div class="feature-desc">Real-time nutrition tracking as you build</div>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">
+                                    <i class="fas fa-mobile-alt"></i>
+                                </div>
+                                <div class="feature-title">Order Ahead</div>
+                                <div class="feature-desc">Skip the line with mobile ordering</div>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">
+                                    <i class="fas fa-award"></i>
+                                </div>
+                                <div class="feature-title">Earn Rewards</div>
+                                <div class="feature-desc">Points with every healthy choice</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Loyalty Program -->
+                <section class="loyalty-section">
+                    <h3 class="loyalty-title">
+                        <i class="fas fa-star"></i>
+                        Green Rewards Program
+                    </h3>
+                    <p class="loyalty-description">
+                        Join our loyalty program and earn points with every bowl! Get exclusive discounts, early access to new menu items, and special birthday rewards.
+                    </p>
+                    <div class="loyalty-benefits">
+                        <div class="benefit-item">
+                            <div class="benefit-number">1 pt</div>
+                            <div class="benefit-text">Per $1 spent</div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-number">100 pts</div>
+                            <div class="benefit-text">Free bowl reward</div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-number">$5 off</div>
+                            <div class="benefit-text">Birthday treat</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Menu Section -->
+                <section class="menu-section">
+                    <div class="menu-header">
+                        <h2 class="menu-title">Build Your Perfect Bowl</h2>
+                        <p class="menu-subtitle">Customize every ingredient to match your taste and nutrition goals</p>
+                    </div>
+                    
+                    <div class="menu-nav">
+                        <button class="menu-tab active">Build Your Bowl</button>
+                        <button class="menu-tab">Signature Bowls</button>
+                        <button class="menu-tab">Smoothies</button>
+                        <button class="menu-tab">Sides</button>
+                    </div>
+
+                    <div class="menu-content">
+                        <div class="menu-category">
+                            <h3 class="category-title">Build Your Bowl</h3>
+                            <p class="category-description">Start with a base, add your protein, load up on veggies, and finish with your favorite sauce and toppings.</p>
+                            
+                            <div class="menu-grid">
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Choose Your Base</h4>
+                                        <span class="item-calories">50-180 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Start with quinoa, brown rice, cauliflower rice, mixed greens, or spinach base. Each base is portion-controlled for optimal nutrition.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">Gluten-Free Options</span>
+                                            <span class="allergen-tag">Vegan</span>
+                                        </div>
+                                        <button class="customize-btn">Customize</button>
+                                    </div>
+                                </div>
+
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Select Your Protein</h4>
+                                        <span class="item-calories">120-280 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Grilled chicken, grass-fed beef, wild salmon, tofu, tempeh, or plant-based protein. All proteins are seasoned with house spice blends.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">High Protein</span>
+                                            <span class="allergen-tag">Vegan Options</span>
+                                        </div>
+                                        <button class="customize-btn">Customize</button>
+                                    </div>
+                                </div>
+
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Load Your Veggies</h4>
+                                        <span class="item-calories">15-80 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Mix and match from 15+ fresh vegetables including roasted sweet potato, steamed broccoli, cucumber, cherry tomatoes, and seasonal specials.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">Unlimited Veggies</span>
+                                            <span class="allergen-tag">Vegan</span>
+                                        </div>
+                                        <button class="customize-btn">Customize</button>
+                                    </div>
+                                </div>
+
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Signature Sauces</h4>
+                                        <span class="item-calories">25-120 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Tahini goddess, spicy peanut, cilantro lime, balsamic vinaigrette, or house green sauce. Made fresh daily with clean ingredients.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">Contains Nuts</span>
+                                            <span class="allergen-tag">Vegan Options</span>
+                                        </div>
+                                        <button class="customize-btn">Customize</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-category">
+                            <h3 class="category-title">Signature Bowls</h3>
+                            <p class="category-description">Chef-crafted combinations of our most popular ingredients. Perfect if you want a delicious bowl without the decisions.</p>
+                            
+                            <div class="menu-grid">
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">The Green Goddess</h4>
+                                        <span class="item-calories">485 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Quinoa base, grilled chicken, avocado, cucumber, cherry tomatoes, hemp hearts, and house green sauce. Our most popular bowl.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">High Protein</span>
+                                            <span class="allergen-tag">Gluten-Free</span>
+                                        </div>
+                                        <button class="customize-btn">Order $12.95</button>
+                                    </div>
+                                </div>
+
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Plant Power</h4>
+                                        <span class="item-calories">420 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Brown rice, seasoned tempeh, roasted sweet potato, steamed broccoli, chickpeas, and tahini goddess sauce. Completely plant-based.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">Vegan</span>
+                                            <span class="allergen-tag">High Protein</span>
+                                        </div>
+                                        <button class="customize-btn">Order $11.95</button>
+                                    </div>
+                                </div>
+
+                                <div class="menu-item">
+                                    <div class="item-header">
+                                        <h4 class="item-name">Protein Powerhouse</h4>
+                                        <span class="item-calories">520 cal</span>
+                                    </div>
+                                    <p class="item-description">
+                                        Cauliflower rice, grass-fed beef, hard-boiled egg, spinach, bell peppers, and spicy peanut sauce. Perfect for fitness goals.
+                                    </p>
+                                    <div class="item-details">
+                                        <div class="allergen-info">
+                                            <span class="allergen-tag">Keto-Friendly</span>
+                                            <span class="allergen-tag">Contains Nuts</span>
+                                        </div>
+                                        <button class="customize-btn">Order $14.95</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="nutrition-legend">
+                            <h4 class="legend-title">Nutrition Guide</h4>
+                            <div class="legend-items">
+                                <div class="legend-item">
+                                    <div class="legend-icon vegan"></div>
+                                    <span>Vegan</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-icon vegetarian"></div>
+                                    <span>Vegetarian</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-icon gluten-free"></div>
+                                    <span>Gluten-Free</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-icon protein-plus"></div>
+                                    <span>High Protein (25g+)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <aside class="sidebar">
+                <!-- Quick Actions -->
+                <div class="info-card">
+                    <div class="action-buttons">
+                        <a href="#" class="btn btn-primary">
+                            <i class="fas fa-shopping-cart"></i>
+                            Order Online
+                        </a>
+                        <a href="#" class="btn btn-secondary">
+                            <i class="fas fa-phone"></i>
+                            Call Restaurant
+                        </a>
+                        <a href="#" class="btn btn-secondary">
+                            <i class="fas fa-directions"></i>
+                            Get Directions
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="info-card">
+                    <h3 class="card-title">Contact Information</h3>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt info-icon"></i>
+                        <span>456 Health Street, Downtown, CA 90210</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-phone info-icon"></i>
+                        <span>(555) 123-BOWL</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-globe info-icon"></i>
+                        <span>greenbowlco.com</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope info-icon"></i>
+                        <span>hello@greenbowlco.com</span>
+                    </div>
+                </div>
+
+                <!-- Hours -->
+                <div class="info-card">
+                    <h3 class="card-title">Hours</h3>
+                    <div class="hours-grid">
+                        <div class="hour-row">
+                            <span class="day">Monday</span>
+                            <span class="time">10:00 AM - 9:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Tuesday</span>
+                            <span class="time">10:00 AM - 9:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Wednesday</span>
+                            <span class="time">10:00 AM - 9:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Thursday</span>
+                            <span class="time">10:00 AM - 9:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Friday</span>
+                            <span class="time">10:00 AM - 10:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Saturday</span>
+                            <span class="time">9:00 AM - 10:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Sunday</span>
+                            <span class="time">9:00 AM - 8:00 PM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features -->
+                <div class="info-card">
+                    <h3 class="card-title">Features</h3>
+                    <div class="info-item">
+                        <i class="fas fa-wifi info-icon"></i>
+                        <span>Free WiFi</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-car info-icon"></i>
+                        <span>Free Parking</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-credit-card info-icon"></i>
+                        <span>Accepts Credit Cards</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-mobile-alt info-icon"></i>
+                        <span>Mobile Orders</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-seedling info-icon"></i>
+                        <span>Sustainable Packaging</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-award info-icon"></i>
+                        <span>Certified Organic Options</span>
+                    </div>
+                </div>
+
+                <!-- Health & Safety -->
+                <div class="info-card">
+                    <h3 class="card-title">Health &amp; Safety</h3>
+                    <div class="info-item">
+                        <i class="fas fa-shield-alt info-icon"></i>
+                        <span>Health Department A+ Rating</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-allergies info-icon"></i>
+                        <span>Allergen Information Available</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-utensils info-icon"></i>
+                        <span>Separate Prep Areas</span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-hand-sparkles info-icon"></i>
+                        <span>Enhanced Sanitization</span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>

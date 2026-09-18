@@ -3,7 +3,7 @@
   "minLines": 5,
   "minTokens": 50,
   "reporters": ["console", "json"],
-  "output": "./jscpd-report.json",
+  "output": ".",
   "ignore": [
     "node_modules/**",
     ".next/**",

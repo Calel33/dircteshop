@@ -1,0 +1,1146 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/a89308c36f1a75600b7da4c7884026de195ce8da759c80bed51a5dd8c1a0f5bf/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Editor - LocalHub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #f5f7fa;
+            color: #1a1d21;
+            line-height: 1.5;
+            overflow: hidden;
+        }
+
+        .editor-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr 380px;
+            grid-template-rows: 70px 1fr;
+            height: 100vh;
+            gap: 0;
+        }
+
+        /* Header Bar */
+        .header-bar {
+            grid-column: 1 / -1;
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            z-index: 100;
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+
+        .brand-info h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            line-height: 1;
+        }
+
+        .brand-info p {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .header-center {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #10b981;
+            background: #ecfdf5;
+            padding: 6px 12px;
+            border-radius: 16px;
+        }
+
+        .sync-indicator.syncing {
+            color: #f59e0b;
+            background: #fef3c7;
+        }
+
+        .sync-indicator i {
+            font-size: 11px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 13px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn.primary {
+            background: #6366f1;
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: #5b21b6;
+        }
+
+        .action-btn.ghost {
+            background: transparent;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+
+        .action-btn.ghost:hover {
+            background: #f9fafb;
+        }
+
+        /* Navigation Sidebar */
+        .nav-sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: 32px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+            padding: 0 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: #4b5563;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .nav-item:hover {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .nav-item.active {
+            background: #eef2ff;
+            color: #6366f1;
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: #6366f1;
+            border-radius: 0 2px 2px 0;
+        }
+
+        .nav-icon {
+            width: 18px;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .nav-item.active .nav-icon {
+            opacity: 1;
+        }
+
+        .completion-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #d1d5db;
+            margin-left: auto;
+        }
+
+        .completion-indicator.complete {
+            background: #10b981;
+        }
+
+        .completion-indicator.partial {
+            background: #f59e0b;
+        }
+
+        /* Main Editor */
+        .main-editor {
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fafbfc;
+        }
+
+        .section-info h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 2px;
+        }
+
+        .section-info p {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .editor-tools {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tool-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tool-btn:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .editor-content {
+            flex: 1;
+            padding: 32px 24px;
+            overflow-y: auto;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .field-group {
+            position: relative;
+        }
+
+        .field-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .field-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            background: #fafbfc;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .field-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .field-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .field-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 12px center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .field-hint {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        /* Photo Upload */
+        .photo-section {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            background: #fafbfc;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .photo-section:hover {
+            border-color: #6366f1;
+            background: #f8faff;
+        }
+
+        .upload-area {
+            padding: 40px 24px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+            background: #e5e7eb;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            color: #9ca3af;
+            font-size: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .photo-section:hover .upload-icon {
+            background: #6366f1;
+            color: white;
+        }
+
+        .upload-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .upload-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        /* Photo Grid */
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .photo-item {
+            aspect-ratio: 1;
+            background: #f3f4f6;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .photo-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-size: 24px;
+        }
+
+        /* Hours Widget */
+        .hours-widget {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .hours-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .quick-sets {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .quick-set {
+            padding: 6px 12px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quick-set:hover {
+            border-color: #6366f1;
+            color: #6366f1;
+        }
+
+        .day-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 60px;
+            gap: 12px;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .day-row:last-child {
+            border-bottom: none;
+        }
+
+        .day-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .time-input {
+            padding: 6px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 12px;
+            background: white;
+        }
+
+        .toggle-closed {
+            font-size: 11px;
+            color: #ef4444;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            background: #f8fafc;
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            padding: 20px 24px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .preview-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+
+        .preview-desc {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .preview-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        /* Listing Card */
+        .listing-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 20px;
+        }
+
+        .card-image {
+            height: 140px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            position: relative;
+        }
+
+        .card-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+
+        .card-category {
+            font-size: 12px;
+            color: #6366f1;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .card-description {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .card-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #4b5563;
+        }
+
+        .detail-icon {
+            width: 14px;
+            color: #9ca3af;
+        }
+
+        /* Analytics Widget */
+        .analytics-widget {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .analytics-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 12px;
+        }
+
+        .metrics-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-number {
+            font-size: 20px;
+            font-weight: 700;
+            color: #6366f1;
+            margin-bottom: 2px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        /* Status Panel */
+        .status-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .status-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #f59e0b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 8px;
+        }
+
+        .status-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .status-message {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #f3f4f6;
+            border-radius: 2px;
+            margin: 12px 0 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #6366f1;
+            width: 75%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 11px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-layout">
+        <!-- Header Bar -->
+        <header class="header-bar">
+            <div class="brand-section">
+                <div class="brand-logo">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="brand-info">
+                    <h1>LocalHub</h1>
+                    <p>Business Editor</p>
+                </div>
+            </div>
+            
+            <div class="header-center">
+                <div class="sync-indicator">
+                    <i class="fas fa-check-circle"></i>
+                    All changes saved
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button class="action-btn ghost">
+                    <i class="fas fa-eye"></i>
+                    Preview
+                </button>
+                <button class="action-btn primary">
+                    <i class="fas fa-paper-plane"></i>
+                    Submit Review
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Sidebar -->
+        <nav class="nav-sidebar">
+            <div class="nav-section">
+                <div class="nav-section-title">Listing Details</div>
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-info-circle nav-icon"></i>
+                    Basic Information
+                    <div class="completion-indicator complete"></div>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-clock nav-icon"></i>
+                    Operating Hours
+                    <div class="completion-indicator partial"></div>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-images nav-icon"></i>
+                    Photos &amp; Media
+                    <div class="completion-indicator"></div>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-phone nav-icon"></i>
+                    Contact Details
+                    <div class="completion-indicator complete"></div>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Advanced</div>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-map-marker-alt nav-icon"></i>
+                    Location &amp; Map
+                    <div class="completion-indicator complete"></div>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-tags nav-icon"></i>
+                    Categories &amp; Tags
+                    <div class="completion-indicator partial"></div>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-star nav-icon"></i>
+                    Features &amp; Amenities
+                    <div class="completion-indicator"></div>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Management</div>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-chart-bar nav-icon"></i>
+                    Analytics
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-history nav-icon"></i>
+                    Change History
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-cog nav-icon"></i>
+                    Settings
+                </a>
+            </div>
+        </nav>
+
+        <!-- Main Editor -->
+        <main class="main-editor">
+            <div class="editor-toolbar">
+                <div class="section-info">
+                    <h2>Basic Information</h2>
+                    <p>Essential details about your business</p>
+                </div>
+                <div class="editor-tools">
+                    <button class="tool-btn" title="Undo">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button class="tool-btn" title="Redo">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="tool-btn" title="Copy from template">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="tool-btn" title="Reset section">
+                        <i class="fas fa-refresh"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="editor-content">
+                <div class="form-grid">
+                    <div class="field-group">
+                        <label class="field-label">Business Name</label>
+                        <input type="text" class="field-input" value="Artisan Coffee &amp; Roastery" placeholder="Enter your business name">
+                        <div class="field-hint">This will appear as your main business title</div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Primary Category</label>
+                        <select class="field-input field-select">
+                            <option>Coffee Shop &amp; Roastery</option>
+                            <option>Restaurant</option>
+                            <option>Retail Store</option>
+                            <option>Professional Services</option>
+                            <option>Health &amp; Beauty</option>
+                        </select>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Business Description</label>
+                        <textarea class="field-input field-textarea" placeholder="Describe what makes your business special...">A specialty coffee roastery and café dedicated to sourcing the finest single-origin beans and crafting exceptional espresso drinks. We offer a curated selection of light to medium roasts, fresh pastries, and a cozy atmosphere perfect for work or relaxation.</textarea>
+                        <div class="field-hint">Keep it engaging and highlight what makes you unique</div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Street Address</label>
+                        <input type="text" class="field-input" value="789 Elm Street" placeholder="Enter street address">
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">City &amp; State</label>
+                        <input type="text" class="field-input" value="Portland, OR 97205" placeholder="City, State ZIP">
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Keywords &amp; Specialties</label>
+                        <input type="text" class="field-input" value="specialty coffee, single-origin, pour-over, espresso, local roasting" placeholder="Add keywords separated by commas">
+                        <div class="field-hint">Help customers find you with relevant search terms</div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Business Photos</label>
+                        <div class="photo-section">
+                            <div class="upload-area">
+                                <div class="upload-icon">
+                                    <i class="fas fa-camera"></i>
+                                </div>
+                                <div class="upload-title">Add photos of your business</div>
+                                <div class="upload-subtitle">Drag &amp; drop or click to upload • JPG, PNG up to 8MB</div>
+                            </div>
+                            <div class="photo-grid">
+                                <div class="photo-item">
+                                    <div class="photo-placeholder">
+                                        <i class="fas fa-plus"></i>
+                                    </div>
+                                </div>
+                                <div class="photo-item">
+                                    <div class="photo-placeholder">
+                                        <i class="fas fa-plus"></i>
+                                    </div>
+                                </div>
+                                <div class="photo-item">
+                                    <div class="photo-placeholder">
+                                        <i class="fas fa-plus"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label">Operating Hours</label>
+                        <div class="hours-widget">
+                            <div class="quick-sets">
+                                <button class="quick-set">Standard Hours</button>
+                                <button class="quick-set">Coffee Shop</button>
+                                <button class="quick-set">Weekend Only</button>
+                                <button class="quick-set">Custom</button>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Mon</div>
+                                <input type="time" class="time-input" value="06:30">
+                                <input type="time" class="time-input" value="18:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Tue</div>
+                                <input type="time" class="time-input" value="06:30">
+                                <input type="time" class="time-input" value="18:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Wed</div>
+                                <input type="time" class="time-input" value="06:30">
+                                <input type="time" class="time-input" value="18:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Thu</div>
+                                <input type="time" class="time-input" value="06:30">
+                                <input type="time" class="time-input" value="18:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Fri</div>
+                                <input type="time" class="time-input" value="06:30">
+                                <input type="time" class="time-input" value="20:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Sat</div>
+                                <input type="time" class="time-input" value="07:00">
+                                <input type="time" class="time-input" value="20:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                            <div class="day-row">
+                                <div class="day-name">Sun</div>
+                                <input type="time" class="time-input" value="08:00">
+                                <input type="time" class="time-input" value="17:00">
+                                <div class="toggle-closed">OPEN</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Preview Panel -->
+        <aside class="preview-panel">
+            <div class="preview-header">
+                <h3 class="preview-title">Live Preview</h3>
+                <p class="preview-desc">How your listing appears to customers</p>
+            </div>
+            
+            <div class="preview-content">
+                <div class="analytics-widget">
+                    <div class="analytics-title">This Month's Performance</div>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <div class="metric-number">342</div>
+                            <div class="metric-label">Profile Views</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-number">28</div>
+                            <div class="metric-label">Contact Clicks</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="listing-card">
+                    <div class="card-image">
+                        <i class="fas fa-coffee"></i>
+                        <div class="card-badge">3 PHOTOS</div>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Artisan Coffee &amp; Roastery</h3>
+                        <div class="card-category">Coffee Shop &amp; Roastery</div>
+                        <p class="card-description">
+                            A specialty coffee roastery and café dedicated to sourcing the finest single-origin beans and crafting exceptional espresso drinks.
+                        </p>
+                        <div class="card-details">
+                            <div class="detail-row">
+                                <i class="fas fa-map-marker-alt detail-icon"></i>
+                                789 Elm Street, Portland, OR
+                            </div>
+                            <div class="detail-row">
+                                <i class="fas fa-clock detail-icon"></i>
+                                Open • Closes 6:00 PM
+                            </div>
+                            <div class="detail-row">
+                                <i class="fas fa-phone detail-icon"></i>
+                                (503) 555-0123
+                            </div>
+                            <div class="detail-row">
+                                <i class="fas fa-wifi detail-icon"></i>
+                                Free WiFi Available
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-header">
+                        <div class="status-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="status-title">Review in Progress</div>
+                    </div>
+                    <div class="status-message">
+                        Your listing is being reviewed by our quality team. Most reviews complete within 24-48 hours.
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">Profile completeness: 75%</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // Auto-save functionality
+        let saveTimeout;
+        
+        function triggerAutoSave() {
+            clearTimeout(saveTimeout);
+            
+            // Update sync indicator
+            const syncIndicator = document.querySelector('.sync-indicator');
+            syncIndicator.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...';
+            syncIndicator.className = 'sync-indicator syncing';
+            
+            saveTimeout = setTimeout(() => {
+                syncIndicator.innerHTML = '<i class="fas fa-check-circle"></i> All changes saved';
+                syncIndicator.className = 'sync-indicator';
+            }, 1500);
+        }
+
+        // Navigation switching
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all nav items
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                
+                // Add active class to clicked item
+                this.classList.add('active');
+                
+                // Update editor toolbar title
+                const sectionTitle = this.textContent.trim().replace(/\s+/g, ' ');
+                document.querySelector('.section-info h2').textContent = sectionTitle;
+            });
+        });
+
+        // Form input listeners
+        document.querySelectorAll('.field-input').forEach(input => {
+            input.addEventListener('input', function() {
+                triggerAutoSave();
+                updatePreview();
+            });
+        });
+
+        function updatePreview() {
+            const businessName = document.querySelector('input[value="Artisan Coffee & Roastery"]').value;
+            const description = document.querySelector('.field-textarea').value;
+            
+            // Update preview card
+            document.querySelector('.card-title').textContent = businessName;
+            document.querySelector('.card-description').textContent = description.substring(0, 120) + '...';
+        }
+
+        // Photo upload handling
+        const photoSection = document.querySelector('.photo-section');
+        
+        photoSection.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#6366f1';
+            this.style.backgroundColor = '#f8faff';
+        });
+
+        photoSection.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#d1d5db';
+            this.style.backgroundColor = '#fafbfc';
+        });
+
+        photoSection.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#d1d5db';
+            this.style.backgroundColor = '#fafbfc';
+            
+            const files = e.dataTransfer.files;
+            handlePhotoUpload(files);
+        });
+
+        photoSection.addEventListener('click', function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = 'image/*';
+            input.onchange = e => handlePhotoUpload(e.target.files);
+            input.click();
+        });
+
+        function handlePhotoUpload(files) {
+            console.log(`Uploading ${files.length} photos...`);
+            triggerAutoSave();
+            
+            // Update photo count in preview
+            const badge = document.querySelector('.card-badge');
+            badge.textContent = `${files.length + 3} PHOTOS`;
+        }
+
+        // Quick hours presets
+        document.querySelectorAll('.quick-set').forEach(preset => {
+            preset.addEventListener('click', function() {
+                console.log(`Applying ${this.textContent} hours preset`);
+                triggerAutoSave();
+                
+                // Visual feedback
+                this.style.background = '#6366f1';
+                this.style.color = 'white';
+                setTimeout(() => {
+                    this.style.background = '#ffffff';
+                    this.style.color = '#6b7280';
+                }, 300);
+            });
+        });
+
+        // Tool button actions
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const action = this.getAttribute('title');
+                console.log(`Tool action: ${action}`);
+                
+                // Visual feedback
+                this.style.background = '#e5e7eb';
+                setTimeout(() => {
+                    this.style.background = 'transparent';
+                }, 200);
+            });
+        });
+    </script>
+
+</body></html>

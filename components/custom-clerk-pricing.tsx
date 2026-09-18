@@ -1,6 +1,6 @@
 'use client';
 import { PricingTable } from '@clerk/nextjs';
-import { dark } from '@clerk/themes';
+import { dark } from '@clerk/ui/themes';
 import { useTheme } from 'next-themes';
 
 export default function CustomClerkPricing() {
@@ -9,7 +9,7 @@ export default function CustomClerkPricing() {
     <>
       <PricingTable
         appearance={{
-          baseTheme: theme === 'dark' ? dark : undefined,
+          theme: theme === 'dark' ? dark : undefined,
           elements: {
             pricingTableCardTitle: {
               // title

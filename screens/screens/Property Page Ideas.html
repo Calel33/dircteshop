@@ -1,0 +1,967 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/b5b439b3f5474668e889618c7cb35828562749719a73fff7199b666d9c61aa0a/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Family Home in Lakeside - LocalConnect</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Poppins:wght@700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+      /* Universal Styles & Reset */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        /* Colors */
+        --primary-blue: #2563eb;
+        --dark-blue: #1d4ed8;
+        --success-green: #059669;
+        --text-primary: #0f172a;
+        --text-secondary: #64748b;
+        --bg-light: #f8fafc;
+        --bg-white: #ffffff;
+        --border-light: #f1f5f9;
+        --shadow-sm: rgba(0, 0, 0, 0.05);
+        --shadow-md: rgba(0, 0, 0, 0.1);
+        --shadow-lg: rgba(0, 0, 0, 0.15);
+
+        /* Typography */
+        --font-poppins: "Poppins", sans-serif;
+        --font-inter: "Inter", sans-serif;
+      }
+
+      body {
+        font-family: var(--font-inter);
+        color: var(--text-primary);
+        background-color: var(--bg-light);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Smooth transitions for interactive elements */
+      button,
+      a,
+      input,
+      select,
+      textarea,
+      .card,
+      .interactive,
+      .menu-tab {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out,
+          background-color 0.2s ease-in-out, border-color 0.2s ease-in-out,
+          color 0.2s ease-in-out, opacity 0.2s ease-in-out;
+      }
+
+      /* General Container */
+      .container {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 0 32px;
+      }
+
+      /* Header */
+      .header {
+        background-color: var(--bg-white);
+        padding: 16px 32px;
+        border-bottom: 1px solid var(--border-light);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 4px var(--shadow-sm);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+      }
+
+      .header .logo {
+        font-family: var(--font-poppins);
+        font-weight: 700;
+        font-size: 24px;
+        color: var(--primary-blue);
+        text-decoration: none;
+      }
+
+      .header nav ul {
+        list-style: none;
+        display: flex;
+        gap: 24px;
+      }
+
+      .header nav a {
+        text-decoration: none;
+        color: var(--text-primary);
+        font-weight: 500;
+        padding: 8px 0;
+        position: relative;
+      }
+
+      .header nav a::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background-color: var(--primary-blue);
+        transition: width 0.2s ease-in-out;
+      }
+
+      .header nav a:hover::after,
+      .header nav a.active::after {
+        width: 100%;
+      }
+
+      .header .auth-buttons {
+        display: flex;
+        gap: 16px;
+      }
+
+      .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        text-align: center;
+        border: 1px solid transparent;
+      }
+
+      .btn-primary {
+        background-color: var(--primary-blue);
+        color: var(--bg-white);
+      }
+
+      .btn-primary:hover {
+        background-color: var(--dark-blue);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px var(--shadow-md);
+      }
+
+      .btn-secondary {
+        background-color: transparent;
+        color: var(--primary-blue);
+        border-color: var(--primary-blue);
+      }
+
+      .btn-secondary:hover {
+        background-color: var(--primary-blue);
+        color: var(--bg-white);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px var(--shadow-md);
+      }
+
+      /* Focus states for accessibility */
+      button:focus,
+      input:focus,
+      a:focus {
+        outline: 2px solid var(--primary-blue);
+        outline-offset: 2px;
+      }
+
+      /* Property Hero */
+      .property-hero {
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 32px;
+        background-color: var(--border-light); /* Placeholder bg */
+        max-height: 600px; /* Limit height for hero */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .property-hero img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      /* Property Overview Header */
+      .property-overview-header {
+        background-color: var(--bg-white);
+        border-radius: 16px;
+        padding: 24px 32px;
+        margin-bottom: 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        box-shadow: 0 4px 16px var(--shadow-md);
+      }
+
+      .property-overview-header .address-info h1 {
+        font-family: var(--font-poppins);
+        font-weight: 700;
+        font-size: 36px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+        line-height: 1.2;
+      }
+
+      .property-overview-header .address-info .verified-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: var(--success-green);
+        color: var(--bg-white);
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .property-overview-header .price-stats {
+        text-align: right;
+      }
+
+      .property-overview-header .price-stats .price {
+        font-family: var(--font-poppins);
+        font-weight: 700;
+        font-size: 36px;
+        color: var(--primary-blue);
+        margin-bottom: 8px;
+        line-height: 1.2;
+      }
+
+      .property-overview-header .price-stats .stats {
+        display: flex;
+        gap: 24px;
+        font-weight: 500;
+        font-size: 18px;
+        color: var(--text-primary);
+        justify-content: flex-end;
+      }
+
+      .property-overview-header .price-stats .stats span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .property-overview-header .price-stats .stats i {
+        color: var(--text-secondary);
+      }
+
+      /* Property Content Wrapper */
+      .property-content-wrapper {
+        display: flex;
+        gap: 32px;
+        padding-bottom: 64px;
+        flex-wrap: wrap;
+      }
+
+      .main-content {
+        flex: 3; /* Approximately 65% */
+        min-width: 600px; /* Ensure content doesn't get too squeezed */
+      }
+
+      .sidebar {
+        flex: 1; /* Approximately 35% */
+        min-width: 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .section-card {
+        background-color: var(--bg-white);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 4px 16px var(--shadow-md);
+      }
+
+      .section-card h2 {
+        font-family: var(--font-inter);
+        font-weight: 600;
+        font-size: 20px;
+        color: var(--text-primary);
+        margin-bottom: 24px;
+      }
+
+      /* Property Description */
+      .property-description p {
+        font-weight: 400;
+        font-size: 16px;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+      }
+
+      /* Property Details */
+      .property-details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px 32px;
+      }
+
+      .detail-item {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .detail-item strong {
+        font-weight: 500;
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .detail-item span {
+        font-weight: 400;
+        font-size: 16px;
+        color: var(--text-secondary);
+      }
+
+      /* Key Features */
+      .key-features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 24px;
+      }
+
+      .feature-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 16px;
+        border: 1px solid var(--border-light);
+        border-radius: 12px;
+      }
+
+      .feature-item i {
+        font-size: 28px;
+        color: var(--primary-blue);
+        margin-bottom: 12px;
+      }
+
+      .feature-item h3 {
+        font-weight: 500;
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .feature-item p {
+        font-weight: 400;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+
+      /* Floor Plans */
+      .floor-plans-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 24px;
+      }
+
+      .floor-plan-thumbnail {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px var(--shadow-sm);
+        cursor: pointer;
+      }
+
+      .floor-plan-thumbnail:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px var(--shadow-md);
+      }
+
+      /* Neighborhood & Schools */
+      .neighborhood-map {
+        width: 100%;
+        height: 250px;
+        background-color: var(--border-light);
+        border-radius: 12px;
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      /* Agent Contact Card */
+      .agent-card {
+        text-align: center;
+      }
+
+      .agent-card img {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 16px;
+        border: 4px solid var(--primary-blue);
+      }
+
+      .agent-card h3 {
+        font-family: var(--font-poppins);
+        font-weight: 700;
+        font-size: 24px;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .agent-card p {
+        font-weight: 500;
+        font-size: 16px;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+      }
+
+      .agent-contact-info {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 24px;
+        font-size: 16px;
+      }
+
+      .agent-contact-info span {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-primary);
+      }
+
+      .agent-contact-info i {
+        color: var(--primary-blue);
+        font-size: 18px;
+      }
+
+      .agent-card .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* Mortgage Calculator */
+      .mortgage-calculator .form-group {
+        margin-bottom: 16px;
+      }
+
+      .mortgage-calculator label {
+        display: block;
+        font-weight: 500;
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .mortgage-calculator input[type="number"],
+      .mortgage-calculator select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        font-size: 16px;
+        color: var(--text-primary);
+      }
+
+      .mortgage-calculator .estimate {
+        margin-top: 24px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border-light);
+        text-align: center;
+      }
+
+      .mortgage-calculator .estimate p {
+        font-weight: 500;
+        font-size: 16px;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .mortgage-calculator .estimate span {
+        font-family: var(--font-poppins);
+        font-weight: 700;
+        font-size: 28px;
+        color: var(--primary-blue);
+      }
+
+      /* Sponsored Ad */
+      .sponsored-ad {
+        background-color: var(--bg-light); /* Lighter background for ad */
+        border: 1px solid var(--border-light);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        margin-top: 24px;
+        box-shadow: 0 2px 8px var(--shadow-sm);
+      }
+
+      .sponsored-ad .label {
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        display: block;
+        letter-spacing: 0.5px;
+      }
+
+      .sponsored-ad h3 {
+        font-weight: 500;
+        font-size: 18px;
+        color: var(--primary-blue);
+        margin-bottom: 8px;
+      }
+
+      .sponsored-ad p {
+        font-weight: 400;
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+      }
+
+      .sponsored-ad .btn {
+        width: 100%;
+      }
+
+      /* Similar Properties */
+      .similar-properties-grid {
+        display: grid;
+        gap: 20px;
+      }
+
+      .similar-property-card {
+        background-color: var(--bg-white);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px var(--shadow-sm);
+        display: flex;
+        gap: 16px;
+        padding: 16px;
+      }
+
+      .similar-property-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px var(--shadow-md);
+      }
+
+      .similar-property-card img {
+        width: 100px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+
+      .similar-property-card .info h4 {
+        font-weight: 500;
+        font-size: 16px;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .similar-property-card .info p {
+        font-weight: 400;
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .similar-property-card .info .price {
+        font-weight: 600;
+        color: var(--primary-blue);
+        margin-top: 8px;
+      }
+
+      /* Footer */
+      .footer {
+        background-color: var(--text-primary);
+        color: var(--bg-light);
+        padding: 48px 32px;
+        text-align: center;
+        margin-top: 48px;
+      }
+
+      .footer .links {
+        margin-bottom: 24px;
+      }
+
+      .footer .links a {
+        color: var(--bg-light);
+        text-decoration: none;
+        margin: 0 16px;
+        font-weight: 500;
+      }
+
+      .footer .links a:hover {
+        color: var(--primary-blue);
+      }
+
+      .footer p {
+        font-size: 14px;
+      }
+
+      /* Responsive Adjustments */
+      @media (max-width: 1024px) {
+        .property-content-wrapper {
+          flex-direction: column;
+        }
+        .main-content,
+        .sidebar {
+          flex: none;
+          width: 100%;
+          min-width: unset;
+        }
+        .property-overview-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 24px;
+        }
+        .property-overview-header .price-stats {
+          text-align: left;
+          width: 100%;
+        }
+        .property-overview-header .price-stats .stats {
+          justify-content: flex-start;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 0 16px;
+        }
+        .header {
+          flex-direction: column;
+          gap: 16px;
+          padding: 16px;
+        }
+        .header nav ul {
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 16px;
+        }
+        .header .auth-buttons {
+          width: 100%;
+          justify-content: center;
+          gap: 8px;
+        }
+        .btn {
+          width: 100%;
+          padding: 10px 15px;
+          font-size: 14px;
+        }
+
+        .property-overview-header {
+          padding: 20px;
+          margin-bottom: 24px;
+        }
+        .property-overview-header .address-info h1,
+        .property-overview-header .price-stats .price {
+          font-size: 28px;
+        }
+        .property-overview-header .price-stats .stats {
+          font-size: 16px;
+          gap: 16px;
+        }
+
+        .section-card {
+          padding: 24px;
+        }
+        .section-card h2 {
+          font-size: 18px;
+          margin-bottom: 16px;
+        }
+        .property-description p,
+        .detail-item span,
+        .mortgage-calculator input,
+        .mortgage-calculator select {
+          font-size: 15px;
+        }
+        .agent-card h3 {
+          font-size: 20px;
+        }
+        .agent-card p,
+        .agent-contact-info span {
+          font-size: 15px;
+        }
+        .mortgage-calculator .estimate span {
+          font-size: 24px;
+        }
+        .similar-property-card {
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+        .similar-property-card img {
+          width: 100%;
+          height: 150px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <a href="#" class="logo">LocalConnect</a>
+      <nav>
+        <ul>
+          <li><a href="#" class="active">Home</a></li>
+          <li><a href="#">Directory</a></li>
+          <li><a href="#">About Us</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </nav>
+      <div class="auth-buttons">
+        <a href="#" class="btn btn-secondary">Log In</a>
+        <a href="#" class="btn btn-primary">Sign Up</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="property-hero">
+        <img src="https://storage.googleapis.com/forge-sites/b46ab18dc4e1705b7d89c7c1ea5549ce1a2eff6342d4562f5107d2bd152711a5.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154708Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=79e2c5092d64a49e15543f4be964a40f7a5b63838c1949ff6b7e4c6b882e3c23f6fb3bbd1241311b1fa564c054fe3f6e62f09fc36f96a90404e1a6b329ce3c0f6438ae02a362b054afd64fae6cd6e2aece4186e30053a4bd381fa1374ff8f0077d2165e32f8fdfc23bb38b11f532a5f18f53cea867d7dabdc80003048803fb0789fd2f43c9347c4e831f61b9c3a8a88089b62dccbdf03b95b0dba5b923dd29841dcc0756c8c05988c8706b4911aba7a4826f4a55497901bbb222988278165842296a3e5d371abfc01c9ae30f7c0ae1b2e639729178bbed76d964c6ef88609c983a66e3ec62d78aa9be922c218ef08688541c22d0b7294efb6132b575d57a33e6" alt="Modern family home exterior with a well-maintained lawn and large windows, bathed in sunlight.">
+      </section>
+
+      <div class="container">
+        <section class="property-overview-header">
+          <div class="address-info">
+            <h1>456 Oak Street, Lakeside, CA 92040</h1>
+            <span class="verified-badge">
+              <i class="fas fa-check-circle"></i> Verified Listing
+            </span>
+          </div>
+          <div class="price-stats">
+            <div class="price">$785,000</div>
+            <div class="stats">
+              <span><i class="fas fa-bed"></i> 3 Beds</span>
+              <span><i class="fas fa-bath"></i> 2 Baths</span>
+              <span><i class="fas fa-vector-square"></i> 2,100 sqft</span>
+            </div>
+          </div>
+        </section>
+
+        <div class="property-content-wrapper">
+          <div class="main-content">
+            <section class="section-card property-description">
+              <h2>Property Description</h2>
+              <p>
+                Discover this charming modern family home nestled in the heart
+                of Lakeside. Boasting 3 spacious bedrooms and 2 full bathrooms,
+                this meticulously maintained residence offers 2,100 square feet
+                of comfortable living space. Built in 2010, the home features an
+                open-concept layout, perfect for entertaining, with abundant
+                natural light throughout.
+              </p>
+              <p>
+                The gourmet kitchen is equipped with stainless steel appliances,
+                granite countertops, and a large island. Enjoy cozy evenings by
+                the fireplace in the expansive living room or step outside to
+                the beautifully landscaped backyard, complete with a covered
+                patio perfect for al fresco dining. A two-car attached garage
+                provides ample storage and convenience. Located in a family-friendly
+                neighborhood with top-rated schools and easy access to local
+                amenities, this home is an ideal blend of comfort and
+                convenience.
+              </p>
+            </section>
+
+            <section class="section-card">
+              <h2>Property Details</h2>
+              <div class="property-details-grid">
+                <div class="detail-item">
+                  <strong>Property Type</strong>
+                  <span>Single Family Home</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Year Built</strong>
+                  <span>2010</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Lot Size</strong>
+                  <span>0.25 Acres (10,890 sqft)</span>
+                </div>
+                <div class="detail-item">
+                  <strong>HOA Fees</strong>
+                  <span>$50/month</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Taxes (Annual)</strong>
+                  <span>$7,200</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Cooling System</strong>
+                  <span>Central Air</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Heating System</strong>
+                  <span>Forced Air</span>
+                </div>
+                <div class="detail-item">
+                  <strong>Roof Type</strong>
+                  <span>Composition Shingle</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <h2>Key Features</h2>
+              <div class="key-features-grid">
+                <div class="feature-item">
+                  <i class="fas fa-warehouse"></i>
+                  <h3>Attached Garage</h3>
+                  <p>2-car spacious garage</p>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-tree"></i>
+                  <h3>Hardwood Floors</h3>
+                  <p>Throughout living areas</p>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-fire"></i>
+                  <h3>Fireplace</h3>
+                  <p>Cozy living room hearth</p>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-leaf"></i>
+                  <h3>Fenced Yard</h3>
+                  <p>Private, landscaped backyard</p>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-sun"></i>
+                  <h3>Natural Light</h3>
+                  <p>Abundant windows</p>
+                </div>
+                <div class="feature-item">
+                  <i class="fas fa-utensils"></i>
+                  <h3>Gourmet Kitchen</h3>
+                  <p>Granite &amp; SS appliances</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <h2>Floor Plans</h2>
+              <div class="floor-plans-grid">
+                <img src="https://storage.googleapis.com/forge-sites/45b5953f3dfea665db6a981ddfbb6b6ad942a278e35541ee7b616c11b33647ed.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154708Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=576975213751371b8527c92183bb10e4b43bdb7aec1cba1a0fa9f9d8628384668c1d4c89fb4cd64347298aed58d2610528f326696ee0fc3764c1498905f1bb0c91dc691ccc81c47d0a7898467e7632f703097e7f560fcd4e902a4e80d4cad25e20df06c6d25530107c8b2cd9abb40b2d110ba64df76e008fb5a17be051593b90483122c0791dc7175e144ecbcfaadb1583690980f057cdfc792ac9b48d561b787788fa7a4aa974d7819f5ff3a79fe4d66ec233ea5bcaf212b4f1561dbad97e629489e35b82289524ef14a02a77e66410a5b3f14baeba618c65ec100251ceee93cd95c7adbbc3ed9d6ddb22b1383ab5ae39e2cf8a0cb0d557a780eb5be998789f" alt="First floor architectural drawing of the house layout showing living areas and kitchen." class="floor-plan-thumbnail">
+                <img src="https://storage.googleapis.com/forge-sites/3148112b898c448a53635cfedfa99f121395ba1567c60c835f3f36491e46f6e6.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=20c2abf1562fd5a01102d30358a1ca83c5acdbd13c5c2b7096aa38d5d1692200c3ee801b0123c1c979abbaf225cc0620e86907e5d82dc8c586f7e8e601286150960a3349717570fa78bffef8a08a7d106769714a295d40ac9a4df4b0e2949f43d3c19afa116bb0602d6586b49ff083016e0f9e7b1ada5431dc996ccc8da3f7f082e1bced0eab0487005e345543c654b54b838d5e6348898a7443524d3d05f04d2ccf13404ce8f3c4ef2a0f0b572492ea9530cef5cb9428e8d3ef0c7f0d14d6b5dafa5de8d366953e498d9de73085df887332fec3af57d3897e420231895e49b6ea6e71bb903591b82c6764df76b705b1bdf5e38761ac1be1742c79700ce80224" alt="Second floor architectural drawing of the house layout showing bedrooms and bathrooms." class="floor-plan-thumbnail">
+                <img src="https://storage.googleapis.com/forge-sites/4870ee041c73e5d6d5fc36b4f0952011419a52d07961f6389d5c109be413006e.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=3e79bc5430adbe47b9d6854f6624bd0c93a06c6b7625c0a90e6fd537ea7d855c5c31cd599d6ce5cfbbe4f8655981b53956a1eff3845d7941e9aca65bd1e1e830c49c9fda985b2fcb9d9a0dd802fe9021a92dbe6d25cd78d9ac035e772eb81fff2059a36371b57de9c5e365c04ce7b7b25ae03dd42e4ff1bf26b03f98247b8122e9acf8c63b5e5f49b059816c784c45cfad4e9bbffb95a7e209fefeac07e0b3501a7e88620c5c57647d3d05ed82e886cf8005800e8b316c71285261c7d620a67e0fdaa904ecb4fc7a98ac99485c858b156b25d6f7346add703aa98c864bfab0fdb756d13e3c393d3f44a6b5827d8e69868e4a4faeb9164be2b105188b9a6fbdc7" alt="Basement architectural drawing showing recreational area and storage." class="floor-plan-thumbnail">
+              </div>
+            </section>
+
+            <section class="section-card">
+              <h2>Neighborhood &amp; Schools</h2>
+              <p>
+                Lakeside is a vibrant community known for its picturesque lake,
+                numerous parks, and excellent school district. Residents enjoy
+                easy access to hiking trails, local shops, and a variety of
+                dining options. The neighborhood is perfect for families, with
+                community events held throughout the year.
+              </p>
+              <div class="neighborhood-map">
+                <img src="https://storage.googleapis.com/forge-sites/54894da038d063c8872ec7ca3ff13e9332a3ffa68c7212a75947c7d24be16a33.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=28f89e175723f87902a159c6c90d9e0bd5897957a1ee75fcb88b1eb03c61b6cd8c5e39033fb46b1e1cd5f704e79fed810c6a4bcbd5bf7110ede8395cbce48f5e42d4d20cf453674d8846e378431c052f99cc5bca4b095bac8b7f2e72fbaf2bbea0f64db84df195577a808a589ba36c6ecfebbca6a3803f3784796de11cb16afcfc6787cd011ce3f27a7a08f6463ca73683b4186e71e0b35d0d8205c4ce7ca188f787a4b250b78cadc67f0e69eddd5f2a2f3d140fa9d819178f8cfe4bf264a068e0dc9e8533fd3d36501dfe42e9bf79e2806db2e07b6e6a02f9d18db4d9d92581b88b04475d7a09cfd5c03771cbdab804076cf2aec98e9716c83dfcbbb295554d" alt="Map displaying the Lakeside neighborhood with pins for schools, parks, and local amenities." style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">
+              </div>
+            </section>
+          </div>
+
+          <div class="sidebar">
+            <section class="section-card agent-card">
+              <img src="https://storage.googleapis.com/forge-sites/6450c15df8fa2980723b456704dce316a30107687117682014689794d58fe06a.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=7ab9f25048b22e36fdd7b2072bfd88e9b546da4fa5fa975a1b1183803cd5c26774121850e6d5ea02202da206161e069a49085093ed834553f0d08cb4abc5d133b853c320a0ee4c8ae8b1b80caaa38c7a372dcc08a3557a91c469ef731d0d86fe653ebf41d4ce59f6a80e290e747a830d40a59009541fcdb2de9e1357bfc303836087608f8c771e906a19e19149749354f4666165adef6d25322c091ae1104d18dca6f3498bba3c911786535cefa850c954bf29d504b1ca61c0ec396d45be94296a3bad89a9cd5f09780fd75c9cf2433e1723ec24b67ae4375610c936c900ea51e5ee150f36b0df3f0c86e697e6d93cbadc44b0a8b899d24f446ddc748097494a" alt="Headshot of John Doe, a friendly male real estate agent smiling.">
+              <h3>John Doe</h3>
+              <p>Lead Agent, Lakeside Realty</p>
+              <div class="agent-contact-info">
+                <span>
+                  <i class="fas fa-phone"></i> (555) 123-4567
+                </span>
+                <span>
+                  <i class="fas fa-envelope"></i> john.doe@lakesiderealty.com
+                </span>
+                <span>
+                  <i class="fas fa-map-marker-alt"></i> Lakeside, CA
+                </span>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-primary">Contact Agent</button>
+                <button class="btn btn-secondary">Schedule a Showing</button>
+              </div>
+            </section>
+
+            <section class="section-card mortgage-calculator">
+              <h2>Mortgage Calculator</h2>
+              <div class="form-group">
+                <label for="price">Property Price</label>
+                <input type="number" id="price" value="785000">
+              </div>
+              <div class="form-group">
+                <label for="downPayment">Down Payment (%)</label>
+                <input type="number" id="downPayment" value="20">
+              </div>
+              <div class="form-group">
+                <label for="interestRate">Interest Rate (%)</label>
+                <input type="number" id="interestRate" value="6.5" step="0.1">
+              </div>
+              <div class="form-group">
+                <label for="loanTerm">Loan Term (Years)</label>
+                <select id="loanTerm">
+                  <option value="15">15 Years</option>
+                  <option value="30" selected="">30 Years</option>
+                </select>
+              </div>
+              <div class="estimate">
+                <p>Estimated Monthly Payment</p>
+                <span>$3,989/month</span>
+              </div>
+
+              <div class="sponsored-ad">
+                <span class="label">Advertisement</span>
+                <h3>Need a Mortgage?</h3>
+                <p>
+                  Get pre-approved in minutes with Lakeside Lending Partners!
+                </p>
+                <a href="#" class="btn btn-primary btn-sm">Get a Quote</a>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <h2>Similar Properties</h2>
+              <div class="similar-properties-grid">
+                <div class="similar-property-card">
+                  <img src="https://storage.googleapis.com/forge-sites/3ca55bf4d30305f8b38d3299f9e51179440c9cd08cf4502c39f8f77eef8f44bf.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=4ea6e9bf09fadbaa4849ce19dc730e42a41c1f4b55aae4b0086a0e876fc11b34bcc03eb069b98ce91810f19bfadd9cb878ab0d8f88219485e917f4bca77a66a73ab579010a78ee22634cfa9211a397fe98fedd4142bf27134dbbee01463489d2fbb62ace64515b31611ea914ff89616933bb6afff31e3097c413a0aa1a9168145c4d79cd49b881a071ecb35da6ae0387e71a79ca3dc79e1757ac014ca751d776dd2831f9f3afd8365e1baba9968b964498c87e791e5bfc075dce5d8214f3f11a1c3f41c649205145c48837bbc1533ee05255f3525ae34bdc0b79a90d2419de783eb0fa89a0bbf2e5d195a6a22be10902999d2d8aab86db83a4011e97e62f9ca0" alt="A two-story modern suburban house with a grey exterior.">
+                  <div class="info">
+                    <h4>789 Pine Lane</h4>
+                    <p>4 Beds | 3 Baths</p>
+                    <p class="price">$820,000</p>
+                  </div>
+                </div>
+                <div class="similar-property-card">
+                  <img src="https://storage.googleapis.com/forge-sites/0a4a18b5f4a8802339732250b0c313ffa000796b498b6f3e587a1b982daecb1c.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=afe043e9859a591ae0ba8a9bd17639dbde40cfc0fe62b58a592753b58a0a57e2da8e482ee747573f400e0701ab6cabb7f99fe610f2291ea8157a25e5156d8508d7fbe3597a974e77208aae8b1bbb3b83cce8e3ba9f1f2b295c38b932446fe07c6268dc48e38a450d15efbe9e79e6ba8803e7905824bc9394b561b9325410da10aee28dfbce8d3141cef1f416e3a433b8e3eadf2c4dd81371302dcfd8cca01fc5caa0754f8807875d9124513e6f9dedbb45322a1896d85dbffb89ecb7e6565d67a3b94ff6b67b1a8cdb86fd0777f058d315fb29c1651f9f996ddd22b0d62bfcfd3c6983469d235415ee227430403b312c9cef3e199dc6da68293fbfaf719f1378" alt="A cozy, single-story bungalow house with a red front door.">
+                  <div class="info">
+                    <h4>123 Birch Drive</h4>
+                    <p>3 Beds | 2 Baths</p>
+                    <p class="price">$695,000</p>
+                  </div>
+                </div>
+                <div class="similar-property-card">
+                  <img src="https://storage.googleapis.com/forge-sites/76ce1f2b11a571f08c2784c23e43a27c1db02183bcb757e3a80fa7a5132f5af9.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154709Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=38e094f80162715dba3999047fd3c41971d32d5046c7451f0e1569fcfb390654c5e144a2187d4d5a33a84ca73504e7c8c36ee591951a9d7520be63a25f91e77dfe979f1fd411a34dd0ec130b2d96f8938edc6accbcaf225e4ca50b336dd46214271c61b1d61fe066fbfc3b450dc85cd3fd642f5505183e363674a261c5177b9a8bc82d846b3b09e8d5a03f2e4c0281cc15bbceb2497a9300106125044a3dbc65ffdd9b41596dcfaa15c1a31981beb525f5168b4f41561c9e0e6e98669c79a11837a817e81e79439eb90ad47db68b772f4970a0a5ea6d1ce79b84fafade9f9208dad7852f694422d4741bd042140ca2ccf2f40b809bf7e319ab9849dc7eeae931" alt="A contemporary lakeside villa with large glass windows and a view of a serene lake.">
+                  <div class="info">
+                    <h4>101 Lakeview Ave</h4>
+                    <p>4 Beds | 3.5 Baths</p>
+                    <p class="price">$980,000</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">Contact Us</a>
+      </div>
+      <p>© 2024 LocalConnect. All rights reserved.</p>
+    </footer>
+  
+</body></html>

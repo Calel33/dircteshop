@@ -1,0 +1,1056 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/68ec61a772fba559ece2653e43a20ec5655ba651aa23f154d56799be827973a2/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Directory Management - LocalConnect Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        .admin-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: 72px 1fr;
+            grid-template-areas: 
+                "sidebar header"
+                "sidebar main";
+            min-height: 100vh;
+        }
+
+        /* Top Header Bar */
+        .top-header {
+            grid-area: header;
+            background: #ffffff;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .breadcrumb-item {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .breadcrumb-item.active {
+            color: #2b6cb0;
+        }
+
+        .header-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .notification-bell {
+            position: relative;
+            padding: 8px;
+            border-radius: 8px;
+            background: #f7fafc;
+            color: #4a5568;
+            border: none;
+            cursor: pointer;
+        }
+
+        .notification-bell::after {
+            content: '';
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 8px;
+            height: 8px;
+            background: #f56565;
+            border-radius: 50%;
+        }
+
+        .admin-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            grid-area: sidebar;
+            background: #1a202c;
+            padding: 24px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-brand {
+            padding: 0 24px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .brand-text {
+            color: #e2e8f0;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .nav-section {
+            margin-bottom: 32px;
+        }
+
+        .nav-section-title {
+            padding: 0 24px 12px;
+            color: #a0aec0;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 24px;
+            color: #cbd5e0;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+        }
+
+        .nav-link.active {
+            background: rgba(66, 153, 225, 0.1);
+            color: #90cdf4;
+            border-left-color: #4299e1;
+        }
+
+        .nav-link i {
+            width: 20px;
+            margin-right: 16px;
+            font-size: 16px;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: #f56565;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Main Content */
+        .main-content {
+            grid-area: main;
+            padding: 32px 40px;
+            overflow: auto;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+
+        .stat-icon.businesses {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .stat-icon.pending {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .stat-icon.verified {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .stat-icon.revenue {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .control-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 4px;
+        }
+
+        .toggle-btn {
+            padding: 8px 16px;
+            border: none;
+            background: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            color: #718096;
+        }
+
+        .toggle-btn.active {
+            background: white;
+            color: #2b6cb0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+            gap: 20px;
+            align-items: end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .filter-input {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: #fafafa;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #4299e1;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-wrapper input {
+            padding-left: 48px;
+        }
+
+        .search-wrapper i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(66, 153, 225, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        /* Business Grid */
+        .business-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .business-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .business-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+
+        .business-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+
+        .business-info h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .business-address {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .business-status {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: linear-gradient(135deg, #68d391 0%, #38b2ac 100%);
+            color: white;
+        }
+
+        .status-pending {
+            background: linear-gradient(135deg, #f6e05e 0%, #d69e2e 100%);
+            color: white;
+        }
+
+        .status-suspended {
+            background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+            color: white;
+        }
+
+        .business-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+
+        .meta-icon {
+            width: 16px;
+            color: #a0aec0;
+        }
+
+        .business-actions {
+            display: flex;
+            gap: 8px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-edit {
+            background: #ebf8ff;
+            color: #2b6cb0;
+        }
+
+        .action-edit:hover {
+            background: #bee3f8;
+        }
+
+        .action-view {
+            background: #f0fff4;
+            color: #2f855a;
+        }
+
+        .action-view:hover {
+            background: #c6f6d5;
+        }
+
+        .action-more {
+            background: #faf5ff;
+            color: #805ad5;
+        }
+
+        .action-more:hover {
+            background: #e9d8fd;
+        }
+
+        /* Bulk Selection Bar */
+        .bulk-bar {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2d3748;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 100;
+        }
+
+        .bulk-count {
+            font-weight: 600;
+        }
+
+        .bulk-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .bulk-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .bulk-btn.edit {
+            background: #4299e1;
+            color: white;
+        }
+
+        .bulk-btn.suspend {
+            background: #ed8936;
+            color: white;
+        }
+
+        .bulk-btn.delete {
+            background: #e53e3e;
+            color: white;
+        }
+
+        /* Responsive for large desktop */
+        @media (min-width: 1600px) {
+            .admin-container {
+                grid-template-columns: 320px 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(6, 1fr);
+            }
+            
+            .business-grid {
+                grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            }
+            
+            .filters-grid {
+                grid-template-columns: 3fr 1fr 1fr 1fr 1fr auto;
+                gap: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="breadcrumb">
+                <span class="breadcrumb-item">Admin</span>
+                <i class="fas fa-chevron-right"></i>
+                <span class="breadcrumb-item active">Business Management</span>
+            </div>
+            <div class="header-profile">
+                <button class="notification-bell">
+                    <i class="fas fa-bell"></i>
+                </button>
+                <div class="admin-avatar">
+                    AJ
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">
+                    <i class="fas fa-compass"></i>
+                </div>
+                <div class="brand-text">LocalConnect</div>
+            </div>
+
+            <nav>
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-chart-line"></i>
+                        Dashboard
+                    </a>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-clock"></i>
+                        Pending Reviews
+                        <span class="nav-badge">12</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Management</div>
+                    <a href="#" class="nav-link active">
+                        <i class="fas fa-store"></i>
+                        Business Directory
+                    </a>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-users"></i>
+                        User Accounts
+                    </a>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-tags"></i>
+                        Categories
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">System</div>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-chart-bar"></i>
+                        Analytics
+                    </a>
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        Settings
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page-header">
+                <h1 class="page-title">Business Directory</h1>
+                <p class="page-subtitle">Manage and oversee all business listings across your platform</p>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon businesses">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="stat-number">1,247</div>
+                    <div class="stat-label">Total Businesses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-hourglass-half"></i>
+                    </div>
+                    <div class="stat-number">23</div>
+                    <div class="stat-label">Pending Approval</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon verified">
+                        <i class="fas fa-shield-check"></i>
+                    </div>
+                    <div class="stat-number">1,156</div>
+                    <div class="stat-label">Verified Active</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon revenue">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="stat-number">$12.4K</div>
+                    <div class="stat-label">Monthly Revenue</div>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <div class="control-header">
+                    <h2 class="control-title">Business Listings</h2>
+                    <div class="view-toggle">
+                        <button class="toggle-btn active">
+                            <i class="fas fa-th"></i>
+                            Grid
+                        </button>
+                        <button class="toggle-btn">
+                            <i class="fas fa-list"></i>
+                            Table
+                        </button>
+                        <button class="toggle-btn">
+                            <i class="fas fa-map"></i>
+                            Map
+                        </button>
+                    </div>
+                </div>
+
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label class="filter-label">Search Businesses</label>
+                        <div class="search-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="filter-input" placeholder="Search by name, owner, or location...">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Category</label>
+                        <select class="filter-input">
+                            <option>All Categories</option>
+                            <option>Food &amp; Dining</option>
+                            <option>Retail &amp; Shopping</option>
+                            <option>Health &amp; Wellness</option>
+                            <option>Professional Services</option>
+                            <option>Entertainment</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Status</label>
+                        <select class="filter-input">
+                            <option>All Statuses</option>
+                            <option>Active</option>
+                            <option>Pending</option>
+                            <option>Suspended</option>
+                            <option>Expired</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Location</label>
+                        <select class="filter-input">
+                            <option>All Areas</option>
+                            <option>Downtown Core</option>
+                            <option>North District</option>
+                            <option>South Bay</option>
+                            <option>West End</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Verification</label>
+                        <select class="filter-input">
+                            <option>All</option>
+                            <option>Verified</option>
+                            <option>Unverified</option>
+                            <option>Premium</option>
+                        </select>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-filter"></i>
+                        </button>
+                        <button class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Add Business
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Business Grid -->
+            <div class="business-grid">
+                <div class="business-card">
+                    <div class="business-status status-active">Verified</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>Bella's Italian Bistro</h3>
+                            <p class="business-address">123 Main Street, Downtown</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-utensils meta-icon"></i>
+                            <span>Restaurant</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-star meta-icon"></i>
+                            <span>4.8 Rating</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Isabella Rodriguez</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Updated Dec 15</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="business-card">
+                    <div class="business-status status-pending">Pending</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>TechFix Solutions</h3>
+                            <p class="business-address">456 Oak Avenue, North Side</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-tools meta-icon"></i>
+                            <span>Tech Repair</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-clock meta-icon"></i>
+                            <span>New Listing</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Mike Chen</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Submitted Dec 14</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> Review
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    </div>
+                </div>
+
+                <div class="business-card">
+                    <div class="business-status status-active">Premium</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>Green Leaf Pharmacy</h3>
+                            <p class="business-address">789 Pine Street, West End</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-pills meta-icon"></i>
+                            <span>Healthcare</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-star meta-icon"></i>
+                            <span>4.9 Rating</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Sarah Johnson</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Updated Dec 13</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="business-card">
+                    <div class="business-status status-suspended">Suspended</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>Urban Threads Boutique</h3>
+                            <p class="business-address">321 Fashion Ave, Downtown</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-tshirt meta-icon"></i>
+                            <span>Fashion Retail</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-exclamation-triangle meta-icon"></i>
+                            <span>Policy Violation</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Amanda Foster</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Suspended Dec 12</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-play"></i> Restore
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> Review
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+
+                <div class="business-card">
+                    <div class="business-status status-active">Verified</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>Downtown Dental Care</h3>
+                            <p class="business-address">567 Medical Plaza, Downtown</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-tooth meta-icon"></i>
+                            <span>Dental Practice</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-star meta-icon"></i>
+                            <span>4.7 Rating</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Dr. Robert Kim</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Updated Dec 11</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="business-card">
+                    <div class="business-status status-active">Verified</div>
+                    <div class="business-header">
+                        <div class="business-info">
+                            <h3>Artisan Coffee Roasters</h3>
+                            <p class="business-address">890 Coffee Street, South Bay</p>
+                        </div>
+                    </div>
+                    <div class="business-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-coffee meta-icon"></i>
+                            <span>Coffee Shop</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-star meta-icon"></i>
+                            <span>4.6 Rating</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-user meta-icon"></i>
+                            <span>Marcus Thompson</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-calendar meta-icon"></i>
+                            <span>Updated Dec 10</span>
+                        </div>
+                    </div>
+                    <div class="business-actions">
+                        <button class="action-btn action-edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="action-btn action-view">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="action-btn action-more">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Selection Bar -->
+            <div class="bulk-bar">
+                <div class="bulk-count">3 businesses selected</div>
+                <div class="bulk-actions">
+                    <button class="bulk-btn edit">
+                        <i class="fas fa-edit"></i> Bulk Edit
+                    </button>
+                    <button class="bulk-btn suspend">
+                        <i class="fas fa-pause"></i> Suspend
+                    </button>
+                    <button class="bulk-btn delete">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body></html>

@@ -1,0 +1,1027 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/c30032887460e1c07e582de1ac3ca87888fde34e067146386a6d44e98cc13434/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sterling &amp; Associates Law Firm - Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .breadcrumb {
+            padding: 24px 0 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 48px;
+            padding-bottom: 48px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .image-gallery {
+            position: relative;
+            height: 400px;
+            background: #e2e8f0;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gallery-dot.active {
+            background: white;
+        }
+
+        .business-header {
+            padding: 32px;
+        }
+
+        .business-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .title-left h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-category {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .verification-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .business-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stars {
+            color: #f59e0b;
+        }
+
+        .business-description {
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Practice Areas Section */
+        .practice-areas {
+            background: #f8fafc;
+            padding: 32px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .practice-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .practice-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .practice-title {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .practice-desc {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+
+        /* Attorney Profiles */
+        .attorneys-section {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .attorney-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .attorney-card {
+            background: #f8fafc;
+            padding: 24px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .attorney-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            margin: 0 auto 16px;
+            object-fit: cover;
+        }
+
+        .attorney-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .attorney-title {
+            color: #2563eb;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .attorney-credentials {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .attorney-specialties {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .specialty-tag {
+            background: #e2e8f0;
+            color: #475569;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Case Results */
+        .results-section {
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            padding: 32px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .result-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .result-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #059669;
+            margin-bottom: 8px;
+        }
+
+        .result-desc {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Legal Resources */
+        .resources-section {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .resource-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .resource-item:hover {
+            background: #e2e8f0;
+        }
+
+        .resource-icon {
+            width: 40px;
+            height: 40px;
+            background: #2563eb;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .resource-content h4 {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .resource-content p {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .consultation-card {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            text-align: center;
+        }
+
+        .consultation-card .card-title {
+            color: white;
+        }
+
+        .consultation-offer {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .consultation-desc {
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+
+        .emergency-card {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            text-align: center;
+        }
+
+        .emergency-card .card-title {
+            color: white;
+        }
+
+        .emergency-number {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-icon {
+            color: #2563eb;
+            width: 20px;
+            margin-top: 2px;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            color: #64748b;
+        }
+
+        .info-value a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .hours-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .day {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .time {
+            color: #64748b;
+        }
+
+        .time.open {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .credentials-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .credential-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .credential-icon {
+            width: 32px;
+            height: 32px;
+            background: #2563eb;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .credential-text {
+            font-size: 14px;
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+            
+            .practice-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .attorney-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .results-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 16px;
+            }
+            
+            .business-header {
+                padding: 24px;
+            }
+            
+            .business-title {
+                flex-direction: column;
+                gap: 16px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#">Directory</a>
+                    <a href="#">Categories</a>
+                    <a href="#">Add Business</a>
+                    <a href="#">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="#">Home</a> / <a href="#">Professional Services</a> / <a href="#">Legal Services</a> / Sterling &amp; Associates Law Firm
+        </div>
+
+        <div class="main-content">
+            <main>
+                <div class="hero-section">
+                    <div class="image-gallery">
+                        <img src="https://storage.googleapis.com/forge-sites/188dfffb355817f22a64f361e9d36eff9ce00714183cf3e27c7ef3ae0a2a9a00.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154621Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=8c2aed5eb41061cd284331dada3fac8a8521a88e1b63592ea1b867bfa2d3672a4f9c150366e4c44bc9bf15b4b721f07d0db54b59b8f3a1515c57924e634f96e9cf62041ed5acd42d00f916f997295b3f6a5b3ccb36b8c830dedd0ff849536b0882865c8f3b8d92bcc81976472e8a164fe81a3f725425f94ec03c8561249315a1af645e791c55fec2e1dec605c9a111ef6a37bcc4b44e0cbae8b994ca048930484039d73bc1129615585f74b85c47fe528ed4168291a856f2c6c9754ac6290fb04e57b26d928d79d90266fd48ca138cf71bfa0d6ddb0479e00efd835f551d885a03368e14f76a1e5b16463e6f2c3bb7c0a96eeb3276635290ae02b8e18d79d62e" alt="Professional law office with elegant wooden furniture, floor-to-ceiling bookshelves filled with legal volumes, polished conference table, and sophisticated lighting creating a trustworthy atmosphere" class="main-image">
+                        <div class="gallery-nav">
+                            <div class="gallery-dot active"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                        </div>
+                    </div>
+
+                    <div class="business-header">
+                        <div class="business-title">
+                            <div class="title-left">
+                                <h1>Sterling &amp; Associates Law Firm</h1>
+                                <div class="business-category">Personal Injury • Family Law • Business Law</div>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-shield-check"></i>
+                                Bar Verified
+                            </div>
+                        </div>
+
+                        <div class="business-meta">
+                            <div class="rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.9 (89 reviews)</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>1.2 miles away</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                <span class="open">Open until 6:00 PM</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-calendar"></i>
+                                <span>Established 2008</span>
+                            </div>
+                        </div>
+
+                        <div class="business-description">
+                            Sterling &amp; Associates has been protecting the rights and interests of Springfield families and businesses for over 15 years. Our experienced team of attorneys combines deep legal expertise with personalized attention to deliver results that matter. We pride ourselves on clear communication, aggressive advocacy, and building lasting relationships with our clients through every step of their legal journey.
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="#" class="btn btn-primary">
+                                <i class="fas fa-calendar-check"></i>
+                                Schedule Consultation
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-phone"></i>
+                                Call Now
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-envelope"></i>
+                                Send Message
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="practice-areas">
+                    <h2 class="section-title">
+                        <i class="fas fa-balance-scale"></i>
+                        Practice Areas
+                    </h2>
+                    <div class="practice-grid">
+                        <div class="practice-item">
+                            <div class="practice-title">Personal Injury</div>
+                            <div class="practice-desc">Car accidents, slip and fall, medical malpractice, and wrongful death claims with proven track record of substantial settlements.</div>
+                        </div>
+                        <div class="practice-item">
+                            <div class="practice-title">Family Law</div>
+                            <div class="practice-desc">Divorce, child custody, adoption, and domestic relations handled with sensitivity and expertise.</div>
+                        </div>
+                        <div class="practice-item">
+                            <div class="practice-title">Business Law</div>
+                            <div class="practice-desc">Contract disputes, business formation, employment law, and commercial litigation for growing companies.</div>
+                        </div>
+                        <div class="practice-item">
+                            <div class="practice-title">Criminal Defense</div>
+                            <div class="practice-desc">DUI defense, white collar crimes, and misdemeanor charges with aggressive representation.</div>
+                        </div>
+                        <div class="practice-item">
+                            <div class="practice-title">Estate Planning</div>
+                            <div class="practice-desc">Wills, trusts, probate administration, and comprehensive estate planning for families and individuals.</div>
+                        </div>
+                        <div class="practice-item">
+                            <div class="practice-title">Real Estate Law</div>
+                            <div class="practice-desc">Property transactions, boundary disputes, landlord-tenant issues, and commercial real estate matters.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="attorneys-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-users"></i>
+                        Our Attorneys
+                    </h2>
+                    <div class="attorney-grid">
+                        <div class="attorney-card">
+                            <img src="https://storage.googleapis.com/forge-sites/957f081667d616626863ccf0b68d863b085f394264d5f0010f17e7c354bb51c4.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154621Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=a17573f9f4ecadb9f6c08ff77a3fc028a5a03d409d9e5b6c3d958092001138b96ebb5817e8b33861633f70d401d49962f26016e4cabb40b0c98a04fe4d91bd6a3f1e62372b4f66e011b11bfd6fc21ca6e7d738730bdf8c5aa320f17d5bad496cb558c922be6a3604737cd693726a918d5e182f0d0b66d260a5b12f473a23b537567af53ae4a92e4ef2bf6d850abb25d41a033c92aa91fa876cb2ce8487216c2ad2f87c87c138e3860a84f2e09dd6a3b41faec541c6d7600a21617ea4b8b7049153b24eb5bf126d6d92d738ca2a9b6afac7a06f6ff71d4137878b2a354af39f1cb4a3ba381c518e59305d3c9fc25fb0fcf38baf304e3e3ca1fb8652e7cd73693e" alt="Professional headshot of senior partner attorney in business attire with confident and approachable expression" class="attorney-photo">
+                            <div class="attorney-name">Michael J. Sterling</div>
+                            <div class="attorney-title">Senior Partner</div>
+                            <div class="attorney-credentials">J.D. University of Illinois, Illinois Bar 2008</div>
+                            <div class="attorney-specialties">
+                                <span class="specialty-tag">Personal Injury</span>
+                                <span class="specialty-tag">Business Law</span>
+                            </div>
+                        </div>
+                        <div class="attorney-card">
+                            <img src="https://storage.googleapis.com/forge-sites/ddbcbfa142eca44970fd15588dc86a1d0b53d87dfd6ecd7c1ddb8176a7b3a43c.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154621Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=3e3c7dc59930c0cd31814444033e8c916b67289593a33959b6b7324e8101c04c502388a5c790cc5e80470174e24f47d97dfe1c0689d8da69416e967a23944d35f03a212ac3679b773f4c6b93d416f45c0e385aaf47672ca70a102d376a631003c2808b84290a0c501adc8e93fbc3f3c34b14b9c25719e424312da0346e69abb1eade1e16772f3a2a2f0ea732bb2f14fd0e781344a14837e561a1b0947c14b93714e4d295f04362d9f39adb1e16e5568725465056368cd50468da8b116e2c0948a9837b0c69d1bfca39a02e239694f07648905af7dc45c673117cfb1a5b0905b6e23154943e1a88af7e893d0a63eba16d16ece32c517a47cee8a42f52ee3ad422" alt="Professional headshot of experienced female attorney with warm and professional demeanor" class="attorney-photo">
+                            <div class="attorney-name">Sarah L. Chen</div>
+                            <div class="attorney-title">Partner</div>
+                            <div class="attorney-credentials">J.D. Northwestern University, Illinois Bar 2012</div>
+                            <div class="attorney-specialties">
+                                <span class="specialty-tag">Family Law</span>
+                                <span class="specialty-tag">Estate Planning</span>
+                            </div>
+                        </div>
+                        <div class="attorney-card">
+                            <img src="https://storage.googleapis.com/forge-sites/5625dfe3b8f81c8804ba488374207ad64208ba2549bccf04e175835a83c8bf13.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154621Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=a541593072d00061c79d754842f46d0f624bc9a3b5f9e08d7024b0811f480df83442b5915f3dd722e00bc845f64c9b7889ab7db572cfb146a051aa43c99ea4d9158813eb9ca60564a4fbb8e477c34f2b03ce34ab8e2bfd5c9f5fb6f83a6798343c3b7236d4be532ed9f0c6a49e267e3e0f94eb952950a6fc109dc9123a1f3f45f6760ff6fac9b679b56516958586782706ee6414297e2c7f416a56b92cfeb046127bb7ed6742315f3c7b2cc03b71625359251da133734bde205b642c80d2ea72781800ffb7e0f58e4f1815671c8ef2394add6797bdcadd649a0ec3d668ca3680e57adf258bd9b15b929de618fd60c1e924c8ccfee763bcfc9dec59e93468f1f5" alt="Professional headshot of younger associate attorney with confident and dedicated expression" class="attorney-photo">
+                            <div class="attorney-name">David R. Martinez</div>
+                            <div class="attorney-title">Associate Attorney</div>
+                            <div class="attorney-credentials">J.D. DePaul University, Illinois Bar 2018</div>
+                            <div class="attorney-specialties">
+                                <span class="specialty-tag">Criminal Defense</span>
+                                <span class="specialty-tag">Real Estate</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-trophy"></i>
+                        Case Results &amp; Achievements
+                    </h2>
+                    <div class="results-grid">
+                        <div class="result-item">
+                            <div class="result-amount">$2.3M</div>
+                            <div class="result-desc">Personal Injury Settlement</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-amount">98%</div>
+                            <div class="result-desc">Success Rate</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-amount">500+</div>
+                            <div class="result-desc">Cases Resolved</div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-amount">$850K</div>
+                            <div class="result-desc">Business Dispute Victory</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="resources-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-book"></i>
+                        Legal Resources
+                    </h2>
+                    <div class="resource-list">
+                        <div class="resource-item">
+                            <div class="resource-icon">
+                                <i class="fas fa-file-text"></i>
+                            </div>
+                            <div class="resource-content">
+                                <h4>Know Your Rights Guide</h4>
+                                <p>Comprehensive guide covering your legal rights in various situations</p>
+                            </div>
+                        </div>
+                        <div class="resource-item">
+                            <div class="resource-icon">
+                                <i class="fas fa-calculator"></i>
+                            </div>
+                            <div class="resource-content">
+                                <h4>Settlement Calculator</h4>
+                                <p>Estimate potential compensation for personal injury claims</p>
+                            </div>
+                        </div>
+                        <div class="resource-item">
+                            <div class="resource-icon">
+                                <i class="fas fa-question-circle"></i>
+                            </div>
+                            <div class="resource-content">
+                                <h4>Legal FAQ</h4>
+                                <p>Answers to frequently asked questions about legal processes</p>
+                            </div>
+                        </div>
+                        <div class="resource-item">
+                            <div class="resource-icon">
+                                <i class="fas fa-download"></i>
+                            </div>
+                            <div class="resource-content">
+                                <h4>Legal Forms Library</h4>
+                                <p>Download common legal forms and documents</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <aside class="sidebar">
+                <div class="info-card consultation-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-handshake"></i>
+                        Free Consultation
+                    </h3>
+                    <div class="consultation-offer">FREE</div>
+                    <div class="consultation-desc">Initial consultation for new clients. Discuss your case with no obligation.</div>
+                    <a href="#" class="btn btn-secondary" style="background: white; color: #2563eb;">
+                        <i class="fas fa-calendar-plus"></i>
+                        Book Now
+                    </a>
+                </div>
+
+                <div class="info-card emergency-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        24/7 Emergency Line
+                    </h3>
+                    <div class="emergency-number">(217) 555-HELP</div>
+                    <div>Available for urgent legal matters and emergencies</div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Contact Information
+                    </h3>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Address</div>
+                            <div class="info-value">
+                                1200 Professional Plaza<br>
+                                Suite 450<br>
+                                Springfield, IL 62701
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-phone info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Phone</div>
+                            <div class="info-value">
+                                <a href="tel:+12175552468">(217) 555-2468</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Email</div>
+                            <div class="info-value">
+                                <a href="mailto:info@sterlinglaw.com">info@sterlinglaw.com</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-globe info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Website</div>
+                            <div class="info-value">
+                                <a href="#" target="_blank">sterlinglaw.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Office Hours
+                    </h3>
+                    <div class="hours-grid">
+                        <div class="hour-row">
+                            <span class="day">Monday</span>
+                            <span class="time">8:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Tuesday</span>
+                            <span class="time open">8:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Wednesday</span>
+                            <span class="time">8:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Thursday</span>
+                            <span class="time">8:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Friday</span>
+                            <span class="time">8:00 AM - 5:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Saturday</span>
+                            <span class="time">By Appointment</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Sunday</span>
+                            <span class="time">Emergency Only</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-certificate"></i>
+                        Credentials &amp; Memberships
+                    </h3>
+                    <div class="credentials-list">
+                        <div class="credential-item">
+                            <div class="credential-icon">
+                                <i class="fas fa-scale-balanced"></i>
+                            </div>
+                            <div class="credential-text">Illinois State Bar Association</div>
+                        </div>
+                        <div class="credential-item">
+                            <div class="credential-icon">
+                                <i class="fas fa-gavel"></i>
+                            </div>
+                            <div class="credential-text">American Bar Association</div>
+                        </div>
+                        <div class="credential-item">
+                            <div class="credential-icon">
+                                <i class="fas fa-user-injured"></i>
+                            </div>
+                            <div class="credential-text">Illinois Trial Lawyers Association</div>
+                        </div>
+                        <div class="credential-item">
+                            <div class="credential-icon">
+                                <i class="fas fa-award"></i>
+                            </div>
+                            <div class="credential-text">Super Lawyers Recognition</div>
+                        </div>
+                        <div class="credential-item">
+                            <div class="credential-icon">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="credential-text">Martindale-Hubbell AV Rated</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="last-updated">
+                    <i class="fas fa-sync"></i>
+                    Last updated by firm on March 18, 2024
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>

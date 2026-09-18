@@ -6,7 +6,6 @@
   "rules": {
     "exports": "warn",
     "nsExports": "warn",
-    "classMembers": "warn",
     "types": "warn",
     "enumMembers": "warn"
   }

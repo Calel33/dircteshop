@@ -1,0 +1,1157 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/fd99847cd5afab9c04f43216ea36c6d0ff18ac363585db9e409946f32e0d84de/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luxe Hair Studio &amp; Spa - Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .breadcrumb {
+            padding: 24px 0 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 48px;
+            padding-bottom: 48px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .image-gallery {
+            position: relative;
+            height: 400px;
+            background: #e2e8f0;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gallery-dot.active {
+            background: white;
+        }
+
+        .business-header {
+            padding: 32px;
+        }
+
+        .business-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .title-left h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-category {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .verification-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .business-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stars {
+            color: #f59e0b;
+        }
+
+        .business-description {
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Content Sections */
+        .content-section {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-top: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Stylist Profiles */
+        .stylists-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .stylist-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+
+        .stylist-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stylist-photo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: #64748b;
+        }
+
+        .stylist-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .stylist-specialty {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .stylist-rating {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .availability-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dcfce7;
+            color: #166534;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .availability-status.busy {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        /* Service Menu */
+        .services-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .service-category {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .category-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .service-item:last-child {
+            border-bottom: none;
+        }
+
+        .service-details {
+            flex: 1;
+        }
+
+        .service-name {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .service-description {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .service-meta {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .service-price {
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+
+        .service-duration {
+            color: #64748b;
+        }
+
+        /* Portfolio Gallery */
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .portfolio-item {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .portfolio-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .before-after {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .before-after img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .portfolio-info {
+            padding: 16px;
+        }
+
+        .portfolio-title {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .portfolio-stylist {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Booking Widget */
+        .booking-widget {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .booking-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .booking-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-select {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #334155;
+            font-weight: 500;
+        }
+
+        .available-times {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .time-slot {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .time-slot:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .time-slot.selected {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .book-now-btn {
+            background: #059669;
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+
+        .book-now-btn:hover {
+            background: #047857;
+        }
+
+        /* Quick Contact */
+        .quick-contact {
+            display: grid;
+            gap: 12px;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            text-decoration: none;
+            color: inherit;
+            transition: background 0.2s;
+        }
+
+        .contact-item:hover {
+            background: #e2e8f0;
+        }
+
+        .contact-icon {
+            width: 40px;
+            height: 40px;
+            background: #2563eb;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-text {
+            flex: 1;
+        }
+
+        .contact-label {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+
+        .contact-value {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Special Offers */
+        .special-offer {
+            background: linear-gradient(135deg, #fef3c7, #fed7aa);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .offer-badge {
+            background: #f59e0b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .offer-text {
+            font-weight: 600;
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+
+        .offer-details {
+            font-size: 12px;
+            color: #78350f;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+            
+            .stylists-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            }
+            
+            .portfolio-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 16px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .available-times {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#">Directory</a>
+                    <a href="#">Categories</a>
+                    <a href="#">Add Business</a>
+                    <a href="#">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="#">Home</a> / <a href="#">Beauty &amp; Wellness</a> / <a href="#">Hair Salons</a> / Luxe Hair Studio &amp; Spa
+        </div>
+
+        <div class="main-content">
+            <main>
+                <div class="hero-section">
+                    <div class="image-gallery">
+                        <img src="https://storage.googleapis.com/forge-sites/07f4f728669db094c23ffaf6137770f72553412b991ac175bc44192e30abea00.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154619Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=2c65c5826d6127131ef30916b38fa340ffc340f30c2d97d7099eba1df344648310fbe3ee44b3ad5259175c72912083917569ea7961d9b61979aa3cecb06034548a60a69dbca5f688eb878df389d0cdca4e56cba2c1b921e0ee94cb7207d88086f0d94195d0814017218077299d61be15bedfdd7e494d3c959778e720428f17056517d6af928d50445fdd745a4cf49b6f19b2fe60354fbad8f0da37a748b6c87b51d6aa1184bffc2964986b321d01c538beb490cb960e80c38a964ccc9b50ea8d9e037512da72bb83359222937a76ab0dbb6d24ff9c6f771f4ec1df0b2d9eb903b287dd3ff6ae6b2aba6e5bc246da93bd7421670c4178ab6c76efe8e59238ec2a" alt="Elegant hair salon interior with modern styling chairs, large mirrors with professional lighting, sleek white and gold decor, and a sophisticated atmosphere" class="main-image">
+                        <div class="gallery-nav">
+                            <div class="gallery-dot active"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                        </div>
+                    </div>
+
+                    <div class="business-header">
+                        <div class="business-title">
+                            <div class="title-left">
+                                <h1>Luxe Hair Studio &amp; Spa</h1>
+                                <div class="business-category">Hair Salon • Spa • Color Specialist</div>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-shield-check"></i>
+                                Verified Business
+                            </div>
+                        </div>
+
+                        <div class="business-meta">
+                            <div class="rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.9 (284 reviews)</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>1.2 miles away</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                <span class="open">Open until 8:00 PM</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-calendar-check"></i>
+                                <span>Next available: Today 3:00 PM</span>
+                            </div>
+                        </div>
+
+                        <div class="business-description">
+                            Experience luxury hair care at Luxe Hair Studio &amp; Spa, where artistry meets expertise. Our award-winning team of master stylists specializes in precision cuts, dimensional color, and transformative treatments using only premium, eco-conscious products. From classic elegance to cutting-edge trends, we create personalized looks that enhance your natural beauty and lifestyle.
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="#" class="btn btn-primary">
+                                <i class="fas fa-calendar"></i>
+                                Book Appointment
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-phone"></i>
+                                Call Now
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-instagram"></i>
+                                View Portfolio
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-users"></i>
+                        Meet Our Master Stylists
+                    </h2>
+                    <div class="stylists-grid">
+                        <div class="stylist-card">
+                            <div class="stylist-photo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="stylist-name">Sarah Chen</div>
+                            <div class="stylist-specialty">Master Colorist • 12 years experience</div>
+                            <div class="stylist-rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.9 (156)</span>
+                            </div>
+                            <div class="availability-status">
+                                <i class="fas fa-circle"></i>
+                                Available today
+                            </div>
+                        </div>
+                        <div class="stylist-card">
+                            <div class="stylist-photo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="stylist-name">Marcus Rodriguez</div>
+                            <div class="stylist-specialty">Precision Cuts • Men's Specialist</div>
+                            <div class="stylist-rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.8 (203)</span>
+                            </div>
+                            <div class="availability-status busy">
+                                <i class="fas fa-circle"></i>
+                                Booked until 6 PM
+                            </div>
+                        </div>
+                        <div class="stylist-card">
+                            <div class="stylist-photo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="stylist-name">Emma Thompson</div>
+                            <div class="stylist-specialty">Bridal &amp; Special Events</div>
+                            <div class="stylist-rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>5.0 (89)</span>
+                            </div>
+                            <div class="availability-status">
+                                <i class="fas fa-circle"></i>
+                                Available tomorrow
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-scissors"></i>
+                        Services &amp; Pricing
+                    </h2>
+                    <div class="services-grid">
+                        <div class="service-category">
+                            <div class="category-title">
+                                <i class="fas fa-cut"></i>
+                                Haircuts &amp; Styling
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Signature Cut &amp; Style</div>
+                                    <div class="service-description">Consultation, precision cut, and styling</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$85 - $125</div>
+                                    <div class="service-duration">90 min</div>
+                                </div>
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Men's Cut &amp; Style</div>
+                                    <div class="service-description">Modern cuts and classic styling</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$65 - $85</div>
+                                    <div class="service-duration">60 min</div>
+                                </div>
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Blowout &amp; Style</div>
+                                    <div class="service-description">Professional styling and finishing</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$45 - $65</div>
+                                    <div class="service-duration">45 min</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="service-category">
+                            <div class="category-title">
+                                <i class="fas fa-palette"></i>
+                                Color Services
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Full Color Transformation</div>
+                                    <div class="service-description">Complete color change with cut and style</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$180 - $320</div>
+                                    <div class="service-duration">3-4 hours</div>
+                                </div>
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Highlights/Balayage</div>
+                                    <div class="service-description">Dimensional color techniques</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$150 - $280</div>
+                                    <div class="service-duration">2.5-3 hours</div>
+                                </div>
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Root Touch-up</div>
+                                    <div class="service-description">Maintain your existing color</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$95 - $135</div>
+                                    <div class="service-duration">90 min</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="service-category">
+                            <div class="category-title">
+                                <i class="fas fa-spa"></i>
+                                Treatments &amp; Add-ons
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Keratin Treatment</div>
+                                    <div class="service-description">Smoothing and frizz reduction</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$250 - $350</div>
+                                    <div class="service-duration">2 hours</div>
+                                </div>
+                            </div>
+                            <div class="service-item">
+                                <div class="service-details">
+                                    <div class="service-name">Deep Conditioning</div>
+                                    <div class="service-description">Intensive moisture and repair</div>
+                                </div>
+                                <div class="service-meta">
+                                    <div class="service-price">$35 - $55</div>
+                                    <div class="service-duration">30 min</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-camera"></i>
+                        Before &amp; After Portfolio
+                    </h2>
+                    <div class="portfolio-grid">
+                        <div class="portfolio-item">
+                            <div class="before-after">
+                                <img src="https://storage.googleapis.com/forge-sites/d3b11c773d07734c52c7cba64597f243d4e48235f5009c19bbe31cc18d319a46.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154619Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=139e60857575a3a2ed7f314ae98dec200a7438978d9923c04db08a6ebf901bf173a815d6cc6a8ee7bab92b389f0b9135f71d188da3f38ec49733b23505175e666f4365a744cdf6af78412d8048b41bd360ee724a823adab0a2f0b5e5feb0acaa5fe1076a89b7578684f284e6fa9e6c172e810b50d8200591362ab0392e4438ed82fb4bbeadd2568b5f4d0be1d0fc1ee722ab4f44dba91d8e6a6093d24c21c58354b7760e054f6ce6370ca180370c4a17235a27a5d8d7a1649d38ba71767f5a803b4f7d47774edba49264aa0776990202449e8e0e8cfd8fc8f445749c98fb75acd956a3a04cec1d68c05236eda925a391020c30773b2a56ac1c5e0ac6c59d9e26" alt="Before photo showing hair transformation starting point">
+                                <img src="https://storage.googleapis.com/forge-sites/271dbebf0d8b9b698e7756c9ce88a061c56cb04a7ed3674884f131e4475a3548.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154619Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=a000f3b6ed808144c1233ebd4bb212362a2af4f091b4ebb44c26f7ace40a9748a0e5744460080b85f1412847faf50cdc5707f4da7e41b05830a075001952df01bfe0ebfdab4dd921508b60044fad0e14ab4916e822068f26d66ba249b3c31085424f67ed75ca741ceb97bc2bfaf4d10a51d87465027e7694fe0dd5ac7ad65056dc42044fc742b876f643339ca16515a47e2db6d60368afc064e9ff215d2eb5d72940f3853da29a57501a3f65aaafb404aed5b2a216eb00f6e0038b56352bf7eb811bf82a0603cb56d9ef667f5c82538a339ded93c83cdd75ffaef67f9200790967829993d8551732a2674a7b9d7a4e13d69ebb028d457768376764aeb5d334ba" alt="After photo showing stunning hair transformation results with professional coloring and styling">
+                            </div>
+                            <div class="portfolio-info">
+                                <div class="portfolio-title">Brunette to Blonde Balayage</div>
+                                <div class="portfolio-stylist">by Sarah Chen</div>
+                            </div>
+                        </div>
+                        <div class="portfolio-item">
+                            <div class="before-after">
+                                <img src="https://storage.googleapis.com/forge-sites/fcfa8d4bed29ee701d88fbb3852b211105f8200326dc42d0b50a9f73a7aa75ef.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154619Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=220278cd1c9aa6ff49d6044e4b653d644dd1e615454afb8bd9a6f7b858ed77f601828398581c95cf88ca04d893fc6fe3fa5cb0bfb758659eee1e8870d49c832b7854fb5be3a9ea7a0fb7436b9f35c03e3c1664bbc6f0485f857111ed7072bf7978f6596b5bc7361bdbb202a13d17c3ee5c7dbeded21711c141e8951f1c313dabdbbde252efd86e76348d3ec5e23bdf3ef9abc244da6bedfaab9c9662b281879eb8bb014666a71b466ccabcebfdb453d268451ca81ce9d6a3edfc578aab1754eff083523e9c1b3c8bd17cd6da42bdec8c707930f5d44e91dbd0e946b561024a8c5a90f8ef508a0c2588f8ae85a6287cbd9bd407c55837fd864f30bd1ab88f429c" alt="Before photo of men's haircut transformation">
+                                <img src="https://storage.googleapis.com/forge-sites/04ed4f3b5bf408a1245fadde1ec274748af59f4c1ef15104cbba7970857a9eb6.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154619Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=4135d0854abbf4e89106a07f22b60aca8ec99722ebc326a2960a349476952aca7450cd511c8608e17268317e463b2c37ed0200ea19c73930c77c1b3a80c95f56f8ba632d2e946a6734f2631c1d0af6eceb6e91a93a3aa0c497ec93d262b0dd89b6c891efd1baf2cc046280a84644cbdf6057883a1a0876580b6205444ef08c8308e0a0502ac2a2164effaa649ce5f0c00356b4ed7fc881c8521b17bb40fa17a7ddc0bd4052be46b1e8cc80b472446ae4c6a3e0c246780ec88c8f4003cd7233cb9ebfa59d76dac2195a7fe01dfc0d412023fee82e5145e99031b847f11e62116a329f846e825a48f98654b943c685a4aeb38eab9782b97cb56f6c82755e89cdb4" alt="After photo showing modern men's haircut with precise styling and clean lines">
+                            </div>
+                            <div class="portfolio-info">
+                                <div class="portfolio-title">Modern Fade &amp; Texture</div>
+                                <div class="portfolio-stylist">by Marcus Rodriguez</div>
+                            </div>
+                        </div>
+                        <div class="portfolio-item">
+                            <div class="before-after">
+                                <img src="https://storage.googleapis.com/forge-sites/52bf3832f12e070935c8bc74843d7e7f6056ae77e1b7fc96a9402fd79de62c15.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154620Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=330a717f84ba5f8c5c20ef8103dbdf1f60fb9d7e7d40c459264af74489157e6766f73551e1d17561e79664b239fe8fbaf3a09c274e2b335c8eb95c21742a829afd8e5d0ed21f70458950d41d283b0f60c8e8c105e554876ea2306db09d7e3cfcf44c0bdcb2f23f785030ef2b18daad4145bfd77b9b25fadfe9953fffa3108cfeb71c51f1d63060d2b4ef10164a9b16c03571d39aa4aed202d4342a421e347a7e161e33512bce5f47d09b186559e34b2c52187213ca1503d0e0a58904982329edfafbd7e052896c5d03e4f990c0e5e4b22c44e5be2ef6cf887cb2136b9b92f1f9cbbe0731ed7152cdb0018b242bf10d8cc237bbe3e1899a330da5b33227c9f231" alt="Before photo of bridal hair preparation">
+                                <img src="https://storage.googleapis.com/forge-sites/4863053f2ee27999cdefb28967a4f1023853b2fb57180df0c1222a0f423569ab.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154620Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=4c09c6b82b0c8108399160bb1ebed28a45d570f091553613198efe31d7b55243904c418022515030da04db5194f8e9b64a47b5b0bb90b0a44ca1b244f884c5a63b6d1ca98b66acc034bfd17f0bb1c25deaf896c85f9f5b32fddf8ba32d49f69a406d5754378b096ed34a37920bd54754a01f6b96bcd2cab7403a0275ffa2fbedfe7f2a9958b9b7a6b063ef1835b34ccb2e51195b0ced348b855c09afe8133b0cc2658a47ecda29f5d84a9db8ae8e796370912388e40cd216b4e762ae96270e740e6b56c291784adc9d386ad09d41b3a74bb744ee9edd9f21a837b06691b550c828a7fbfd3742643bcb2693ea39609db50d8ee68832eddc239b4154f64ab31347" alt="After photo showing elegant bridal updo with sophisticated styling and finishing touches">
+                            </div>
+                            <div class="portfolio-info">
+                                <div class="portfolio-title">Elegant Bridal Updo</div>
+                                <div class="portfolio-stylist">by Emma Thompson</div>
+                            </div>
+                        </div>
+                        <div class="portfolio-item">
+                            <div class="before-after">
+                                <img src="https://storage.googleapis.com/forge-sites/01852871402c2610c157b00c8ea75f1441694eb449e581334ba030baf5398d60.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154620Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=7ed360cb14f9a84eee4c7432050d5cbf8cd0db052804192c78d4c72cea053a74498be623d5ed253a9957694e879536d4cc937ffc12a561333e66254e259f93bdfec6137c6061bed0de8bbd76e93466bcda0f869e688932289c22b6cfca2ee46d49f6a1db3074c80ffddd690fa73910dc83ba05aca2707aaf62eca950bde5eef6c82a1561203f63bc1aef3c59a14e5d603bd071a7c0a7005f7b598d83654860232c336e5db33d027ca9647430e4926e3703b77b03c159cf7aa69d3c999954b58b66fd7d06e4df011e81f8a2957e3123d6f699a5d3ce8a9bf09ee3ee0c2ee34bd0bb205aca32e037b514a07a01d5eb799b8c5b0822b10ec4cf2a8c28a49b736e2d" alt="Before photo of hair color correction process">
+                                <img src="https://storage.googleapis.com/forge-sites/163209795b4bcfda70fbba8fc29a25ec4a42e51b7d1e0bd13cfaaf8dfe1eeb6f.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154620Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=835781647a515c6b8f9b2664473e09d7be15c71ba40151629bc596d6d6f1a6a302d55ad650a160ec55da38c84a468198fe03fb87610d50ce70b95a7b8f337a5966e79fb4cf4202d869846e98b396a294b7b78857db9d881dc54c58b7ec7c5b7d53bd5b37da8b8cb2709e8ccc38b3a65cc4d28abf2e569b4acb7baa3cca0810e99c4c84e55926edd91d275201fa991caf602f773db848bc6c0a1cbe785725d5b98fb7416cf8466a70d45a2fabfef5327ff302d4df5d0179da7ed88da846c491e1e8f9b1ccb11cec4d208c9b0a574cb885a0e142cb80354a61a4ecb3ce468e5bea0634016ba712b6048a9c4441bf6707d246e3cd8f17d334619c1395901e640f03" alt="After photo showing successful hair color correction with beautiful, even tones">
+                            </div>
+                            <div class="portfolio-info">
+                                <div class="portfolio-title">Color Correction Magic</div>
+                                <div class="portfolio-stylist">by Sarah Chen</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <aside class="sidebar">
+                <div class="booking-widget">
+                    <div class="booking-title">
+                        <i class="fas fa-calendar-alt"></i>
+                        Book Your Appointment
+                    </div>
+                    <form class="booking-form">
+                        <div class="form-group">
+                            <label class="form-label">Choose Service</label>
+                            <select class="form-select">
+                                <option>Signature Cut &amp; Style</option>
+                                <option>Color Service</option>
+                                <option>Treatment</option>
+                                <option>Consultation</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Preferred Stylist</label>
+                            <select class="form-select">
+                                <option>Any Available</option>
+                                <option>Sarah Chen</option>
+                                <option>Marcus Rodriguez</option>
+                                <option>Emma Thompson</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Preferred Date</label>
+                            <select class="form-select">
+                                <option>Today</option>
+                                <option>Tomorrow</option>
+                                <option>This Week</option>
+                                <option>Next Week</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Available Times</label>
+                            <div class="available-times">
+                                <div class="time-slot">10:00 AM</div>
+                                <div class="time-slot">11:30 AM</div>
+                                <div class="time-slot selected">3:00 PM</div>
+                                <div class="time-slot">4:30 PM</div>
+                                <div class="time-slot">6:00 PM</div>
+                                <div class="time-slot">7:30 PM</div>
+                            </div>
+                        </div>
+                        <button type="submit" class="book-now-btn">
+                            <i class="fas fa-check"></i>
+                            Book Now
+                        </button>
+                    </form>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-phone"></i>
+                        Quick Contact
+                    </h3>
+                    <div class="quick-contact">
+                        <a href="tel:+12175552468" class="contact-item">
+                            <div class="contact-icon">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <div class="contact-text">
+                                <div class="contact-label">Call Salon</div>
+                                <div class="contact-value">(217) 555-2468</div>
+                            </div>
+                        </a>
+                        <a href="#" class="contact-item">
+                            <div class="contact-icon">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <div class="contact-text">
+                                <div class="contact-label">Live Chat</div>
+                                <div class="contact-value">Get instant answers</div>
+                            </div>
+                        </a>
+                        <a href="#" class="contact-item">
+                            <div class="contact-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="contact-text">
+                                <div class="contact-label">Email Us</div>
+                                <div class="contact-value">info@luxehairstudio.com</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Hours &amp; Location
+                    </h3>
+                    <div class="info-item">
+                        <div class="info-content">
+                            <div class="info-label">Address</div>
+                            <div class="info-value">
+                                789 Fashion Avenue<br>
+                                Springfield, IL 62701
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-content">
+                            <div class="info-label">Today's Hours</div>
+                            <div class="info-value open">9:00 AM - 8:00 PM</div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-content">
+                            <div class="info-label">Full Schedule</div>
+                            <div class="info-value">
+                                Mon-Thu: 9 AM - 8 PM<br>
+                                Fri-Sat: 8 AM - 9 PM<br>
+                                Sunday: 10 AM - 6 PM
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-gift"></i>
+                        Special Offers
+                    </h3>
+                    <div class="special-offer">
+                        <div class="offer-badge">NEW CLIENT</div>
+                        <div class="offer-text">20% Off First Visit</div>
+                        <div class="offer-details">Valid for services $100+</div>
+                    </div>
+                    <div class="special-offer">
+                        <div class="offer-badge">STUDENT</div>
+                        <div class="offer-text">15% Student Discount</div>
+                        <div class="offer-details">Valid ID required</div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-leaf"></i>
+                        Premium Products
+                    </h3>
+                    <div class="social-proof">
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-seedling"></i>
+                            </div>
+                            <div class="proof-text">Aveda • Redken • Olaplex</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-recycle"></i>
+                            </div>
+                            <div class="proof-text">Eco-Friendly • Cruelty-Free</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-certificate"></i>
+                            </div>
+                            <div class="proof-text">Certified Organic Options</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="last-updated">
+                    <i class="fas fa-sync"></i>
+                    Last updated by owner on March 20, 2024
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>

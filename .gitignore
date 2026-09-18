@@ -58,6 +58,7 @@ next-env.d.ts
 # Build artifacts
 dist/
 .turbo/
+/jscpd-report.json
 
 # Windows special files
 nul
@@ -69,3 +70,8 @@ com*
 
 # Husky hooks (maintained separately)
 .husky/
+
+# AI agent tooling (installed locally, regenerable)
+.claude/
+.agents/
+skills-lock.json

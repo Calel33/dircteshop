@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalHub Editor — Owner Workspace Prototype</title>
+<style>
+:root {
+  --brand: #2563eb;
+  --brand-dark: #1e40af;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --green: #16a34a;
+  --amber: #d97706;
+  --red: #dc2626;
+  --radius: 0.75rem;
+  --sidebar-w: 16rem;
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+  --space-4: 1rem; --space-6: 1.5rem;
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-size: 0.9375rem; }
+.layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar { background: var(--surface); border-right: 0.0625rem solid var(--border); padding: var(--space-6) var(--space-4); position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.brand { font-weight: 700; font-size: 1.125rem; color: var(--brand); margin-bottom: var(--space-6); }
+.brand span { color: var(--text); }
+.nav-group-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: var(--space-4) 0 var(--space-2); }
+.nav-item { display: block; width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; border-radius: var(--radius); cursor: pointer; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.125rem; }
+.nav-item:hover { background: var(--bg); color: var(--text); }
+.nav-item.active { background: var(--brand); color: #fff; font-weight: 600; }
+.nav-item .badge { float: right; background: var(--red); color: #fff; border-radius: 62.5rem; padding: 0 0.4rem; font-size: 0.6875rem; font-weight: 700; }
+.biz-switch { margin-top: var(--space-6); padding: var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 0.75rem; color: var(--text-muted); }
+.biz-switch select { width: 100%; margin-top: var(--space-2); padding: var(--space-2); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-size: 0.8125rem; }
+
+/* Main */
+.main { padding: var(--space-6); max-width: 75rem; }
+.topbar { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-6); flex-wrap: wrap; }
+.topbar h1 { font-size: 1.375rem; flex: 1; }
+.topbar .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius); border: 0.0625rem solid var(--border); background: var(--surface); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--bg); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary:hover { background: var(--brand-dark); }
+.btn.success { background: var(--green); border-color: var(--green); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.status-chip { padding: 0.2rem 0.75rem; border-radius: 62.5rem; font-size: 0.75rem; font-weight: 700; }
+.status-chip.approved { background: #dcfce7; color: var(--green); }
+.status-chip.pendingReview { background: #fef3c7; color: var(--amber); }
+.status-chip.changesRequested { background: #fee2e2; color: var(--red); }
+.status-chip.draft { background: var(--border); color: var(--text-muted); }
+
+/* Banners */
+.banner { padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); font-size: 0.875rem; display: flex; align-items: flex-start; gap: var(--space-2); }
+.banner.info { background: #eff6ff; border: 0.0625rem solid #bfdbfe; color: var(--brand-dark); }
+.banner.warn { background: #fef2f2; border: 0.0625rem solid #fecaca; color: var(--red); }
+.banner strong { display: block; margin-bottom: 0.15rem; }
+#moderation-banner { display: none; }
+#pending-banner { display: none; }
+
+/* Workspace grid */
+.workspace { display: grid; grid-template-columns: 1fr 22rem; gap: var(--space-6); align-items: start; }
+@media (max-width: 64rem) { .workspace { grid-template-columns: 1fr; } .layout { grid-template-columns: 1fr; } .sidebar { height: auto; position: static; } }
+
+/* Editor panel */
+.editor-panel { background: var(--surface); border: 0.0625rem solid var(--border); border-radius: var(--radius); padding: var(--space-6); }
+.section-tabs { display: flex; gap: var(--space-1); border-bottom: 0.0625rem solid var(--border); margin-bottom: var(--space-6); flex-wrap: wrap; }
+.tab { padding: var(--space-2) var(--space-4); border: none; background: none; cursor: pointer; font-size: 0.8125rem; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -0.0625rem; }
+.tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+.field { margin-bottom: var(--space-4); }
+.field label { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: var(--space-2); }
+.field input[type=text], .field textarea, .field select { width: 100%; padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-size: 0.875rem; font-family: inherit; background: var(--surface); }
+.field input:focus, .field textarea:focus { outline: 2px solid var(--brand); outline-offset: -0.0625rem; }
+.field textarea { min-height: 4.5rem; resize: vertical; }
+.readonly .field input, .readonly .field textarea, .readonly .field select { background: var(--bg); color: var(--text-muted); pointer-events: none; }
+.presets { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.preset { padding: 0.3rem 0.75rem; border-radius: 62.5rem; border: 0.0625rem solid var(--border); background: var(--bg); font-size: 0.75rem; cursor: pointer; font-weight: 600; color: var(--text-muted); }
+.preset:hover { border-color: var(--brand); color: var(--brand); }
+.tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-6); flex-wrap: wrap; }
+.tool { font-size: 0.75rem; }
+.tool:disabled { opacity: 0.4; }
+.hours-row { display: grid; grid-template-columns: 6rem 1fr 1fr; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); font-size: 0.8125rem; }
+.hours-row .day { font-weight: 600; }
+
+/* Preview */
+.preview-panel { background: var(--surface); border: 0.0625rem solid var(--border); border-radius: var(--radius); overflow: hidden; position: sticky; top: var(--space-6); }
+.preview-panel h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: var(--space-3) var(--space-4); border-bottom: 0.0625rem solid var(--border); background: var(--bg); }
+.preview-body { padding: var(--space-4); }
+.preview-card { border: 0.0625rem solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.preview-hero { height: 7rem; background: linear-gradient(135deg, #bfdbfe, #dbeafe); display: flex; align-items: center; justify-content: center; color: var(--brand-dark); font-size: 0.75rem; font-weight: 600; }
+.preview-content { padding: var(--space-4); }
+.preview-name { font-size: 1.0625rem; font-weight: 700; }
+.preview-meta { font-size: 0.75rem; color: var(--text-muted); margin: 0.2rem 0 var(--space-3); }
+.preview-desc { font-size: 0.8125rem; color: var(--text); margin-bottom: var(--space-3); }
+.preview-actions { display: flex; gap: var(--space-2); }
+.preview-actions .btn { flex: 1; text-align: center; font-size: 0.75rem; padding: 0.4rem 0.5rem; }
+.preview-footer { font-size: 0.6875rem; color: var(--text-muted); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 0.0625rem solid var(--border); }
+.dirty-note { font-size: 0.6875rem; color: var(--amber); font-weight: 700; margin-top: var(--space-2); display: none; }
+
+/* History trail */
+.trail { margin-top: var(--space-6); border-top: 0.0625rem solid var(--border); padding-top: var(--space-4); }
+.trail h3 { font-size: 0.8125rem; margin-bottom: var(--space-3); }
+.trail-item { font-size: 0.75rem; color: var(--text-muted); padding: var(--space-2) 0; border-bottom: 0.0625rem dashed var(--border); display: flex; justify-content: space-between; gap: var(--space-2); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Local<span>Hub</span></div>
+    <div class="biz-switch">
+      My Businesses
+      <select id="biz-switcher">
+        <option>The Corner Cafe (approved)</option>
+        <option>Green Bowl Co. (draft)</option>
+      </select>
+    </div>
+    <div class="nav-group-label">Listing Details</div>
+    <button class="nav-item active" data-tab="basic">Basic Information</button>
+    <button class="nav-item" data-tab="hours">Operating Hours</button>
+    <button class="nav-item" data-tab="photos">Photos &amp; Media</button>
+    <button class="nav-item" data-tab="contact">Contact Details</button>
+    <button class="nav-item" data-tab="location">Location &amp; Map</button>
+    <button class="nav-item" data-tab="categories">Categories &amp; Tags</button>
+    <button class="nav-item" data-tab="features">Features &amp; Amenities</button>
+    <div class="nav-group-label">Management</div>
+    <button class="nav-item" data-tab="analytics">Analytics <em style="font-style:normal;font-size:0.65rem">(stub)</em></button>
+    <button class="nav-item" data-tab="history">Change History</button>
+    <button class="nav-item" data-tab="settings">Settings <em style="font-style:normal;font-size:0.65rem">(stub)</em></button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Manage Your Listing</h1>
+      <span class="status-chip approved" id="status-chip">Approved</span>
+      <div class="actions">
+        <button class="btn tool" id="undo" disabled>Undo</button>
+        <button class="btn tool" id="redo" disabled>Redo</button>
+        <button class="btn" id="preview-btn">Preview Live</button>
+        <button class="btn" id="save-draft" disabled>Save Draft</button>
+        <button class="btn primary" id="submit-btn">Submit for Approval</button>
+      </div>
+    </div>
+
+    <div class="banner warn" id="moderation-banner">
+      <div>
+        <strong>Changes requested by LocalHub Admin</strong>
+        <span id="moderation-reason">Please update your hours — Wednesday shows 24:00 as closing time.</span>
+        Revise the listing and resubmit for approval.
+      </div>
+    </div>
+    <div class="banner info" id="pending-banner">
+      <div>
+        <strong>Submitted — pending review</strong>
+        Submitted Sep 6, 2026. Your listing is read-only while the admin reviews it.
+      </div>
+    </div>
+
+    <div class="workspace">
+      <div class="editor-panel" id="editor-panel">
+        <div class="section-tabs" id="section-tabs">
+          <button class="tab active" data-tab="basic">Basic Information</button>
+          <button class="tab" data-tab="hours">Operating Hours</button>
+          <button class="tab" data-tab="contact">Contact</button>
+          <button class="tab" data-tab="location">Location</button>
+          <button class="tab" data-tab="features">Features</button>
+        </div>
+
+        <!-- Basic info -->
+        <div class="field">
+          <label>Business Name</label>
+          <input type="text" id="f-name" value="The Corner Cafe">
+        </div>
+        <div class="field">
+          <label>Primary Category</label>
+          <select id="f-category">
+            <option selected>Food &amp; Drink</option>
+            <option>Beauty &amp; Wellness</option>
+            <option>Professional Services</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="f-desc">A cozy neighborhood cafe serving fresh pastries, breakfast all day, and expertly pulled espresso.</textarea>
+        </div>
+        <div class="field">
+          <label>Keywords (searchable)</label>
+          <input type="text" id="f-keywords" value="coffee, pastries, breakfast, wifi">
+        </div>
+
+        <!-- Hours -->
+        <div id="hours-block" style="display:none">
+          <div class="presets" id="presets">
+            <button class="preset" data-preset="standard">Standard Hours (9–5)</button>
+            <button class="preset" data-preset="coffee">Coffee Shop (7–6)</button>
+            <button class="preset" data-preset="weekend">Weekend Only</button>
+            <button class="preset" data-preset="custom">Custom</button>
+          </div>
+          <div class="hours-row"><span class="day">Mon–Fri</span><input type="text" id="h-week-open" value="07:00"><input type="text" id="h-week-close" value="18:00"></div>
+          <div class="hours-row"><span class="day">Saturday</span><input type="text" id="h-sat-open" value="08:00"><input type="text" id="h-sat-close" value="16:00"></div>
+          <div class="hours-row"><span class="day">Sunday</span><input type="text" id="h-sun-open" value="Closed"><input type="text" id="h-sun-close" value="Closed"></div>
+          <div class="tools" style="margin-top:1rem">
+            <button class="btn tool" id="reset-section">Reset Section (from last saved)</button>
+          </div>
+        </div>
+
+        <!-- Contact (simplified) -->
+        <div id="contact-block" style="display:none">
+          <div class="field"><label>Phone</label><input type="text" id="f-phone" value="(555) 123-4567"></div>
+          <div class="field"><label>Email</label><input type="text" id="f-email" value="hello@cornercafe.example"></div>
+          <div class="field"><label>Website</label><input type="text" id="f-website" value="cornercafe.example"></div>
+        </div>
+
+        <!-- Location (address only, no map in v1) -->
+        <div id="location-block" style="display:none">
+          <div class="field"><label>Street Address</label><input type="text" value="123 Main St"></div>
+          <div class="field"><label>City / State</label><input type="text" value="Springfield, IL"></div>
+          <p style="font-size:0.75rem;color:var(--text-muted)">Map embed: deferred (geolocation out of scope v1) — lat/lng stored, not displayed.</p>
+        </div>
+
+        <!-- Features -->
+        <div id="features-block" style="display:none">
+          <div class="field"><label>Services / Amenities (one per line)</label><textarea id="f-services">Espresso bar
+Fresh pastries
+Free wifi
+Outdoor seating</textarea></div>
+        </div>
+
+        <div class="trail" id="trail">
+          <h3>Change History (trail)</h3>
+          <div class="trail-item"><span>Status changed: changesRequested → pendingReview</span><span>Sep 5, 2026</span></div>
+          <div class="trail-item"><span>Draft saved</span><span>Sep 4, 2026</span></div>
+          <div class="trail-item"><span>Approved &amp; verified</span><span>Aug 30, 2026</span></div>
+          <div class="trail-item"><span>Listing created</span><span>Aug 28, 2026</span></div>
+        </div>
+      </div>
+
+      <aside class="preview-panel">
+        <h2>Live Preview</h2>
+        <div class="preview-body">
+          <div class="preview-card">
+            <div class="preview-hero">Gallery placeholder</div>
+            <div class="preview-content">
+              <div class="preview-name" id="p-name">The Corner Cafe</div>
+              <div class="preview-meta" id="p-meta">Food &amp; Drink · ★ 4.8 (124) · Open until 18:00</div>
+              <div class="preview-desc" id="p-desc">A cozy neighborhood cafe serving fresh pastries, breakfast all day, and expertly pulled espresso.</div>
+              <div class="preview-actions">
+                <button class="btn">Call</button>
+                <button class="btn">Directions</button>
+                <button class="btn">Website</button>
+              </div>
+              <div class="preview-footer" id="p-footer">Owner-maintained · Last updated Aug 30, 2026</div>
+            </div>
+          </div>
+          <div class="dirty-note" id="dirty-note">PREVIEWING UNSAVED EDITS — not yet submitted</div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<script>
+// Prototype interactions per ticket 06 resolution:
+// - preview renders from UNSAVED form state (dirty note appears)
+// - Undo/Redo client-only on form state
+// - hours presets = quick-fills
+// - Reset Section restores last-saved snapshot
+// - status simulation buttons (console) for read-only + banner states
+
+const state = {
+  status: 'approved',            // approved | pendingReview | changesRequested | draft
+  history: [],                  // undo stack
+  future: [],                   // redo stack
+  saved: snapshot(),            // last-saved Convex state
+  readonly: false,
+};
+
+function snapshot() {
+  return {
+    name: val('f-name'), desc: val('f-desc'), keywords: val('f-keywords'),
+    phone: val('f-phone'), email: val('f-email'), website: val('f-website'),
+    hours: [val('h-week-open'), val('h-week-close'), val('h-sat-open'), val('h-sat-close'), val('h-sun-open'), val('h-sun-close')],
+  };
+}
+function val(id) { return document.getElementById(id).value; }
+function setVal(id, v) { document.getElementById(id).value = v; }
+function applySnapshot(s) {
+  setVal('f-name', s.name); setVal('f-desc', s.desc); setVal('f-keywords', s.keywords);
+  setVal('f-phone', s.phone); setVal('f-email', s.email); setVal('f-website', s.website);
+  ['h-week-open','h-week-close','h-sat-open','h-sat-close','h-sun-open','h-sun-close'].forEach((id, i) => setVal(id, s.hours[i]));
+}
+
+const presets = {
+  standard: ['09:00','17:00','09:00','17:00','Closed','Closed'],
+  coffee:   ['07:00','18:00','08:00','16:00','Closed','Closed'],
+  weekend:  ['Closed','Closed','Closed','Closed','09:00','17:00'],
+  custom:   ['','','','','',''],
+};
+
+document.querySelectorAll('.field input, .field textarea, .field select, .hours-row input').forEach(el => {
+  el.addEventListener('input', () => {
+    state.history.push(JSON.stringify(snapshot()));
+    state.future = [];
+    updateTools(); updatePreview(true);
+  });
+});
+
+function updateTools() {
+  document.getElementById('undo').disabled = state.history.length === 0 || state.readonly;
+  document.getElementById('redo').disabled = state.future.length === 0 || state.readonly;
+  document.getElementById('save-draft').disabled = state.readonly;
+}
+function updatePreview(dirty) {
+  document.getElementById('p-name').textContent = val('f-name');
+  document.getElementById('p-desc').textContent = val('f-desc');
+  document.getElementById('p-meta').textContent =
+    document.getElementById('f-category').selectedOptions[0].textContent +
+    ' · ★ 4.8 (124) · Open until ' + val('h-week-close');
+  document.getElementById('dirty-note').style.display = dirty ? 'block' : 'none';
+}
+
+document.getElementById('undo').onclick = () => {
+  if (!state.history.length) return;
+  state.future.push(JSON.stringify(snapshot()));
+  applySnapshot(JSON.parse(state.history.pop()));
+  updateTools(); updatePreview(true);
+};
+document.getElementById('redo').onclick = () => {
+  if (!state.future.length) return;
+  state.history.push(JSON.stringify(snapshot()));
+  applySnapshot(JSON.parse(state.future.pop()));
+  updateTools(); updatePreview(true);
+};
+document.getElementById('reset-section').onclick = () => {
+  applySnapshot(state.saved);
+  updateTools(); updatePreview(true);
+};
+document.getElementById('preview-btn').onclick = () => updatePreview(true);
+document.getElementById('save-draft').onclick = () => {
+  state.saved = snapshot();
+  state.history = []; state.future = [];
+  updateTools(); updatePreview(false);
+  alert('Draft saved (status: draft). In production this persists to Convex.');
+};
+document.getElementById('submit-btn').onclick = () => {
+  if (state.readonly) return;
+  setStatus('pendingReview');
+  alert('Submitted for approval (approved → pendingReview transition). Editor now read-only.');
+};
+
+document.querySelectorAll('#presets .preset').forEach(btn => {
+  btn.onclick = () => {
+    const p = presets[btn.dataset.preset];
+    ['h-week-open','h-week-close','h-sat-open','h-sat-close','h-sun-open','h-sun-close'].forEach((id, i) => setVal(id, p[i]));
+    updatePreview(true);
+  };
+});
+
+// Section tabs + sidebar nav
+const tabs = document.querySelectorAll('.tab');
+const navItems = document.querySelectorAll('.nav-item[data-tab]');
+const blocks = { basic: null, hours: 'hours-block', contact: 'contact-block', location: 'location-block', features: 'features-block' };
+function activate(tabId) {
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  navItems.forEach(n => n.classList.toggle('active', n.dataset.tab === tabId));
+  const tabBlockMap = { basic: null, hours: 'hours-block', contact: 'contact-block', location: 'location-block', features: 'features-block', photos: null, categories: null, analytics: null, history: 'trail-tab', settings: null };
+  Object.values(blocks).forEach(id => { if (id) document.getElementById(id).style.display = 'none'; });
+  if (blocks[tabId]) document.getElementById(blocks[tabId]).style.display = 'block';
+  const isHours = tabId === 'hours';
+  // hours inputs live inside hours-block; keep basic fields visible otherwise
+}
+[...tabs, ...navItems].forEach(el => el.addEventListener('click', () => activate(el.dataset.tab)));
+
+// Status simulation (demonstrates read-only + banners)
+function setStatus(s) {
+  state.status = s;
+  state.readonly = (s === 'pendingReview');
+  const chip = document.getElementById('status-chip');
+  chip.textContent = { approved: 'Approved', pendingReview: 'Pending Review', changesRequested: 'Changes Requested', draft: 'Draft' }[s];
+  chip.className = 'status-chip ' + s;
+  document.getElementById('pending-banner').style.display = s === 'pendingReview' ? 'flex' : 'none';
+  document.getElementById('moderation-banner').style.display = s === 'changesRequested' ? 'flex' : 'none';
+  document.getElementById('editor-panel').classList.toggle('readonly', state.readonly);
+  document.getElementById('submit-btn').disabled = state.readonly;
+  updateTools();
+}
+// Simulate receiving a change request
+setTimeout(() => setStatus('changesRequested'), 400);
+// Then simulate resubmission flow being available
+console.log('Prototype: status is changesRequested — reason banner shown, editing enabled. Click Submit for Approval to see the pendingReview read-only state.');
+</script>
+</body>
+</html>

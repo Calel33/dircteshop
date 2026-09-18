@@ -1,0 +1,939 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/ac4fb37cf84fff3f3623865f2b0fa2525ad12cc96f8a8795173c533b19c738ba/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Auto Service - Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .breadcrumb {
+            padding: 24px 0 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 48px;
+            padding-bottom: 48px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .image-gallery {
+            position: relative;
+            height: 400px;
+            background: #e2e8f0;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gallery-dot.active {
+            background: white;
+        }
+
+        .business-header {
+            padding: 32px;
+        }
+
+        .business-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .title-left h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-category {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .verification-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .business-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stars {
+            color: #f59e0b;
+        }
+
+        .business-description {
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+        }
+
+        /* Service Sections */
+        .service-sections {
+            display: grid;
+            gap: 32px;
+        }
+
+        .service-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .service-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .service-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .service-name {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .service-price {
+            color: #059669;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .service-time {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .equipment-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .equipment-icon {
+            font-size: 24px;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .equipment-name {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .equipment-desc {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .certifications-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .cert-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .cert-icon {
+            width: 48px;
+            height: 48px;
+            background: #2563eb;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            font-size: 20px;
+        }
+
+        .cert-name {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .cert-org {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quick-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .quick-btn {
+            padding: 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+            text-align: left;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .quick-btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .quick-btn-warning {
+            background: #dc2626;
+            color: white;
+        }
+
+        .quick-btn-secondary {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+
+        .quick-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .availability-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            background: #059669;
+            border-radius: 50%;
+        }
+
+        .status-text {
+            font-weight: 600;
+            color: #059669;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-icon {
+            color: #2563eb;
+            width: 20px;
+            margin-top: 2px;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            color: #64748b;
+        }
+
+        .info-value a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .hours-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .day {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .time {
+            color: #64748b;
+        }
+
+        .time.open {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .warranty-card {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .warranty-title {
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .warranty-text {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+            
+            .service-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .equipment-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 16px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .business-meta {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#">Directory</a>
+                    <a href="#">Categories</a>
+                    <a href="#">Add Business</a>
+                    <a href="#">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="#">Home</a> / <a href="#">Automotive</a> / <a href="#">Auto Repair</a> / Elite Auto Service
+        </div>
+
+        <div class="main-content">
+            <main>
+                <div class="hero-section">
+                    <div class="image-gallery">
+                        <img src="https://storage.googleapis.com/forge-sites/450febaa3754e9512565be0bcdabd7ba88b6572cc1aeaa2d962a1c0a3155f52c.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154610Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=2b6bec885df5f0ac5fc251061fa2c4786f6bc0ec77e9b4eb47dc9d667ff06724b026526cefd4e2f9996995a762be623635e9fd4f54eb14f51b3fbed7c3ab4485902ec429b42d71e213ef1910d1f4254db5278bf5a46ade499f03c7bd4560e59cca2d20d0311830ef738eba6d533cdfb92ce9e84873d105bd140021496189953e55bc99a13049326c1b78d0a301e58bf00c08e983652eda3bcd9002c53976b2feea0b824b113b7cce0fdb15c7f5250e51cb8eb27cc7e2535a0b856c399eb9c756013d3d85f359bd7327f5e5ccdfdd20b5659da3f0acf79601b56a53395c75228484b752430a262b2c006d3035a87231df89be968009ad3103c9e10d56561fd6be" alt="Professional auto repair shop interior showing clean service bays with hydraulic lifts, modern diagnostic equipment, organized tool stations, and technicians working on vehicles in a well-lit facility" class="main-image">
+                        <div class="gallery-nav">
+                            <div class="gallery-dot active"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                        </div>
+                    </div>
+
+                    <div class="business-header">
+                        <div class="business-title">
+                            <div class="title-left">
+                                <h1>Elite Auto Service</h1>
+                                <div class="business-category">Auto Repair • Diagnostics • Maintenance</div>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-shield-check"></i>
+                                ASE Certified Shop
+                            </div>
+                        </div>
+
+                        <div class="business-meta">
+                            <div class="rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.9 (312 reviews)</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>1.2 miles away</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                <span class="open">Open until 6:00 PM</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-tools"></i>
+                                <span>3 bays available</span>
+                            </div>
+                        </div>
+
+                        <div class="business-description">
+                            Elite Auto Service is your trusted neighborhood auto repair shop specializing in comprehensive vehicle maintenance and repair services. Our ASE-certified technicians use state-of-the-art diagnostic equipment to quickly identify issues and provide transparent, honest repairs. We stand behind our work with industry-leading warranties and have been serving the community with integrity for over 15 years. From routine oil changes to complex engine repairs, we treat every vehicle with the care and expertise it deserves.
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="#" class="btn btn-primary">
+                                <i class="fas fa-phone"></i>
+                                Call for Service
+                            </a>
+                            <a href="#" class="btn btn-warning">
+                                <i class="fas fa-truck"></i>
+                                Request Towing
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-calendar-alt"></i>
+                                Schedule Appointment
+                            </a>
+                        </div>
+
+                        <div class="service-sections">
+                            <div class="service-card">
+                                <h3 class="service-title">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    Common Service Estimates
+                                </h3>
+                                <div class="service-grid">
+                                    <div class="service-item">
+                                        <div class="service-name">Oil Change &amp; Filter</div>
+                                        <div class="service-price">$45 - $85</div>
+                                        <div class="service-time">30-45 minutes</div>
+                                    </div>
+                                    <div class="service-item">
+                                        <div class="service-name">Brake Pad Replacement</div>
+                                        <div class="service-price">$200 - $400</div>
+                                        <div class="service-time">2-3 hours</div>
+                                    </div>
+                                    <div class="service-item">
+                                        <div class="service-name">Engine Diagnostic</div>
+                                        <div class="service-price">$120 - $180</div>
+                                        <div class="service-time">1-2 hours</div>
+                                    </div>
+                                    <div class="service-item">
+                                        <div class="service-name">Transmission Service</div>
+                                        <div class="service-price">$180 - $350</div>
+                                        <div class="service-time">2-4 hours</div>
+                                    </div>
+                                    <div class="service-item">
+                                        <div class="service-name">AC System Repair</div>
+                                        <div class="service-price">$200 - $800</div>
+                                        <div class="service-time">2-5 hours</div>
+                                    </div>
+                                    <div class="service-item">
+                                        <div class="service-name">Timing Belt Replacement</div>
+                                        <div class="service-price">$500 - $1,200</div>
+                                        <div class="service-time">4-6 hours</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="service-card">
+                                <h3 class="service-title">
+                                    <i class="fas fa-cogs"></i>
+                                    Diagnostic Equipment
+                                </h3>
+                                <div class="equipment-grid">
+                                    <div class="equipment-item">
+                                        <div class="equipment-icon">
+                                            <i class="fas fa-laptop"></i>
+                                        </div>
+                                        <div class="equipment-name">OBD-II Scanner</div>
+                                        <div class="equipment-desc">Advanced diagnostics for all vehicle systems</div>
+                                    </div>
+                                    <div class="equipment-item">
+                                        <div class="equipment-icon">
+                                            <i class="fas fa-microscope"></i>
+                                        </div>
+                                        <div class="equipment-name">Engine Analyzer</div>
+                                        <div class="equipment-desc">Comprehensive engine performance testing</div>
+                                    </div>
+                                    <div class="equipment-item">
+                                        <div class="equipment-icon">
+                                            <i class="fas fa-wrench"></i>
+                                        </div>
+                                        <div class="equipment-name">Brake Lathe</div>
+                                        <div class="equipment-desc">Precision brake rotor resurfacing</div>
+                                    </div>
+                                    <div class="equipment-item">
+                                        <div class="equipment-icon">
+                                            <i class="fas fa-car"></i>
+                                        </div>
+                                        <div class="equipment-name">Wheel Alignment</div>
+                                        <div class="equipment-desc">Computerized 4-wheel alignment system</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="service-card">
+                                <h3 class="service-title">
+                                    <i class="fas fa-certificate"></i>
+                                    Technician Certifications
+                                </h3>
+                                <div class="certifications-grid">
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-award"></i>
+                                        </div>
+                                        <div class="cert-name">ASE Master Technician</div>
+                                        <div class="cert-org">Automotive Service Excellence</div>
+                                    </div>
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-car"></i>
+                                        </div>
+                                        <div class="cert-name">Engine Performance</div>
+                                        <div class="cert-org">ASE Certified A8</div>
+                                    </div>
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-tools"></i>
+                                        </div>
+                                        <div class="cert-name">Electrical Systems</div>
+                                        <div class="cert-org">ASE Certified A6</div>
+                                    </div>
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-cog"></i>
+                                        </div>
+                                        <div class="cert-name">Transmission Specialist</div>
+                                        <div class="cert-org">ATRA Certified</div>
+                                    </div>
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-snowflake"></i>
+                                        </div>
+                                        <div class="cert-name">AC Systems</div>
+                                        <div class="cert-org">EPA 609 Certified</div>
+                                    </div>
+                                    <div class="cert-item">
+                                        <div class="cert-icon">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </div>
+                                        <div class="cert-name">Brake Systems</div>
+                                        <div class="cert-org">ASE Certified A5</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <aside class="sidebar">
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-bolt"></i>
+                        Quick Actions
+                    </h3>
+                    <div class="availability-status">
+                        <div class="status-indicator"></div>
+                        <div class="status-text">3 service bays available now</div>
+                    </div>
+                    <div class="quick-actions">
+                        <a href="#" class="quick-btn quick-btn-primary">
+                            <i class="fas fa-calculator"></i>
+                            <div>
+                                <div style="font-weight: 700;">Get Free Quote</div>
+                                <div style="font-size: 12px; opacity: 0.8;">Instant estimate in 5 minutes</div>
+                            </div>
+                        </a>
+                        <a href="#" class="quick-btn quick-btn-warning">
+                            <i class="fas fa-truck"></i>
+                            <div>
+                                <div style="font-weight: 700;">Emergency Towing</div>
+                                <div style="font-size: 12px; opacity: 0.8;">24/7 service • Call now</div>
+                            </div>
+                        </a>
+                        <a href="#" class="quick-btn quick-btn-secondary">
+                            <i class="fas fa-calendar-check"></i>
+                            <div>
+                                <div style="font-weight: 700;">Book Appointment</div>
+                                <div style="font-size: 12px; opacity: 0.8;">Next available: Today 2:30 PM</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Contact Information
+                    </h3>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Address</div>
+                            <div class="info-value">
+                                1847 Industrial Blvd<br>
+                                Springfield, IL 62703
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-phone info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Phone</div>
+                            <div class="info-value">
+                                <a href="tel:+12175552300">(217) 555-2300</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-truck info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Emergency Towing</div>
+                            <div class="info-value">
+                                <a href="tel:+12175552301">(217) 555-2301</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Email</div>
+                            <div class="info-value">
+                                <a href="mailto:service@eliteautoservice.com">service@eliteautoservice.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Hours of Operation
+                    </h3>
+                    <div class="hours-grid">
+                        <div class="hour-row">
+                            <span class="day">Monday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Tuesday</span>
+                            <span class="time open">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Wednesday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Thursday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Friday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Saturday</span>
+                            <span class="time">8:00 AM - 4:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Sunday</span>
+                            <span class="time">Closed</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="warranty-card">
+                    <div class="warranty-title">
+                        <i class="fas fa-shield-check"></i>
+                        Warranty Protection
+                    </div>
+                    <div class="warranty-text">
+                        We stand behind our work with a comprehensive 24-month / 24,000-mile warranty on all repairs. Your satisfaction and peace of mind are guaranteed.
+                    </div>
+                </div>
+
+                <div class="last-updated">
+                    <i class="fas fa-sync"></i>
+                    Last updated by owner on March 18, 2024
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>

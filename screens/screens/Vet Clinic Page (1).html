@@ -1,0 +1,962 @@
+<!DOCTYPE html><html lang="en"><head><base href="https://forge.moonchild.ai/site/1add74db3d81292427588faadd474c704e49db3fed362d163aac4484054ec917/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oakwood Veterinary Clinic - Local Business Directory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .nav {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav a:hover {
+            color: #2563eb;
+        }
+
+        .breadcrumb {
+            padding: 24px 0 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 48px;
+            padding-bottom: 48px;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .image-gallery {
+            position: relative;
+            height: 400px;
+            background: #e2e8f0;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gallery-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gallery-dot.active {
+            background: white;
+        }
+
+        .business-header {
+            padding: 32px;
+        }
+
+        .business-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .title-left h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .business-category {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .verification-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .business-meta {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stars {
+            color: #f59e0b;
+        }
+
+        .business-description {
+            color: #475569;
+            line-height: 1.7;
+            margin-bottom: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-emergency {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: white;
+        }
+
+        .btn-emergency:hover {
+            background: linear-gradient(135deg, #b91c1c, #dc2626);
+            transform: translateY(-1px);
+        }
+
+        /* Specializations Section */
+        .specializations {
+            padding: 24px 0 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .specializations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .specialization-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .specialization-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .spec-icon {
+            font-size: 24px;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .spec-name {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .spec-description {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* Veterinarian Cards */
+        .veterinarians {
+            padding: 24px 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .vet-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .vet-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .vet-photo {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #2563eb;
+        }
+
+        .vet-info h4 {
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .vet-title {
+            color: #2563eb;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .vet-credentials {
+            color: #64748b;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .vet-experience {
+            color: #059669;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Pet Care Tips */
+        .pet-tips {
+            padding: 24px 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .tips-grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .tip-item {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border-left: 4px solid #2563eb;
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .tip-title {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .tip-text {
+            color: #475569;
+            font-size: 14px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .emergency-card {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border: 2px solid #ef4444;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .emergency-title {
+            color: #dc2626;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .info-icon {
+            color: #2563eb;
+            width: 20px;
+            margin-top: 2px;
+        }
+
+        .emergency-icon {
+            color: #dc2626;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            color: #64748b;
+        }
+
+        .info-value a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .emergency-value a {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .hours-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .hour-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .day {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        .time {
+            color: #64748b;
+        }
+
+        .time.open {
+            color: #059669;
+            font-weight: 600;
+        }
+
+        .emergency-hours {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+
+        .emergency-note {
+            color: #dc2626;
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .appointment-booking {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border: 1px solid #16a34a;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .booking-icon {
+            font-size: 32px;
+            color: #16a34a;
+            margin-bottom: 12px;
+        }
+
+        .booking-text {
+            color: #15803d;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .booking-note {
+            color: #166534;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        .btn-book {
+            background: #16a34a;
+            color: white;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-book:hover {
+            background: #15803d;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+            
+            .specializations-grid {
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 16px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .specializations-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .vet-card {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">LocalConnect</div>
+                <nav class="nav">
+                    <a href="#">Directory</a>
+                    <a href="#">Categories</a>
+                    <a href="#">Add Business</a>
+                    <a href="#">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="#">Home</a> / <a href="#">Healthcare</a> / <a href="#">Veterinary Services</a> / Oakwood Veterinary Clinic
+        </div>
+
+        <div class="main-content">
+            <main>
+                <div class="hero-section">
+                    <div class="image-gallery">
+                        <img src="https://storage.googleapis.com/forge-sites/916470d3ae8260890f74c7ff5b442e6b8dd355eb60ffcc3327ecfc3ecea776fb.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154607Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=9568670b0fc0ed96c1f962ee4bc584fcc0f02e92c54b3cf5fa668961c67dd613f0be13981573661e13a59eaebfd1a0d709cdb1f2249b36469e7a8c455dbc89df00eb5c60bcf286d168ba5c1d8a93e46fcb2a6602dbd836786bb59fbc963aac176bb848f98bc1eeaa9fce3387517b8b754883e575cb7e96b82dbcd638ad0bff85cd6ad12d7f62a110cf1d9d4bfccca7836a0abef6926da1ffd1c7f23a96999045b321ed847e4d35b40ebf6e02ffff76f8972b6785009dd01f5e7f2ac964ddb2be66a77ca51d0eb8d63c13cef67a64d817b8fce278f31045554dc86c7dfa5dcfe1d025c96e975efca9a6bf90974d51239e8440fa5467d4a6b5829a86e46464767c" alt="Clean, modern veterinary clinic interior with examination tables, medical equipment, and caring staff attending to pets in a bright, welcoming environment" class="main-image">
+                        <div class="gallery-nav">
+                            <div class="gallery-dot active"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                            <div class="gallery-dot"></div>
+                        </div>
+                    </div>
+
+                    <div class="business-header">
+                        <div class="business-title">
+                            <div class="title-left">
+                                <h1>Oakwood Veterinary Clinic</h1>
+                                <div class="business-category">Veterinary Hospital • Emergency Care • Full Service</div>
+                            </div>
+                            <div class="verification-badge">
+                                <i class="fas fa-shield-check"></i>
+                                AVMA Accredited
+                            </div>
+                        </div>
+
+                        <div class="business-meta">
+                            <div class="rating">
+                                <div class="stars">
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <span>4.9 (312 reviews)</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>1.2 miles away</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-clock"></i>
+                                <span class="open">Open until 6:00 PM</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-heart"></i>
+                                <span>24/7 Emergency Available</span>
+                            </div>
+                        </div>
+
+                        <div class="business-description">
+                            At Oakwood Veterinary Clinic, we provide compassionate, comprehensive care for your beloved pets. Our team of experienced veterinarians and certified veterinary technicians is dedicated to keeping your furry, feathered, and scaled family members healthy and happy. From routine wellness exams to complex surgical procedures, we treat every patient with the love and attention they deserve. Our state-of-the-art facility is equipped with the latest diagnostic technology and treatment options.
+                        </div>
+
+                        <div class="action-buttons">
+                            <a href="#" class="btn btn-primary">
+                                <i class="fas fa-calendar-check"></i>
+                                Book Appointment
+                            </a>
+                            <a href="#" class="btn btn-emergency">
+                                <i class="fas fa-ambulance"></i>
+                                Emergency Line
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-phone"></i>
+                                Call Clinic
+                            </a>
+                            <a href="#" class="btn btn-secondary">
+                                <i class="fas fa-directions"></i>
+                                Get Directions
+                            </a>
+                        </div>
+
+                        <div class="specializations">
+                            <h3 class="section-title">
+                                <i class="fas fa-stethoscope"></i>
+                                Our Specializations
+                            </h3>
+                            <div class="specializations-grid">
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-cut"></i>
+                                    </div>
+                                    <div class="spec-name">Surgery</div>
+                                    <div class="spec-description">Soft tissue &amp; orthopedic procedures</div>
+                                </div>
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-tooth"></i>
+                                    </div>
+                                    <div class="spec-name">Dental Care</div>
+                                    <div class="spec-description">Cleanings, extractions &amp; oral health</div>
+                                </div>
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-dragon"></i>
+                                    </div>
+                                    <div class="spec-name">Exotic Pets</div>
+                                    <div class="spec-description">Birds, reptiles, small mammals</div>
+                                </div>
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-heartbeat"></i>
+                                    </div>
+                                    <div class="spec-name">Cardiology</div>
+                                    <div class="spec-description">Heart health &amp; diagnostics</div>
+                                </div>
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-eye"></i>
+                                    </div>
+                                    <div class="spec-name">Ophthalmology</div>
+                                    <div class="spec-description">Eye exams &amp; treatments</div>
+                                </div>
+                                <div class="specialization-card">
+                                    <div class="spec-icon">
+                                        <i class="fas fa-microscope"></i>
+                                    </div>
+                                    <div class="spec-name">Diagnostics</div>
+                                    <div class="spec-description">Digital X-ray, ultrasound, lab work</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="veterinarians">
+                            <h3 class="section-title">
+                                <i class="fas fa-user-md"></i>
+                                Our Veterinary Team
+                            </h3>
+                            <div class="vet-grid">
+                                <div class="vet-card">
+                                    <img src="https://storage.googleapis.com/forge-sites/a50e859a4fa6b05dbfa49bb303178858d91a3a890fcc9a036f6a7009db4ced16.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154607Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=aae93f9558306cd3b0dfe2375a11c03a70031892c224bcbba059f65bc59e558e5474e26426b1eea82e21ef2a512f9d454dbe9f077a5134bc541842d63a948f22facb59ea070df616141ebe245311531a44afbd9bf192171df33f256107ce952b6cf8a16e588be4fab8b273f659cdccd115e626e44cb27cc62750c4ef89c4948f930824d1a8e419af21a643f118b2ef1ef772276c4665f7e0efc445e71664a3b7b7e58664f30040f71355b2d9c624f8f663be1ba61f8dda80005594eca4b0c54f24568269853e413b2194701c39cee446a55d14a35fc5cab331adc44f06bbb29676650dc9aa04ce2e2dce39e24e443c919e7e144c41c30b95ae5a7337d9b214f5" alt="Dr. Sarah Chen, lead veterinarian with warm smile in professional white coat" class="vet-photo">
+                                    <div class="vet-info">
+                                        <h4>Dr. Sarah Chen</h4>
+                                        <div class="vet-title">Lead Veterinarian &amp; Owner</div>
+                                        <div class="vet-credentials">DVM, University of Illinois • Board Certified in Small Animal Medicine</div>
+                                        <div class="vet-experience">15+ years experience • Emergency &amp; Critical Care Specialist</div>
+                                    </div>
+                                </div>
+                                <div class="vet-card">
+                                    <img src="https://storage.googleapis.com/forge-sites/23e6ad990832e9661cc726b794bb1803e495cc2f00a25812737c5354547c1fdb.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154607Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=1b20e14378442e81ca27888799e7ae6f232adc6aa7caf64ff3c2e12c1094cfc0ae77392954e2e330cc72939cfd7698581c320d507994e16e05b5c635acb0a6d2559ddce69bca957ac8ad18ad2ec088637194818aeecf28c8574ef3f57b53274494b1a2ef3c576a904c11c2d695ebbba58d8e4246208e9cb80c479b348c8ba0af8992c1d65ebefc29b04ae52cf92702db29dbabd935bb4d974afac202cfb07c414555c0f71fea6ee1ab618c1f858a033d2a3b03b3909f36f60992aa7145082dab9fac6e9e0827bcd4d3751d2d322d4499f25ea93e73df236343bdd7b5b3310dfc03a92f9a54b73fb00c21185ce83e42ba91008b406196943890ed42f012fd4841" alt="Dr. Michael Rodriguez, experienced veterinarian specializing in surgery" class="vet-photo">
+                                    <div class="vet-info">
+                                        <h4>Dr. Michael Rodriguez</h4>
+                                        <div class="vet-title">Senior Veterinarian</div>
+                                        <div class="vet-credentials">DVM, Auburn University • Advanced Surgery Certification</div>
+                                        <div class="vet-experience">12+ years experience • Orthopedic &amp; Soft Tissue Surgery</div>
+                                    </div>
+                                </div>
+                                <div class="vet-card">
+                                    <img src="https://storage.googleapis.com/forge-sites/40fb7d6132ba727e55eeb2df13c2517252ccd5f6bf443958651d81008c6a5cfa.webp?X-Goog-Algorithm=GOOG4-RSA-SHA256&amp;X-Goog-Credential=164061697651-compute%40developer.gserviceaccount.com%2F20260906%2Fauto%2Fstorage%2Fgoog4_request&amp;X-Goog-Date=20260906T154607Z&amp;X-Goog-Expires=86400&amp;X-Goog-SignedHeaders=host&amp;response-access-control-allow-origin=https%3A%2F%2Fforge.moonchild.ai&amp;X-Goog-Signature=02d0b86b8ba98ba5e6491263efc3132dcc779cc3c89f874055007d13ad62aabe7bc4602bb5a611994491bda40558a26479808438b24a4673032ebe0b02172ed531869ca7992eb33f69f1dc31c0ab8a7964df285d5a21ee1b482b06fbeeb4580541d7629ae20b3125b027d596154d2bc0efa209c770b1e7352a5f02e06c269112e60eb86653b10a54feed7af9d61b153cbcecbf99589d42ee597a1491f8622f41b07ab2904a93ff1fafb4732c4bcf00d37a904ba4a02364a40ee5d2411e00419068c78fd586bd09451c91bd5521928eb532309c124911d7a1c305db5da991c7d2258f47d259988ee8f9affc915d5956483582af11f3cbbc0e1d3391b47449df0e" alt="Dr. Lisa Thompson, exotic animal specialist with gentle demeanor" class="vet-photo">
+                                    <div class="vet-info">
+                                        <h4>Dr. Lisa Thompson</h4>
+                                        <div class="vet-title">Exotic Animal Specialist</div>
+                                        <div class="vet-credentials">DVM, Colorado State • Exotic Animal Medicine Residency</div>
+                                        <div class="vet-experience">8+ years experience • Avian, Reptile &amp; Small Mammal Expert</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pet-tips">
+                            <h3 class="section-title">
+                                <i class="fas fa-lightbulb"></i>
+                                Pet Care Tips from Our Vets
+                            </h3>
+                            <div class="tips-grid">
+                                <div class="tip-item">
+                                    <div class="tip-title">Regular Wellness Exams</div>
+                                    <div class="tip-text">Annual checkups help catch health issues early. Senior pets (7+ years) should visit twice yearly.</div>
+                                </div>
+                                <div class="tip-item">
+                                    <div class="tip-title">Dental Health Matters</div>
+                                    <div class="tip-text">Brush your pet's teeth regularly and schedule professional cleanings to prevent dental disease.</div>
+                                </div>
+                                <div class="tip-item">
+                                    <div class="tip-title">Keep Vaccinations Current</div>
+                                    <div class="tip-text">Core vaccines protect against serious diseases. We'll create a custom schedule for your pet's lifestyle.</div>
+                                </div>
+                                <div class="tip-item">
+                                    <div class="tip-title">Watch for Warning Signs</div>
+                                    <div class="tip-text">Changes in appetite, behavior, or bathroom habits can indicate health issues. Call us with concerns.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <aside class="sidebar">
+                <div class="info-card emergency-card">
+                    <h3 class="card-title emergency-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Emergency Contact
+                    </h3>
+                    <div class="info-item">
+                        <i class="fas fa-phone-alt info-icon emergency-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Emergency Hotline</div>
+                            <div class="info-value">
+                                <a href="tel:+12175559911" class="emergency-value">(217) 555-9911</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-clock info-icon emergency-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">After-Hours Availability</div>
+                            <div class="info-value">24/7 Emergency Response Team</div>
+                        </div>
+                    </div>
+                    <div class="emergency-hours">
+                        <div class="emergency-note">
+                            <i class="fas fa-ambulance"></i> Critical cases seen immediately
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="appointment-booking">
+                        <div class="booking-icon">
+                            <i class="fas fa-calendar-plus"></i>
+                        </div>
+                        <div class="booking-text">Online Appointment Booking</div>
+                        <div class="booking-note">Same-day appointments often available for urgent care</div>
+                        <a href="#" class="btn btn-book">
+                            <i class="fas fa-calendar-check"></i>
+                            Schedule Now
+                        </a>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Clinic Information
+                    </h3>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Address</div>
+                            <div class="info-value">
+                                892 Oakwood Drive<br>
+                                Springfield, IL 62704
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-phone info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Main Phone</div>
+                            <div class="info-value">
+                                <a href="tel:+12175554827">(217) 555-4827</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-globe info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Website</div>
+                            <div class="info-value">
+                                <a href="#" target="_blank">oakwoodvetclinic.com</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-envelope info-icon"></i>
+                        <div class="info-content">
+                            <div class="info-label">Email</div>
+                            <div class="info-value">
+                                <a href="mailto:care@oakwoodvet.com">care@oakwoodvet.com</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Hours of Operation
+                    </h3>
+                    <div class="hours-grid">
+                        <div class="hour-row">
+                            <span class="day">Monday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Tuesday</span>
+                            <span class="time open">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Wednesday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Thursday</span>
+                            <span class="time">7:00 AM - 7:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Friday</span>
+                            <span class="time">7:00 AM - 6:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Saturday</span>
+                            <span class="time">8:00 AM - 4:00 PM</span>
+                        </div>
+                        <div class="hour-row">
+                            <span class="day">Sunday</span>
+                            <span class="time">Emergency Only</span>
+                        </div>
+                    </div>
+                    <div class="emergency-hours">
+                        <div class="emergency-note">
+                            24/7 Emergency Services Available
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3 class="card-title">
+                        <i class="fas fa-certificate"></i>
+                        Credentials &amp; Certifications
+                    </h3>
+                    <div class="social-proof">
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-award"></i>
+                            </div>
+                            <div class="proof-text">AVMA Accredited Hospital</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-calendar"></i>
+                            </div>
+                            <div class="proof-text">Serving the community since 2019</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="proof-text">Licensed Veterinary Facility</div>
+                        </div>
+                        <div class="proof-item">
+                            <div class="proof-icon">
+                                <i class="fas fa-heart"></i>
+                            </div>
+                            <div class="proof-text">Fear Free Certified Practice</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="last-updated">
+                    <i class="fas fa-sync"></i>
+                    Last updated by owner on March 18, 2024
+                </div>
+            </aside>
+        </div>
+    </div>
+
+</body></html>
