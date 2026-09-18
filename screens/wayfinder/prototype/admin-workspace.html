@@ -1,0 +1,1156 @@
+<!doctype html>
+<!--
+  PROTOTYPE — issue #22 · B6: Admin directory management + audit log + CSV export
+  ─────────────────────────────────────────────────────────────────────────────
+  QUESTION: What admin-workspace prototype should be accepted before B6 so operational
+  density, grid/table switching, filters, destructive confirmations, audit visibility,
+  and responsive behavior are unambiguous?
+
+  PLAN: Three structurally different admin variants on one page, switchable with the
+  bottom bar (← / → arrow keys) or ?variant=A|B|C:
+    A — Ops Console   sidebar + page-per-surface + table-first; confirms as centered modals
+    B — Command Deck  filter rail + dataset + inline inspector; confirms inline in the inspector
+    C — Status Board  kanban columns + bottom drawer; confirms as a second step in the drawer
+  Shared: mock data, owners / audit / categories panels, CSV export, viewport switcher.
+
+  STATUS: reviewed & accepted in the #22 session (2026-09-18) — Variant B "Command Deck".
+  Kept in-repo as the primary source for B6 (not throwaway); A and C remain for reference.
+  Prototype constraints still apply: no tests, minimal error handling.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE #22 — B6 admin directory workspace</title>
+<style>
+/* ═══════════ Design tokens — values-only swap (matches salon-booking.html / b10-quote-stubs.html) ═══════════ */
+:root {
+  --brand: #2563eb; --brand-dark: #1e40af; --brand-soft: #eff6ff; --brand-border: #bfdbfe;
+  --bg: #f8fafc; --surface: var(--on-brand)fff; --surface-2: #f1f5f9;
+  --border: #e2e8f0; --border-strong: #cbd5e1;
+  --text: #0f172a; --text-muted: #64748b; --text-faint: #94a3b8;
+  --green: #16a34a; --green-soft: #dcfce7; --green-dark: #166534; --green-border: #86efac;
+  --amber: #d97706; --amber-soft: #fef3c7; --amber-dark: #92400e; --amber-border: #fcd34d;
+  --red: #dc2626; --red-soft: #fee2e2; --red-dark: #991b1b; --red-border: #fca5a5;
+  --sky: #0284c7; --sky-soft: #e0f2fe; --sky-dark: #075985; --sky-border: #7dd3fc;
+  --star: #f59e0b;
+  --slate-chip: #e2e8f0; --slate-chip-text: #475569;
+  --radius-sm: 0.375rem; --radius: 0.625rem; --radius-lg: 0.875rem; --radius-xl: 1rem;
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.18);
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --chrome-900: #0f172a; --chrome-800: #1e293b; --chrome-700: #334155;
+  --chrome-300: #cbd5e1; --chrome-200: #e2e8f0; --chrome-accent: #7dd3fc; --chrome-muted: #64748b;
+  --w-hair: 0.0625rem;
+  --overlay: rgba(15, 23, 42, 0.6);
+  --on-brand: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; }
+button { font: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
+.spacer { flex: 1; }
+.muted { color: var(--text-muted); }
+.tiny { font-size: 0.8125rem; }
+.mono { font-family: var(--font-mono); }
+.tabnum { font-variant-numeric: tabular-nums; }
+
+/* ═══════════ Prototype chrome ═══════════ */
+.proto-ribbon { display: flex; gap: var(--space-3); align-items: center; background: var(--chrome-900); color: var(--chrome-200); padding: var(--space-2) var(--space-4); font-size: 0.8125rem; flex-wrap: wrap; position: sticky; top: 0; z-index: 60; }
+.proto-ribbon strong { color: var(--chrome-accent); letter-spacing: 0.08em; }
+.session-card { background: var(--chrome-800); color: var(--chrome-200); padding: var(--space-3) var(--space-4); font-size: 0.875rem; border-bottom: var(--w-hair) solid var(--chrome-700); }
+.session-card strong { display: block; color: var(--chrome-accent); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-1); }
+.session-card em { color: var(--on-brand); font-style: normal; }
+.viewport-switch { display: flex; gap: var(--space-1); align-items: center; font-size: 0.8125rem; color: var(--text-muted); }
+.proto-ribbon .viewport-switch { color: var(--chrome-300); }
+.viewport-switch button { border: var(--w-hair) solid transparent; background: rgba(255, 255, 255, 0.08); padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm); color: inherit; }
+.viewport-switch button.active { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.stage { padding: var(--space-5) var(--space-4) 7rem; display: flex; justify-content: center; }
+.app-frame { width: 100%; transition: max-width 0.15s ease; }
+.app-frame.viewport-desktop { max-width: 76rem; }
+.app-frame.viewport-tablet { max-width: 51rem; }
+.app-frame.viewport-mobile { max-width: 25rem; }
+.proto-bar { position: fixed; left: 50%; bottom: var(--space-4); transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: var(--space-1); background: var(--chrome-900); color: var(--on-brand); border-radius: var(--radius-xl); padding: var(--space-1) var(--space-2); box-shadow: var(--shadow-lg); }
+.proto-bar button { background: transparent; border: 0; color: var(--chrome-accent); font-size: 1.125rem; padding: 0 var(--space-2); line-height: 1; }
+.proto-bar .pb-label { min-width: 13.5rem; text-align: center; padding: 0 var(--space-2); }
+.proto-bar .pb-kicker { display: block; font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--chrome-muted); }
+.proto-bar .pb-name { display: block; font-size: 0.875rem; font-weight: 600; }
+.proto-bar .pb-name b { color: var(--chrome-accent); }
+.toast { position: fixed; left: var(--space-4); bottom: var(--space-4); z-index: 80; background: var(--chrome-900); color: var(--on-brand); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-size: 0.8125rem; box-shadow: var(--shadow-lg); max-width: 28rem; }
+
+/* ═══════════ Shared admin components ═══════════ */
+.shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); min-height: 42rem; }
+.side { background: var(--surface-2); border-right: var(--w-hair) solid var(--border); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+.side-brand { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-3); }
+.side-mark { width: 1.75rem; height: 1.75rem; border-radius: var(--radius-sm); background: var(--brand); color: var(--on-brand); display: grid; place-items: center; font-size: 0.6875rem; font-weight: 700; }
+.side-brand b { font-size: 0.9375rem; }
+.side-brand small { display: block; font-family: var(--font-mono); font-size: 0.625rem; color: var(--text-faint); }
+.side-nav { display: grid; gap: var(--space-1); }
+.nav-btn { display: flex; align-items: center; gap: var(--space-2); text-align: left; border: 0; background: transparent; color: var(--text); padding: var(--space-2) var(--space-3); border-radius: var(--radius); font-size: 0.875rem; }
+.nav-btn:hover { background: rgba(37, 99, 235, 0.07); }
+.nav-btn.active { background: var(--brand-soft); color: var(--brand-dark); font-weight: 600; }
+.nav-badge { margin-left: auto; background: var(--amber-soft); color: var(--amber-dark); border: var(--w-hair) solid var(--amber-border); border-radius: var(--radius-xl); padding: 0 var(--space-2); font-size: 0.6875rem; font-weight: 700; }
+.nav-btn.active .nav-badge { background: var(--on-brand); }
+.side-stub { color: var(--text-faint); font-size: 0.8125rem; padding: var(--space-2) var(--space-3); }
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: var(--w-hair) solid var(--border); background: var(--surface); flex-wrap: wrap; }
+.page-title { font-size: 1.125rem; font-weight: 700; }
+.avatar { width: 2rem; height: 2rem; border-radius: 50%; background: var(--brand-soft); color: var(--brand-dark); display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; border: var(--w-hair) solid var(--brand-border); }
+.content { padding: var(--space-5); display: grid; gap: var(--space-4); align-content: start; }
+.card { background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); box-shadow: var(--shadow-sm); }
+.card h2 { font-size: 1rem; margin-bottom: var(--space-1); }
+.card-sub { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-3); }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.stat { background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); box-shadow: var(--shadow-sm); text-align: left; }
+.stat .k { font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.stat .v { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: var(--space-1); }
+.stat .h { font-size: 0.75rem; color: var(--text-faint); }
+.stat.clickable:hover { border-color: var(--brand-border); background: var(--brand-soft); }
+.toolbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.toolbar-end { display: flex; align-items: center; gap: var(--space-2); }
+.seg { display: inline-flex; border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: var(--space-1) var(--space-3); font-size: 0.8125rem; color: var(--text-muted); }
+.seg button.active { background: var(--brand); color: var(--on-brand); font-weight: 600; }
+.seg button:disabled { color: var(--text-faint); cursor: not-allowed; }
+.field { display: grid; gap: var(--space-1); }
+.field label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+.field input, .field select, .field textarea { width: 100%; border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font: inherit; font-size: 0.8125rem; background: var(--surface); color: var(--text); }
+.field textarea { resize: vertical; min-height: 3.5rem; }
+.field.inline { align-items: center; grid-auto-flow: column; }
+.err { color: var(--red); font-size: 0.75rem; }
+.btn { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-size: 0.8125rem; font-weight: 600; color: var(--text); }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.primary:hover { background: var(--brand-dark); }
+.btn.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-dark); }
+.btn.danger:hover { background: var(--red); color: var(--on-brand); }
+.btn.success { background: var(--green-soft); border-color: var(--green); color: var(--green-dark); }
+.btn.small { padding: var(--space-1) var(--space-2); font-size: 0.75rem; border-radius: var(--radius-sm); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.tbl-wrap { border: var(--w-hair) solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+table.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: left; background: var(--surface-2); color: var(--text-muted); font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; padding: var(--space-2) var(--space-3); border-bottom: var(--w-hair) solid var(--border); white-space: nowrap; }
+.tbl td { padding: var(--space-2) var(--space-3); border-bottom: var(--w-hair) solid var(--border); font-size: 0.8125rem; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl tr.selected td { background: var(--brand-soft); }
+.tbl td.r, .tbl th.r { text-align: right; }
+.biz-name { font-weight: 600; }
+.biz-sub { color: var(--text-muted); font-size: 0.75rem; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); border-radius: var(--radius-xl); padding: 0.125rem var(--space-2); font-size: 0.75rem; font-weight: 600; border: var(--w-hair) solid transparent; white-space: nowrap; }
+.chip.green { background: var(--green-soft); color: var(--green-dark); border-color: var(--green-border); }
+.chip.amber { background: var(--amber-soft); color: var(--amber-dark); border-color: var(--amber-border); }
+.chip.blue { background: var(--brand-soft); color: var(--brand-dark); border-color: var(--brand-border); }
+.chip.sky { background: var(--sky-soft); color: var(--sky-dark); border-color: var(--sky-border); }
+.chip.red { background: var(--red-soft); color: var(--red-dark); border-color: var(--red-border); }
+.chip.slate { background: var(--slate-chip); color: var(--slate-chip-text); border-color: var(--border-strong); }
+.dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--green); display: inline-block; }
+.menu { position: relative; display: inline-block; }
+.menu summary { list-style: none; cursor: pointer; border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font-size: 0.75rem; background: var(--surface); }
+.menu summary::-webkit-details-marker { display: none; }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 0.25rem); z-index: 30; background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: var(--space-1); display: grid; min-width: 11rem; }
+.menu-pop button { text-align: left; border: 0; background: transparent; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: 0.8125rem; color: var(--text); }
+.menu-pop button:hover { background: var(--surface-2); }
+.menu-pop button.danger { color: var(--red-dark); }
+.menu-pop button.danger:hover { background: var(--red-soft); }
+.menu-pop hr { border: 0; border-top: var(--w-hair) solid var(--border); margin: var(--space-1) 0; }
+.bulkbar { position: fixed; left: 50%; bottom: 4.75rem; transform: translateX(-50%); z-index: 65; display: flex; align-items: center; gap: var(--space-3); background: var(--surface); border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-xl); padding: var(--space-2) var(--space-3); box-shadow: var(--shadow-lg); font-size: 0.8125rem; }
+.empty { border: var(--w-hair) dashed var(--border-strong); border-radius: var(--radius); padding: var(--space-6); text-align: center; color: var(--text-muted); font-size: 0.875rem; }
+.overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 75; display: grid; place-items: center; padding: var(--space-4); }
+.modal-card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 28rem; padding: var(--space-5); }
+.modal-card h3 { font-size: 1.0625rem; margin-bottom: var(--space-2); }
+.consequence { background: var(--surface-2); border: var(--w-hair) solid var(--border); border-radius: var(--radius); padding: var(--space-3); font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-3); }
+.consequence.danger { background: var(--red-soft); border-color: var(--red-border); color: var(--red-dark); }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
+.logline { background: var(--chrome-900); color: var(--chrome-200); border-radius: var(--radius); padding: var(--space-2) var(--space-3); font-family: var(--font-mono); font-size: 0.75rem; }
+.hint { color: var(--text-faint); font-size: 0.75rem; }
+.detail-list { display: grid; gap: var(--space-2); font-size: 0.8125rem; }
+.detail-list div { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: var(--space-2); }
+.detail-list .k { color: var(--text-muted); }
+.stars { color: var(--star); }
+.vstack { display: grid; gap: var(--space-3); }
+.stack { display: grid; gap: var(--space-2); }
+.f-search { border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font: inherit; font-size: 0.8125rem; background: var(--surface); color: var(--text); min-width: 13rem; }
+.toolbar select, .rail-chips select { border: var(--w-hair) solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); font: inherit; font-size: 0.8125rem; background: var(--surface); color: var(--text); }
+.card[data-action] { cursor: pointer; }
+.card.active { border-color: var(--brand); box-shadow: 0 0 0 var(--w-hair) var(--brand), var(--shadow-md); }
+.cat-list { list-style: none; margin: 0; padding: 0; border: var(--w-hair) solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.cat-row { padding: var(--space-3); border-top: var(--w-hair) solid var(--border); display: grid; gap: var(--space-2); }
+.cat-row:first-child { border-top: 0; }
+.cat-main { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.cat-block { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; border: var(--w-hair) solid var(--red-border); background: var(--red-soft); color: var(--red-dark); border-radius: var(--radius); padding: var(--space-2); font-size: 0.8125rem; }
+.bcard { font: inherit; color: inherit; }
+/* ═══════════ Layout helpers ═══════════ */
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--space-3); }
+.mob-only { display: none; }
+.desk-only { display: block; }
+.app-frame.viewport-mobile .mob-only { display: block; }
+.app-frame.viewport-mobile .mob-only.grid-cards { display: grid; }
+.app-frame.viewport-mobile .desk-only { display: none; }
+.split-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+
+/* ═══════════ Variant A — Ops Console ═══════════ */
+.a-mobile-nav { display: none; }
+.app-frame.viewport-mobile .a-mobile-nav { display: block; }
+.app-frame.viewport-tablet .shell { grid-template-columns: 12rem minmax(0, 1fr); }
+.app-frame.viewport-mobile .shell { grid-template-columns: minmax(0, 1fr); }
+.app-frame.viewport-mobile .side { display: none; }
+.app-frame.viewport-mobile .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-frame.viewport-mobile .split-2 { grid-template-columns: minmax(0, 1fr); }
+.list-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-top: var(--w-hair) solid var(--border); font-size: 0.875rem; }
+.list-row:first-of-type { border-top: 0; }
+.list-row .when { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-faint); width: 8.5rem; flex: none; }
+
+/* ═══════════ Variant B — Command Deck ═══════════ */
+.deck { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 20rem; grid-template-areas: "rail data insp"; background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); min-height: 44rem; }
+.rail { grid-area: rail; background: var(--surface-2); border-right: var(--w-hair) solid var(--border); padding: var(--space-4); display: grid; gap: var(--space-4); align-content: start; }
+.rail h3 { font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.rail .stack { display: grid; gap: var(--space-2); }
+.rail label.opt { display: flex; align-items: center; gap: var(--space-2); font-size: 0.8125rem; }
+.dataset { grid-area: data; min-width: 0; display: flex; flex-direction: column; }
+.insp { grid-area: insp; border-left: var(--w-hair) solid var(--border); background: var(--surface); display: flex; flex-direction: column; }
+.insp-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: var(--w-hair) solid var(--border); }
+.insp-body { padding: var(--space-4); display: grid; gap: var(--space-4); align-content: start; }
+.insp-actions { display: grid; gap: var(--space-2); }
+.insp-actions .btn { width: 100%; }
+.insp-step { border: var(--w-hair) solid var(--border); border-radius: var(--radius); padding: var(--space-3); display: grid; gap: var(--space-3); }
+.insp-step.danger { border-color: var(--red-border); background: var(--red-soft); }
+.cmdbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface); border-bottom: var(--w-hair) solid var(--border); flex-wrap: wrap; }
+.cmdbar .tabs { display: flex; gap: var(--space-1); }
+.cmdbar .tab { border: 0; background: transparent; padding: var(--space-1) var(--space-3); border-radius: var(--radius); font-size: 0.8125rem; color: var(--text-muted); }
+.cmdbar .tab.active { background: var(--brand-soft); color: var(--brand-dark); font-weight: 600; }
+.statstrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.statstrip .stat { padding: var(--space-3); border-radius: var(--radius); }
+.statstrip .stat .v { font-size: 1.375rem; }
+.sheet-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 75; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-card { background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; width: 100%; max-width: 34rem; max-height: 88vh; overflow: auto; }
+.inline-confirm { border: var(--w-hair) solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: var(--space-3); display: grid; gap: var(--space-3); }
+.inline-confirm.danger { border-color: var(--red-border); background: var(--red-soft); }
+.rail-chips { display: none; gap: var(--space-2); flex-wrap: wrap; }
+.app-frame.viewport-tablet .deck { grid-template-columns: minmax(0, 1fr) 17rem; grid-template-areas: "rail rail" "data insp"; }
+.app-frame.viewport-tablet .rail { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; border-right: 0; border-bottom: var(--w-hair) solid var(--border); }
+.app-frame.viewport-tablet .rail .stack { grid-auto-flow: column; }
+.app-frame.viewport-mobile .deck { grid-template-columns: minmax(0, 1fr); grid-template-areas: "rail" "data"; }
+.app-frame.viewport-mobile .insp { display: none; }
+.app-frame.viewport-mobile .rail { display: none; }
+.app-frame.viewport-mobile .rail-chips { display: flex; }
+.app-frame.viewport-mobile .statstrip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-frame.viewport-mobile .cmdbar { position: static; }
+
+/* ═══════════ Variant C — Status Board ═══════════ */
+.c-shell { display: grid; grid-template-columns: 3.75rem minmax(0, 1fr); background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm); min-height: 44rem; }
+.icon-rail { background: var(--chrome-900); padding: var(--space-3) var(--space-2); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.icon-rail .side-mark { background: var(--chrome-700); }
+.icon-btn { width: 2.25rem; height: 2.25rem; border-radius: var(--radius); border: 0; background: transparent; color: var(--chrome-300); display: grid; place-items: center; font-size: 1rem; }
+.icon-btn:hover { background: var(--chrome-800); }
+.icon-btn.active { background: var(--brand); color: var(--on-brand); }
+.icon-btn .tip { font-size: 0.625rem; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(13rem, 1fr)); gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2); }
+.col { background: var(--surface-2); border: var(--w-hair) solid var(--border); border-radius: var(--radius-lg); padding: var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); min-height: 18rem; }
+.col-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2) 0; }
+.col-head h3 { font-size: 0.8125rem; }
+.col-count { font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bcard { background: var(--surface); border: var(--w-hair) solid var(--border); border-radius: var(--radius); padding: var(--space-3); box-shadow: var(--shadow-sm); display: grid; gap: var(--space-2); cursor: pointer; text-align: left; }
+.bcard:hover { border-color: var(--brand-border); box-shadow: var(--shadow-md); }
+.bcard .b-top { display: flex; align-items: flex-start; gap: var(--space-2); }
+.bcard .b-name { font-weight: 600; font-size: 0.875rem; }
+.bcard .b-meta { color: var(--text-muted); font-size: 0.75rem; }
+.drawer-overlay { position: fixed; inset: 0; background: var(--overlay); z-index: 75; display: flex; align-items: flex-end; justify-content: center; }
+.drawer-card { background: var(--surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; width: 100%; max-width: 44rem; max-height: 88vh; overflow: auto; padding: var(--space-5); }
+.drawer-head { display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-4); }
+.feed summary { cursor: pointer; font-size: 0.875rem; font-weight: 600; }
+.feed .feed-body { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.app-frame.viewport-mobile .c-shell { grid-template-columns: minmax(0, 1fr); }
+.app-frame.viewport-mobile .icon-rail { flex-direction: row; justify-content: center; padding: var(--space-2); }
+.app-frame.viewport-mobile .board { grid-template-columns: repeat(5, minmax(14rem, 1fr)); }
+
+/* ═══════════ Real narrow windows (independent of the frame switcher) ═══════════ */
+@media (max-width: 52rem) {
+  .split-2 { grid-template-columns: minmax(0, 1fr); }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .statstrip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deck { grid-template-columns: minmax(0, 1fr); grid-template-areas: "rail" "data"; }
+  .insp { display: none; }
+  .rail { display: none; }
+  .rail-chips { display: flex; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { display: none; }
+  .a-mobile-nav { display: block; }
+  .mob-only { display: block; }
+  .mob-only.grid-cards { display: grid; }
+  .desk-only { display: none; }
+}
+@media (max-width: 34rem) {
+  .stat-grid, .statstrip { grid-template-columns: minmax(0, 1fr); }
+  .c-shell { grid-template-columns: minmax(0, 1fr); }
+  .icon-rail { flex-direction: row; justify-content: center; }
+}
+</style>
+</head>
+<body>
+  <div class="proto-ribbon">
+    <strong>PROTOTYPE</strong>
+    <span>Issue #22 · B6 admin directory + audit log + CSV</span>
+    <span class="spacer"></span>
+    <div class="viewport-switch">
+      <span>Viewport</span>
+      <button type="button" data-action="viewport" data-viewport="desktop" class="active">Desktop</button>
+      <button type="button" data-action="viewport" data-viewport="tablet">Tablet</button>
+      <button type="button" data-action="viewport" data-viewport="mobile">Mobile</button>
+    </div>
+  </div>
+  <div class="session-card">
+    <strong>What this settles</strong>
+    Flip variants with the bottom bar (or <em>←</em> / <em>→</em>). In each: open Pending, switch grid/table, filter, run an approve + a reject (required reason),
+    try the type-the-name delete, bulk approve, reorder + reassign a category, check the audit feed, export CSV — then switch <em>Tablet</em> / <em>Mobile</em>.
+    Same mock data and the same safety semantics run in all three; only the workspace shape changes.
+    <br /><em>Accepted for B6: Variant B — Command Deck.</em> A and C are kept for reference.
+  </div>
+  <main class="stage">
+    <div id="frame" class="app-frame viewport-desktop">
+      <div id="app"></div>
+    </div>
+  </main>
+  <div class="proto-bar">
+    <button type="button" data-action="variant-prev" aria-label="Previous variant">←</button>
+    <div class="pb-label">
+      <span class="pb-kicker">Admin prototype · issue #22</span>
+      <span class="pb-name" id="variant-label"><b>A</b> — Ops Console</span>
+    </div>
+    <button type="button" data-action="variant-next" aria-label="Next variant">→</button>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+<script>
+/* @@JS@@ */
+// ─────────────────────────────────────────────────────────────────────────────
+// PROTOTYPE — issue #22. Vanilla JS, in-memory state, no persistence.
+// ─────────────────────────────────────────────────────────────────────────────
+'use strict';
+
+const VARIANTS = ['A', 'B', 'C'];
+const VARIANT_NAMES = { A: 'Ops Console', B: 'Command Deck', C: 'Status Board' };
+
+const STATUS = {
+  pending: { label: 'Pending', chip: 'amber' },
+  approved: { label: 'Approved', chip: 'green' },
+  changesRequested: { label: 'Changes requested', chip: 'sky' },
+  rejected: { label: 'Rejected', chip: 'red' },
+  suspended: { label: 'Suspended', chip: 'slate' }
+};
+
+const ACTIONS = {
+  approve: { label: 'Approve listing', to: 'approved', danger: false, reason: false },
+  requestChanges: { label: 'Request changes', to: 'changesRequested', danger: false, reason: true },
+  reject: { label: 'Reject listing', to: 'rejected', danger: true, reason: true },
+  suspend: { label: 'Suspend listing', to: 'suspended', danger: true, reason: true },
+  restore: { label: 'Restore listing', to: 'approved', danger: false, reason: false },
+  feature: { label: 'Toggle featured pin', danger: false, reason: false },
+  delete: { label: 'Hard delete', danger: true, reason: false, irreversible: true }
+};
+
+const DATA = {
+  businesses: [
+    { id: 'biz_01', name: 'Blue Harbor Diner', category: 'Food & Drink', status: 'approved', verification: 'verified', owner: 'Maya Chen', ownerEmail: 'maya@blueharbor.example', location: 'Portland, OR', rating: 4.6, featured: true, priority: 'normal', submittedAge: '3mo ago', createdAt: '2026-06-02', updatedAt: '2026-09-11' },
+    { id: 'biz_02', name: 'Summit Auto Repair', category: 'Automotive', status: 'approved', verification: 'verified', owner: 'Darnell Reed', ownerEmail: 'darnell@summitauto.example', location: 'Austin, TX', rating: 4.8, featured: true, priority: 'normal', submittedAge: '5mo ago', createdAt: '2026-04-18', updatedAt: '2026-08-30' },
+    { id: 'biz_03', name: 'Cedar & Sage Wellness', category: 'Beauty & Wellness', status: 'pending', verification: 'unverified', owner: 'Priya Nair', ownerEmail: 'priya@cedarsage.example', location: 'Denver, CO', rating: 0, featured: false, priority: 'high', submittedAge: '2d ago', createdAt: '2026-09-16', updatedAt: '2026-09-16' },
+    { id: 'biz_04', name: 'Lakeside Legal Partners', category: 'Legal Services', status: 'pending', verification: 'unverified', owner: 'Grant Whitmore', ownerEmail: 'grant@lakesidelegal.example', location: 'Chicago, IL', rating: 0, featured: false, priority: 'high', submittedAge: '1d ago', createdAt: '2026-09-17', updatedAt: '2026-09-17' },
+    { id: 'biz_05', name: 'Northgate Veterinary', category: 'Healthcare', status: 'approved', verification: 'verified', owner: 'Dr. Elena Voss', ownerEmail: 'elena@northgatevet.example', location: 'Seattle, WA', rating: 4.9, featured: false, priority: 'normal', submittedAge: '7mo ago', createdAt: '2026-02-09', updatedAt: '2026-09-02' },
+    { id: 'biz_06', name: 'Ember Coffee Roasters', category: 'Food & Drink', status: 'changesRequested', verification: 'unverified', owner: 'Tomás Rivera', ownerEmail: 'tomas@embercoffee.example', location: 'Portland, OR', rating: 0, featured: false, priority: 'normal', submittedAge: '4d ago', createdAt: '2026-09-14', updatedAt: '2026-09-15' },
+    { id: 'biz_07', name: 'Palisade Retail Co.', category: 'Retail', status: 'suspended', verification: 'verified', owner: 'Hannah Brooks', ownerEmail: 'hannah@palisaderetail.example', location: 'Boise, ID', rating: 3.9, featured: false, priority: 'low', submittedAge: '10mo ago', createdAt: '2025-11-21', updatedAt: '2026-07-19' },
+    { id: 'biz_08', name: 'Bright Path Dental', category: 'Healthcare', status: 'approved', verification: 'verified', owner: 'Dr. Samuel Okafor', ownerEmail: 'samuel@brightpathdental.example', location: 'Raleigh, NC', rating: 4.7, featured: false, priority: 'normal', submittedAge: '6mo ago', createdAt: '2026-03-27', updatedAt: '2026-09-05' },
+    { id: 'biz_09', name: 'Ironwood Contracting', category: 'Professional Services', status: 'rejected', verification: 'unverified', owner: 'Dale Fischer', ownerEmail: 'dale@ironwood.example', location: 'Tulsa, OK', rating: 0, featured: false, priority: 'low', submittedAge: '12d ago', createdAt: '2026-09-06', updatedAt: '2026-09-08' },
+    { id: 'biz_10', name: 'Willow Beauty Bar', category: 'Beauty & Wellness', status: 'pending', verification: 'unverified', owner: 'Aisha Bello', ownerEmail: 'aisha@willowbeauty.example', location: 'Miami, FL', rating: 0, featured: false, priority: 'normal', submittedAge: '6h ago', createdAt: '2026-09-18', updatedAt: '2026-09-18' },
+    { id: 'biz_11', name: 'Copper Kettle Bakery', category: 'Food & Drink', status: 'approved', verification: 'verified', owner: 'Noah Lindqvist', ownerEmail: 'noah@copperkettle.example', location: 'Minneapolis, MN', rating: 4.5, featured: false, priority: 'normal', submittedAge: '8mo ago', createdAt: '2026-01-30', updatedAt: '2026-08-22' },
+    { id: 'biz_12', name: 'Apex Auto Detailing', category: 'Automotive', status: 'pending', verification: 'unverified', owner: 'Rico Alvarez', ownerEmail: 'rico@apexdetailing.example', location: 'Phoenix, AZ', rating: 0, featured: false, priority: 'low', submittedAge: '9h ago', createdAt: '2026-09-18', updatedAt: '2026-09-18' }
+  ],
+  owners: [
+    { id: 'usr_01', name: 'Maya Chen', email: 'maya@blueharbor.example', businesses: 2, role: 'Owner' },
+    { id: 'usr_02', name: 'Darnell Reed', email: 'darnell@summitauto.example', businesses: 1, role: 'Owner' },
+    { id: 'usr_03', name: 'Priya Nair', email: 'priya@cedarsage.example', businesses: 1, role: 'Owner' },
+    { id: 'usr_04', name: 'Noah Lindqvist', email: 'noah@copperkettle.example', businesses: 2, role: 'Owner' },
+    { id: 'usr_05', name: 'Calel', email: 'admin@localconnect.example', businesses: 0, role: 'Super Admin' },
+    { id: 'usr_06', name: 'Jamie Fox', email: 'jamie@example.com', businesses: 0, role: 'Visitor' }
+  ],
+  categories: [
+    { id: 'cat_01', name: 'Food & Drink', count: 3 },
+    { id: 'cat_02', name: 'Automotive', count: 2 },
+    { id: 'cat_03', name: 'Healthcare', count: 2 },
+    { id: 'cat_04', name: 'Legal Services', count: 1 },
+    { id: 'cat_05', name: 'Beauty & Wellness', count: 2 },
+    { id: 'cat_06', name: 'Retail', count: 1 },
+    { id: 'cat_07', name: 'Professional Services', count: 1 },
+    { id: 'cat_08', name: 'Home Services', count: 0 }
+  ],
+  audit: [
+    { id: 'aud_01', actor: 'Calel', action: 'Approve', target: 'Copper Kettle Bakery', fromStatus: 'pending', toStatus: 'approved', reason: '', at: '2026-09-17 16:42' },
+    { id: 'aud_02', actor: 'Calel', action: 'Request changes', target: 'Ember Coffee Roasters', fromStatus: 'pending', toStatus: 'changesRequested', reason: 'Opening hours missing; photo alt text required.', at: '2026-09-15 11:08' },
+    { id: 'aud_03', actor: 'Calel', action: 'Suspend', target: 'Palisade Retail Co.', fromStatus: 'approved', toStatus: 'suspended', reason: 'Repeated policy violation after warning.', at: '2026-07-19 09:31' },
+    { id: 'aud_04', actor: 'Calel', action: 'Restore', target: 'Blue Harbor Diner', fromStatus: 'suspended', toStatus: 'approved', reason: 'Owner resolved billing and content issue.', at: '2026-07-02 14:20' },
+    { id: 'aud_05', actor: 'Calel', action: 'Reject', target: 'Ironwood Contracting', fromStatus: 'pending', toStatus: 'rejected', reason: 'Unable to verify license number.', at: '2026-09-08 10:05' },
+    { id: 'aud_06', actor: 'Calel', action: 'Feature pin', target: 'Summit Auto Repair', fromStatus: 'approved', toStatus: 'approved', reason: 'Featured on home rail for September.', at: '2026-09-01 08:00' },
+    { id: 'aud_07', actor: 'Calel', action: 'Bulk approve', target: '3 listings', fromStatus: 'pending', toStatus: 'approved', reason: '', at: '2026-08-28 17:55' },
+    { id: 'aud_08', actor: 'Calel', action: 'Category reassign', target: 'Copper Kettle Bakery', fromStatus: 'Retail', toStatus: 'Food & Drink', reason: 'Better category fit.', at: '2026-08-22 12:14' },
+    { id: 'aud_09', actor: 'Calel', action: 'CSV export', target: 'Businesses (12 rows)', fromStatus: '', toStatus: '', reason: '', at: '2026-08-20 15:02' },
+    { id: 'aud_10', actor: 'Calel', action: 'Hard delete', target: 'Old Town Barbers', fromStatus: 'suspended', toStatus: 'deleted', reason: 'Owner requested removal; name-typing confirmed.', at: '2026-07-18 13:47' }
+  ]
+};
+
+const state = {
+  variant: 'A',
+  viewport: 'desktop',
+  page: { A: 'overview', B: 'overview', C: 'board' },
+  view: { A: 'table', B: 'grid', C: 'grid' },
+  query: '', category: 'all', status: 'all', verification: 'all', featured: false,
+  auditAction: 'all', auditActor: 'all', auditQuery: '',
+  selected: [],
+  inspectId: null,
+  drawerId: null,
+  confirm: null,
+  bulkConfirm: false,
+  addOpen: false,
+  catBlocked: null,
+  log: null
+};
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function esc(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function nowStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.hidden = true; }, 4200);
+}
+function audit(action, target, from, to, reason) {
+  DATA.audit.unshift({ id: 'aud_' + Date.now(), actor: 'Calel', action, target, fromStatus: from || '', toStatus: to || '', reason: reason || '', at: nowStamp() });
+  state.log = 'auditLogs row written — ' + action + ' · ' + target;
+}
+function pendingCount() { return DATA.businesses.filter((b) => b.status === 'pending').length; }
+function byId(id) { return DATA.businesses.find((b) => b.id === id); }
+function chip(status) { const m = STATUS[status]; return '<span class="chip ' + m.chip + '">' + m.label + '</span>'; }
+function vtag(v) { return v === 'verified' ? '<span class="chip green">Verified</span>' : '<span class="chip slate">Unverified</span>'; }
+function stars(r) { return r ? '<span class="stars">★</span> ' + r.toFixed(1) : '<span class="muted">—</span>'; }
+function opt(value, label, current) {
+  return '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(label) + '</option>';
+}
+function catOptions() {
+  return opt('all', 'All categories', state.category) + DATA.categories.map((c) => opt(c.name, c.name, state.category)).join('');
+}
+function statusOptions() {
+  return opt('all', 'All statuses', state.status) + Object.keys(STATUS).map((s) => opt(s, STATUS[s].label, state.status)).join('');
+}
+function roleChip(role) {
+  const map = { 'Super Admin': 'blue', Owner: 'sky', Visitor: 'slate' };
+  return '<span class="chip ' + (map[role] || 'slate') + '">' + esc(role) + '</span>';
+}
+function filtered() {
+  const q = state.query.trim().toLowerCase();
+  return DATA.businesses.filter((b) =>
+    (!q || b.name.toLowerCase().includes(q) || b.owner.toLowerCase().includes(q) || b.location.toLowerCase().includes(q)) &&
+    (state.category === 'all' || b.category === state.category) &&
+    (state.status === 'all' || b.status === state.status) &&
+    (state.verification === 'all' || b.verification === state.verification) &&
+    (!state.featured || b.featured)
+  );
+}
+function filteredAudit() {
+  const q = state.auditQuery.trim().toLowerCase();
+  return DATA.audit.filter((e) =>
+    (state.auditAction === 'all' || e.action === state.auditAction) &&
+    (state.auditActor === 'all' || e.actor === state.auditActor) &&
+    (!q || e.target.toLowerCase().includes(q) || e.reason.toLowerCase().includes(q))
+  );
+}
+function isNarrow() { return state.viewport === 'mobile' || window.innerWidth < 52 * 16; }
+
+// ── shared fragments ─────────────────────────────────────────────────────────
+function filterBar() {
+  return '<input class="f-search" data-action="filter" data-filter="query" value="' + esc(state.query) + '" placeholder="Search name, owner, location" aria-label="Search directory" />' +
+    '<select data-action="filter" data-filter="category" aria-label="Category">' + catOptions() + '</select>' +
+    '<select data-action="filter" data-filter="status" aria-label="Status">' + statusOptions() + '</select>' +
+    '<select data-action="filter" data-filter="verification" aria-label="Verification">' +
+    opt('all', 'Any verification', state.verification) + opt('verified', 'Verified', state.verification) + opt('unverified', 'Unverified', state.verification) +
+    '</select>';
+}
+function countLine() {
+  return '<span class="muted tiny">' + filtered().length + ' of ' + DATA.businesses.length + ' listings</span>';
+}
+function emptyState() {
+  return '<div class="empty">No listings match those filters. Clear a filter or search term to see more.</div>';
+}
+function bulkBar() {
+  if (!state.selected.length) return '';
+  return '<div class="bulkbar"><b>' + state.selected.length + '</b> selected' +
+    '<button class="btn small primary" data-action="bulk-open">Approve selected</button>' +
+    '<button class="btn small ghost" data-action="bulk-clear">Clear</button></div>';
+}
+function reasonField() {
+  return '<div class="field"><label>Reason (required — becomes <code class="mono">moderationReason</code> and notifies the owner)</label>' +
+    '<textarea data-confirm-reason placeholder="Explain what must change"></textarea>' +
+    '<span class="err" id="reason-err" hidden>Reason is required.</span></div>';
+}
+function confirmForm(act, b) {
+  const m = ACTIONS[act];
+  if (act === 'delete') {
+    return '<div class="consequence danger">This permanently deletes <b>' + esc(b.name) + '</b> and every child record (photos, hours, notifications, reviews). It cannot be undone. An <code class="mono">auditLogs</code> row is written first.</div>' +
+      '<div class="field"><label>Type <b>' + esc(b.name) + '</b> to confirm</label>' +
+      '<input data-action="type-input" data-name="' + esc(b.name) + '" placeholder="' + esc(b.name) + '" aria-label="Type the business name to confirm deletion" /></div>' +
+      '<div class="modal-actions"><button class="btn small" data-action="confirm-cancel">Cancel</button>' +
+      '<button class="btn small danger" id="confirm-delete-btn" data-action="confirm-run" disabled>Delete ' + esc(b.name) + '</button></div>';
+  }
+  return '<div class="consequence ' + (m.danger ? 'danger' : '') + '"><b>' + esc(b.name) + '</b> will move from <code class="mono">' + b.status + '</code> to <code class="mono">' + m.to + '</code>. An <code class="mono">auditLogs</code> row records who, what, and when.</div>' +
+    (m.reason ? reasonField() : '') +
+    '<div class="modal-actions"><button class="btn small" data-action="confirm-cancel">Cancel</button>' +
+    '<button class="btn small ' + (m.danger ? 'danger' : 'primary') + '" data-action="confirm-run">' + m.label + '</button></div>';
+}
+function bulkConfirmForm() {
+  const n = state.selected.length;
+  return '<div class="consequence">Approve <b>' + n + '</b> selected listings in one action? Each listing writes its own <code class="mono">auditLogs</code> row.</div>' +
+    '<div class="modal-actions"><button class="btn small" data-action="bulk-cancel">Cancel</button>' +
+    '<button class="btn small primary" data-action="bulk-confirm">Approve ' + n + '</button></div>';
+}
+function addBusinessForm() {
+  return '<div class="consequence">Admin-created listing using the same flow as self-serve. Admin supplies the owner\'s email to assign ownership. <span class="muted">(Stub — flow reused from B3.)</span></div>' +
+    '<div class="field"><label>Business name</label><input placeholder="e.g. Harbor Books" /></div>' +
+    '<div class="field"><label>Owner email</label><input placeholder="owner@example.com" /></div>' +
+    '<div class="modal-actions"><button class="btn small" data-action="add-close">Cancel</button>' +
+    '<button class="btn small primary" data-action="add-close">Create draft</button></div>';
+}
+function tableActions(b) {
+  const rows = [];
+  if (b.status === 'pending') {
+    rows.push('approve', 'requestChanges', 'reject');
+  }
+  if (b.status === 'approved') rows.push('suspend');
+  if (b.status === 'suspended') rows.push('restore');
+  rows.push('feature', 'delete');
+  return '<details class="menu"><summary aria-label="Actions for ' + esc(b.name) + '">⋯</summary><div class="menu-pop">' +
+    rows.map((a, i) => {
+      const m = ACTIONS[a];
+      const sep = (a === 'feature' && i > 0) ? '<hr />' : '';
+      return sep + '<button class="' + (m.danger ? 'danger' : '') + '" data-action="row-act" data-id="' + b.id + '" data-act="' + a + '">' + m.label + '</button>';
+    }).join('') +
+    '</div></details>';
+}
+function selectBox(b) {
+  return '<input type="checkbox" data-action="select-one" data-id="' + b.id + '" aria-label="Select ' + esc(b.name) + '"' + (state.selected.includes(b.id) ? ' checked' : '') + ' />';
+}
+function ownersPanel() {
+  return '<div class="card"><h2>Business owners</h2><p class="card-sub">Read-only in v1 — no account suspension or ownership reassignment.</p>' +
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Email</th><th class="r">Businesses</th><th>Role</th></tr></thead><tbody>' +
+    DATA.owners.map((o) => '<tr><td class="biz-name">' + esc(o.name) + '</td><td class="mono tiny">' + esc(o.email) + '</td><td class="r tabnum">' + o.businesses + '</td><td>' + roleChip(o.role) + '</td></tr>').join('') +
+    '</tbody></table></div></div>';
+}
+function auditRows(limit) {
+  const rows = filteredAudit();
+  const shown = limit ? rows.slice(0, limit) : rows;
+  if (!shown.length) return '<div class="empty">No audit entries match those filters.</div>';
+  return '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Change</th><th>Reason</th></tr></thead><tbody>' +
+    shown.map((e) => '<tr><td class="mono tiny">' + esc(e.at) + '</td><td>' + esc(e.actor) + '</td><td><b>' + esc(e.action) + '</b></td><td>' + esc(e.target) + '</td>' +
+      '<td class="mono tiny">' + (e.fromStatus ? esc(e.fromStatus) + ' → ' + esc(e.toStatus) : '—') + '</td>' +
+      '<td class="tiny muted">' + (e.reason ? esc(e.reason) : '—') + '</td></tr>').join('') +
+    '</tbody></table></div>';
+}
+function auditPanel() {
+  const actions = ['all'].concat(Array.from(new Set(DATA.audit.map((e) => e.action))));
+  const actors = ['all'].concat(Array.from(new Set(DATA.audit.map((e) => e.actor))));
+  return '<div class="card"><h2>Audit log</h2><p class="card-sub">Read-only. Every status change and delete writes a row here via <code class="mono">auditLogs</code>.</p>' +
+    '<div class="vstack">' +
+    '<div class="toolbar">' +
+    '<select data-action="audit-filter" data-audit="action" aria-label="Filter by action">' + actions.map((a) => opt(a, a === 'all' ? 'All actions' : a, state.auditAction)).join('') + '</select>' +
+    '<select data-action="audit-filter" data-audit="actor" aria-label="Filter by actor">' + actors.map((a) => opt(a, a === 'all' ? 'All actors' : a, state.auditActor)).join('') + '</select>' +
+    '<input class="f-search" data-action="audit-query" value="' + esc(state.auditQuery) + '" placeholder="Search target or reason" aria-label="Search audit log" />' +
+    '<span class="spacer"></span>' +
+    '</div>' +
+    '<div id="audit-body">' + auditRows() + '</div>' +
+    '</div></div>';
+}
+function categoriesPanel() {
+  return '<div class="card"><h2>Categories</h2><p class="card-sub">Super Admin only. Ordering persists as a category <code class="mono">order</code> field; delete is blocked while any business references the category.</p>' +
+    '<div class="vstack">' +
+    '<div class="toolbar"><input class="f-search" id="new-category" placeholder="New category name" aria-label="New category name" />' +
+    '<button class="btn small" data-action="cat-add">Add category</button></div>' +
+    '<ul class="cat-list">' +
+    DATA.categories.map((c, i) =>
+      '<li class="cat-row">' +
+      '<div class="cat-main"><span class="mono tiny muted">' + (i + 1) + '</span><b>' + esc(c.name) + '</b>' +
+      '<span class="muted tiny">' + c.count + ' ' + (c.count === 1 ? 'business' : 'businesses') + '</span>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn small ghost" data-action="cat-move" data-id="' + c.id + '" data-dir="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move ' + esc(c.name) + ' up">↑</button>' +
+      '<button class="btn small ghost" data-action="cat-move" data-id="' + c.id + '" data-dir="1"' + (i === DATA.categories.length - 1 ? ' disabled' : '') + ' aria-label="Move ' + esc(c.name) + ' down">↓</button>' +
+      '<button class="btn small ghost danger" data-action="cat-del" data-id="' + c.id + '">Delete</button></div>' +
+      (state.catBlocked === c.id
+        ? '<div class="cat-block"><b>' + c.count + '</b> ' + (c.count === 1 ? 'business references' : 'businesses reference') + ' this category. Reassign first. ' +
+          '<select id="cat-reassign" aria-label="Reassign businesses to"><option value="">Reassign to…</option>' +
+          DATA.categories.filter((o) => o.id !== c.id).map((o) => '<option value="' + o.id + '">' + esc(o.name) + ' (' + o.count + ')</option>').join('') +
+          '</select>' +
+          '<button class="btn small danger" data-action="cat-reassign-run" data-id="' + c.id + '">Reassign &amp; delete</button>' +
+          '<button class="btn small ghost" data-action="cat-cancel">Cancel</button></div>'
+        : '') +
+      '</li>').join('') +
+    '</ul></div></div>';
+}
+
+// ── directory bodies per variant ─────────────────────────────────────────────
+function rowA(b) {
+  return '<tr' + (state.selected.includes(b.id) ? ' class="selected"' : '') + '>' +
+    '<td>' + selectBox(b) + '</td>' +
+    '<td><div class="biz-name">' + esc(b.name) + (b.featured ? ' <span class="chip blue">Featured</span>' : '') + '</div>' +
+    '<div class="biz-sub">' + esc(b.location) + ' · ' + esc(b.submittedAge) + '</div></td>' +
+    '<td>' + esc(b.category) + '</td>' +
+    '<td>' + chip(b.status) + '</td>' +
+    '<td>' + esc(b.owner) + '<div>' + vtag(b.verification) + '</div></td>' +
+    '<td class="r tabnum">' + (b.rating ? b.rating.toFixed(1) : '—') + '</td>' +
+    '<td class="r">' + tableActions(b) + '</td></tr>';
+}
+function cardA(b) {
+  return '<div class="card">' +
+    '<div class="toolbar">' + selectBox(b) + '<b>' + esc(b.name) + '</b>' + (b.featured ? '<span class="chip blue">Featured</span>' : '') + '<span class="spacer"></span>' + chip(b.status) + '</div>' +
+    '<p class="biz-sub">' + esc(b.category) + ' · ' + esc(b.location) + '</p>' +
+    '<div class="toolbar">' + vtag(b.verification) + '<span class="tiny muted">' + esc(b.owner) + '</span><span class="spacer"></span><span class="tiny tabnum">' + stars(b.rating) + '</span></div>' +
+    '<div class="toolbar">' + tableActions(b) + '</div></div>';
+}
+function directoryBodyA() {
+  const rows = filtered();
+  if (!rows.length) return emptyState();
+  if (state.view.A === 'grid') {
+    return countLine() + '<div class="grid-cards">' + rows.map(cardA).join('') + '</div>';
+  }
+  return countLine() +
+    '<div class="desk-only tbl-wrap"><table class="tbl"><thead><tr>' +
+    '<th><input type="checkbox" id="sel-all" data-action="select-all" aria-label="Select all visible listings" /></th>' +
+    '<th>Business</th><th>Category</th><th>Status</th><th>Owner</th><th class="r">Rating</th><th class="r">Actions</th>' +
+    '</tr></thead><tbody>' + rows.map(rowA).join('') + '</tbody></table></div>' +
+    '<div class="mob-only grid-cards">' + rows.map(cardA).join('') + '</div>';
+}
+function cardB(b) {
+  const active = state.inspectId === b.id;
+  return '<div class="card' + (active ? ' active' : '') + '" data-action="inspect" data-id="' + b.id + '">' +
+    '<div class="toolbar"><b>' + esc(b.name) + '</b>' + (b.featured ? '<span class="chip blue">Featured</span>' : '') + '<span class="spacer"></span>' + chip(b.status) + '</div>' +
+    '<p class="biz-sub">' + esc(b.category) + ' · ' + esc(b.location) + ' · ' + esc(b.owner) + '</p>' +
+    '<div class="toolbar">' + vtag(b.verification) + '<span class="spacer"></span><span class="tiny tabnum">' + stars(b.rating) + '</span><span class="tiny muted">' + esc(b.submittedAge) + '</span></div></div>';
+}
+function directoryBodyB() {
+  const rows = filtered();
+  if (!rows.length) return emptyState();
+  if (state.view.B === 'table') {
+    return countLine() + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Business</th><th>Category</th><th>Status</th><th>Owner</th><th class="r">Rating</th><th class="r"></th></tr></thead><tbody>' +
+      rows.map((b) => '<tr data-action="inspect" data-id="' + b.id + '"><td><div class="biz-name">' + esc(b.name) + '</div><div class="biz-sub">' + esc(b.location) + '</div></td><td>' + esc(b.category) + '</td><td>' + chip(b.status) + '</td><td>' + esc(b.owner) + '</td><td class="r tabnum">' + (b.rating ? b.rating.toFixed(1) : '—') + '</td><td class="r"><button class="btn small" data-action="inspect" data-id="' + b.id + '">Inspect</button></td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+  return countLine() + '<div class="grid-cards">' + rows.map(cardB).join('') + '</div>';
+}
+function bcardC(b) {
+  return '<button class="bcard" data-action="drawer-open" data-id="' + b.id + '">' +
+    '<div class="b-top"><span class="b-name">' + esc(b.name) + '</span><span class="spacer"></span>' + (b.priority === 'high' ? '<span class="chip red">High</span>' : '') + '</div>' +
+    '<div class="b-meta">' + esc(b.category) + ' · ' + esc(b.location) + '</div>' +
+    '<div class="toolbar">' + vtag(b.verification) + '<span class="spacer"></span><span class="tiny tabnum">' + stars(b.rating) + '</span><span class="tiny muted">' + esc(b.submittedAge) + '</span></div>' +
+    (b.featured ? '<div><span class="chip blue">Featured</span></div>' : '') +
+    '</button>';
+}
+function boardC() {
+  return '<div class="board">' + ['pending', 'changesRequested', 'approved', 'rejected', 'suspended'].map((s) => {
+    const rows = filtered().filter((b) => b.status === s);
+    return '<section class="col"><div class="col-head"><h3>' + STATUS[s].label + '</h3><span class="col-count">' + rows.length + '</span><span class="spacer"></span>' +
+      (s === 'pending' && rows.length ? '<button class="btn small primary" data-action="bulk-open-column">Approve all</button>' : '') +
+      '</div><div class="stack">' + (rows.length ? rows.map(bcardC).join('') : '<p class="muted tiny">Nothing here.</p>') + '</div></section>';
+  }).join('') + '</div>';
+}
+function directoryBodyC() {
+  const rows = filtered();
+  if (!rows.length) return emptyState();
+  if (state.view.C === 'table') {
+    return countLine() + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Business</th><th>Category</th><th>Status</th><th>Owner</th><th class="r">Rating</th></tr></thead><tbody>' +
+      rows.map((b) => '<tr data-action="drawer-open" data-id="' + b.id + '"><td class="biz-name">' + esc(b.name) + '</td><td>' + esc(b.category) + '</td><td>' + chip(b.status) + '</td><td>' + esc(b.owner) + '</td><td class="r tabnum">' + (b.rating ? b.rating.toFixed(1) : '—') + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+  return countLine() + '<div class="grid-cards">' + rows.map(bcardC).join('') + '</div>';
+}
+function directoryBody(variant) {
+  return variant === 'A' ? directoryBodyA() : variant === 'B' ? directoryBodyB() : directoryBodyC();
+}
+
+// ── shared small views ───────────────────────────────────────────────────────
+function recentList() {
+  return DATA.audit.slice(0, 5).map((e) => '<div class="list-row"><span class="when">' + esc(e.at) + '</span><span>' + esc(e.action) + ' · ' + esc(e.target) + '</span></div>').join('');
+}
+function statGrid(clickable) {
+  return '<div class="stat-grid">' +
+    '<div class="stat"><div class="k">Total businesses</div><div class="v">' + DATA.businesses.length + '</div></div>' +
+    '<div class="stat' + (clickable ? ' clickable' : '') + '"' + (clickable ? ' data-action="goto-pending" role="button" tabindex="0"' : '') + '><div class="k">Pending approval</div><div class="v">' + pendingCount() + '</div><div class="h">' + (clickable ? 'Open the queue →' : '') + '</div></div>' +
+    '<div class="stat"><div class="k">Verified active</div><div class="v">' + DATA.businesses.filter((b) => b.status === 'approved' && b.verification === 'verified').length + '</div></div>' +
+    '<div class="stat"><div class="k">Submissions this month</div><div class="v">18</div><div class="h">No revenue card (billing deferred)</div></div>' +
+    '</div>';
+}
+
+// ── Variant A — Ops Console ──────────────────────────────────────────────────
+function pageTitleA(page) {
+  return { overview: 'Overview', directory: 'All Businesses', owners: 'Business Owners', categories: 'Categories', audit: 'Audit Log' }[page];
+}
+function pageA(page) {
+  if (page === 'overview') {
+    return statGrid(true) +
+      '<div class="split-2">' +
+      '<div class="card"><h2>Needs attention</h2><p class="card-sub">Oldest pending first.</p>' +
+      DATA.businesses.filter((b) => b.status === 'pending').map((b) => '<div class="list-row"><b>' + esc(b.name) + '</b>' + chip(b.status) + '<span class="spacer"></span><span class="tiny muted">' + esc(b.submittedAge) + '</span></div>').join('') +
+      '</div>' +
+      '<div class="card"><h2>Recent audit activity</h2><p class="card-sub">Newest first.</p>' + recentList() + '</div>' +
+      '</div>';
+  }
+  if (page === 'directory') {
+    return '<div class="toolbar">' + filterBar() + '<span class="spacer"></span>' +
+      '<div class="toolbar-end"><div class="seg"><button data-action="view" data-view="table" class="' + (state.view.A === 'table' ? 'active' : '') + '">Table</button><button data-action="view" data-view="grid" class="' + (state.view.A === 'grid' ? 'active' : '') + '">Grid</button><button disabled>Map · soon</button></div>' +
+      '<button class="btn small primary" data-action="add-open">Add business</button></div></div>' +
+      '<div data-list="directory">' + directoryBodyA() + '</div>';
+  }
+  if (page === 'owners') return ownersPanel();
+  if (page === 'categories') return categoriesPanel();
+  return auditPanel();
+}
+function viewA() {
+  const page = state.page.A;
+  const nav = [['overview', 'Overview', 0], ['directory', 'All Businesses', pendingCount()], ['owners', 'Business Owners', 0], ['categories', 'Categories', 0], ['audit', 'Audit Log', 0]];
+  return '<div class="shell">' +
+    '<aside class="side"><div class="side-brand"><span class="side-mark">LH</span><div><b>LocalHub Admin</b><small>ops console</small></div></div>' +
+    '<nav class="side-nav">' + nav.map(([k, label, badge]) => '<button class="nav-btn' + (page === k ? ' active' : '') + '" data-action="page" data-page="' + k + '">' + label + (badge ? '<span class="nav-badge">' + badge + '</span>' : '') + '</button>').join('') + '</nav>' +
+    '<div class="spacer"></div>' +
+    ['Analytics', 'Flagged Content', 'Settings'].map((s) => '<div class="side-stub">' + s + ' · stub</div>').join('') +
+    '</aside>' +
+    '<div class="main"><div class="topbar">' +
+    '<div class="a-mobile-nav"><select data-action="page" aria-label="Admin section">' + nav.map(([k, label]) => opt(k, label, page)).join('') + '</select></div>' +
+    '<h1 class="page-title">' + pageTitleA(page) + '</h1><span class="spacer"></span>' +
+    '<button class="btn small" data-action="export">Export CSV</button><span class="avatar">CA</span>' +
+    '</div>' +
+    (state.log ? '<div class="content"><div class="logline">' + esc(state.log) + '</div></div>' : '') +
+    '<div class="content">' + pageA(page) + '</div></div></div>' +
+    bulkBar() +
+    // modal chrome for A
+    (state.confirm ? '<div class="overlay" data-action="overlay-close"><div class="modal-card"><h3>' + ACTIONS[state.confirm.act].label + '</h3>' + confirmForm(state.confirm.act, byId(state.confirm.id)) + '</div></div>' : '') +
+    (state.bulkConfirm ? '<div class="overlay" data-action="overlay-close"><div class="modal-card"><h3>Approve ' + state.selected.length + ' listings</h3>' + bulkConfirmForm() + '</div></div>' : '') +
+    (state.addOpen ? '<div class="overlay" data-action="overlay-close"><div class="modal-card"><h3>Add business</h3>' + addBusinessForm() + '</div></div>' : '');
+}
+
+// ── Variant B — Command Deck ─────────────────────────────────────────────────
+function inspectorB() {
+  const b = byId(state.inspectId);
+  if (!b) return '<div class="insp-body"><p class="muted tiny">Select a listing to inspect. Actions and their confirmations happen here, in place.</p></div>';
+  const confirming = state.confirm && state.confirm.id === b.id;
+  const actions = [];
+  if (b.status === 'pending') actions.push('approve', 'requestChanges', 'reject');
+  if (b.status === 'approved') actions.push('suspend');
+  if (b.status === 'suspended') actions.push('restore');
+  actions.push('feature', 'delete');
+  return '<div class="insp-head"><b>' + esc(b.name) + '</b><span class="spacer"></span>' + chip(b.status) + '</div>' +
+    '<div class="insp-body">' +
+    '<div class="detail-list">' +
+    '<div><span class="k">Owner</span><span>' + esc(b.owner) + '</span></div>' +
+    '<div><span class="k">Email</span><span class="mono tiny">' + esc(b.ownerEmail) + '</span></div>' +
+    '<div><span class="k">Category</span><span>' + esc(b.category) + '</span></div>' +
+    '<div><span class="k">Location</span><span>' + esc(b.location) + '</span></div>' +
+    '<div><span class="k">Verification</span><span>' + vtag(b.verification) + '</span></div>' +
+    '<div><span class="k">Rating</span><span>' + stars(b.rating) + '</span></div>' +
+    '<div><span class="k">Submitted</span><span>' + esc(b.submittedAge) + '</span></div>' +
+    '<div><span class="k">Created</span><span class="mono tiny">' + esc(b.createdAt) + '</span></div>' +
+    '</div>' +
+    (confirming
+      ? '<div class="insp-step ' + (ACTIONS[state.confirm.act].danger ? 'danger' : '') + '"><b>' + ACTIONS[state.confirm.act].label + '</b>' + confirmForm(state.confirm.act, b) + '</div>'
+      : '<div class="insp-actions">' + actions.map((a) => '<button class="btn small' + (ACTIONS[a].danger ? ' danger' : '') + '" data-action="row-act" data-id="' + b.id + '" data-act="' + a + '">' + ACTIONS[a].label + '</button>').join('') + '</div>') +
+    '</div>';
+}
+function railB() {
+  const rows = filtered();
+  return '<aside class="rail">' +
+    '<div><h3>Saved views</h3><div class="stack">' +
+    '<button class="nav-btn" data-action="preset" data-preset="all">All listings</button>' +
+    '<button class="nav-btn' + (state.status === 'pending' ? ' active' : '') + '" data-action="preset" data-preset="pending">Needs review</button>' +
+    '<button class="nav-btn' + (state.featured ? ' active' : '') + '" data-action="preset" data-preset="featured">Featured</button>' +
+    '<button class="nav-btn' + (state.status === 'suspended' ? ' active' : '') + '" data-action="preset" data-preset="suspended">Suspended</button>' +
+    '</div></div>' +
+    '<div><h3>Category</h3><div class="stack">' + ['all'].concat(DATA.categories.map((c) => c.name)).map((c) => '<label class="opt"><input type="radio" name="b-cat" value="' + esc(c) + '" data-action="filter" data-filter="category"' + (state.category === c ? ' checked' : '') + ' /> ' + (c === 'all' ? 'All categories' : esc(c)) + '</label>').join('') + '</div></div>' +
+    '<div><h3>Status</h3><div class="stack">' + ['all'].concat(Object.keys(STATUS)).map((s) => '<label class="opt"><input type="radio" name="b-status" value="' + s + '" data-action="filter" data-filter="status"' + (state.status === s ? ' checked' : '') + ' /> ' + (s === 'all' ? 'Any status' : STATUS[s].label) + '</label>').join('') + '</div></div>' +
+    '<div><h3>Verification</h3><div class="stack">' + ['all', 'verified', 'unverified'].map((v) => '<label class="opt"><input type="radio" name="b-ver" value="' + v + '" data-action="filter" data-filter="verification"' + (state.verification === v ? ' checked' : '') + ' /> ' + (v === 'all' ? 'Any' : v.charAt(0).toUpperCase() + v.slice(1)) + '</label>').join('') + '</div></div>' +
+    '<p class="hint">' + rows.length + ' of ' + DATA.businesses.length + ' listings match.</p>' +
+    '</aside>';
+}
+function deckB() {
+  return '<div class="deck">' + railB() +
+    '<section class="dataset"><div class="content">' +
+    '<div class="toolbar"><div class="rail-chips">' + filterBar() + '</div>' +
+    '<div class="seg"><button data-action="view" data-view="grid" class="' + (state.view.B === 'grid' ? 'active' : '') + '">Grid</button><button data-action="view" data-view="table" class="' + (state.view.B === 'table' ? 'active' : '') + '">Table</button><button disabled>Map · soon</button></div>' +
+    '<span class="spacer"></span>' + (filtered().filter((b) => b.status === 'pending').length ? '<button class="btn small primary" data-action="bulk-open-visible">Approve ' + filtered().filter((b) => b.status === 'pending').length + ' pending</button>' : '') + '<button class="btn small" data-action="add-open">Add business</button></div>' +
+    (state.bulkConfirm ? '<div class="inline-confirm">' + bulkConfirmForm() + '</div>' : '') +
+    (state.addOpen ? '<div class="inline-confirm">' + addBusinessForm() + '</div>' : '') +
+    '<div>' + directoryBodyB() + '</div>' +
+    '</div></section>' +
+    '<aside class="insp">' + inspectorB() + '</aside></div>';
+}
+function viewB() {
+  const page = state.page.B;
+  const tabs = [['overview', 'Overview'], ['directory', 'Directory'], ['owners', 'Owners'], ['audit', 'Audit'], ['categories', 'Categories']];
+  const center = page === 'overview' ? '<div class="content">' + statGrid(false) + '<div class="split-2"><div class="card"><h2>Recent audit activity</h2><p class="card-sub">Global feed — the full log lives in the Audit tab.</p>' + recentList() + '</div><div class="card"><h2>Review workload</h2><p class="card-sub">Pending by category.</p>' +
+    DATA.categories.filter((c) => c.count > 0).map((c) => '<div class="list-row"><span>' + esc(c.name) + '</span><span class="spacer"></span><span class="mono tiny">' + c.count + '</span></div>').join('') + '</div></div></div>'
+    : page === 'directory' ? deckB()
+    : '<div class="content">' + (page === 'owners' ? ownersPanel() : page === 'audit' ? auditPanel() : categoriesPanel()) + '</div>';
+  return '<div class="cmdbar">' +
+    '<div class="side-brand"><span class="side-mark">LH</span><div><b>Command Deck</b><small>localhub admin</small></div></div>' +
+    '<div class="tabs">' + tabs.map(([k, label]) => '<button class="tab' + (page === k ? ' active' : '') + '" data-action="page" data-page="' + k + '">' + label + '</button>').join('') + '</div>' +
+    '<input class="f-search" data-action="filter" data-filter="query" value="' + esc(state.query) + '" placeholder="Search businesses…" aria-label="Search businesses" />' +
+    '<span class="spacer"></span><button class="btn small" data-action="export">Export CSV</button><span class="avatar">CA</span></div>' +
+    (state.log ? '<div class="content"><div class="logline">' + esc(state.log) + '</div></div>' : '') +
+    center + bulkBar() +
+    (state.variant === 'B' && isNarrow() && state.inspectId && !state.bulkConfirm && !state.addOpen
+      ? '<div class="sheet-overlay" data-action="sheet-close"><div class="sheet-card">' + inspectorB() + '</div></div>'
+      : '');
+}
+
+// ── Variant C — Status Board ─────────────────────────────────────────────────
+function drawerBusinessBody(b) {
+  const confirming = state.confirm && state.confirm.id === b.id;
+  const actions = [];
+  if (b.status === 'pending') actions.push('approve', 'requestChanges', 'reject');
+  if (b.status === 'approved') actions.push('suspend');
+  if (b.status === 'suspended') actions.push('restore');
+  actions.push('feature', 'delete');
+  return '<div class="detail-list">' +
+    '<div><span class="k">Owner</span><span>' + esc(b.owner) + '</span></div>' +
+    '<div><span class="k">Email</span><span class="mono tiny">' + esc(b.ownerEmail) + '</span></div>' +
+    '<div><span class="k">Category</span><span>' + esc(b.category) + '</span></div>' +
+    '<div><span class="k">Location</span><span>' + esc(b.location) + '</span></div>' +
+    '<div><span class="k">Verification</span><span>' + vtag(b.verification) + '</span></div>' +
+    '<div><span class="k">Rating</span><span>' + stars(b.rating) + '</span></div>' +
+    '<div><span class="k">Submitted</span><span>' + esc(b.submittedAge) + '</span></div>' +
+    '</div><div class="vstack">' +
+    (confirming
+      ? '<div class="insp-step ' + (ACTIONS[state.confirm.act].danger ? 'danger' : '') + '"><b>' + ACTIONS[state.confirm.act].label + '</b>' + confirmForm(state.confirm.act, b) + '</div>'
+      : '<div class="toolbar">' + actions.map((a) => '<button class="btn small' + (ACTIONS[a].danger ? ' danger' : '') + '" data-action="row-act" data-id="' + b.id + '" data-act="' + a + '">' + ACTIONS[a].label + '</button>').join('') + '</div>') +
+    '</div>';
+}
+function drawerC() {
+  if (!(state.drawerId || state.bulkConfirm || state.addOpen)) return '';
+  let title = '';
+  let body = '';
+  if (state.bulkConfirm) { title = 'Approve ' + state.selected.length + ' listings'; body = bulkConfirmForm(); }
+  else if (state.addOpen) { title = 'Add business'; body = addBusinessForm(); }
+  else {
+    const b = byId(state.drawerId);
+    if (!b) return '';
+    title = b.name;
+    body = drawerBusinessBody(b);
+  }
+  return '<div class="drawer-overlay" data-action="drawer-close"><div class="drawer-card">' +
+    '<div class="drawer-head"><h2>' + esc(title) + '</h2><span class="spacer"></span><button class="btn small ghost" data-action="drawer-close">Close</button></div>' +
+    body + '</div></div>';
+}
+function pageC(page) {
+  if (page === 'board') {
+    return '<div class="toolbar">' + filterBar() + '<span class="spacer"></span><div class="toolbar-end"><div class="seg"><button data-action="view" data-view="table" class="' + (state.view.C === 'table' ? 'active' : '') + '">Table</button><button data-action="view" data-view="grid" class="' + (state.view.C === 'grid' ? 'active' : '') + '">Grid</button></div><button class="btn small" data-action="add-open">Add business</button></div></div>' +
+      '<div data-list="board">' + boardC() + '</div>' +
+      '<details class="feed card"><summary>Operational feed · latest audit entries</summary><div class="feed-body">' + recentList() + '</div></details>';
+  }
+  if (page === 'directory') return '<div class="toolbar">' + filterBar() + '<span class="spacer"></span><div class="seg"><button data-action="view" data-view="grid" class="' + (state.view.C === 'grid' ? 'active' : '') + '">Grid</button><button data-action="view" data-view="table" class="' + (state.view.C === 'table' ? 'active' : '') + '">Table</button></div></div><div data-list="directory">' + directoryBodyC() + '</div>';
+  if (page === 'owners') return ownersPanel();
+  if (page === 'audit') return auditPanel();
+  return categoriesPanel();
+}
+function viewC() {
+  const page = state.page.C;
+  const rail = [['board', '▦', 'Board'], ['directory', '☰', 'Directory'], ['owners', '☺', 'Owners'], ['audit', '⟳', 'Audit'], ['categories', '⌗', 'Categories']];
+  const titles = { board: 'Status board', directory: 'Directory', owners: 'Business owners', audit: 'Audit log', categories: 'Categories' };
+  return '<div class="c-shell">' +
+    '<nav class="icon-rail"><span class="side-mark">LH</span>' + rail.map(([k, icon, label]) => '<button class="icon-btn' + (page === k ? ' active' : '') + '" data-action="page" data-page="' + k + '" title="' + label + '" aria-label="' + label + '">' + icon + '</button>').join('') + '</nav>' +
+    '<div class="main"><div class="topbar"><h1 class="page-title">' + titles[page] + '</h1><span class="spacer"></span>' +
+    '<button class="btn small" data-action="export">Export CSV</button><span class="avatar">CA</span></div>' +
+    (state.log ? '<div class="content"><div class="logline">' + esc(state.log) + '</div></div>' : '') +
+    '<div class="content">' + pageC(page) + '</div></div></div>' +
+    bulkBar() + drawerC();
+}
+
+// ── render ───────────────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = state.variant === 'A' ? viewA() : state.variant === 'B' ? viewB() : viewC();
+  document.getElementById('variant-label').innerHTML = '<b>' + state.variant + '</b> — ' + VARIANT_NAMES[state.variant];
+  document.getElementById('frame').className = 'app-frame viewport-' + state.viewport;
+  document.querySelectorAll('[data-action="viewport"]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.viewport === state.viewport);
+  });
+  syncSelectAll();
+}
+function syncSelectAll() {
+  const el = document.getElementById('sel-all');
+  if (!el) return;
+  const rows = filtered();
+  const sel = rows.filter((b) => state.selected.includes(b.id)).length;
+  el.checked = rows.length > 0 && sel === rows.length;
+  el.indeterminate = sel > 0 && sel < rows.length;
+}
+function refreshLists() {
+  const list = document.querySelector('[data-list="directory"]');
+  if (list) list.innerHTML = directoryBody(state.variant);
+  const board = document.querySelector('[data-list="board"]');
+  if (board) board.innerHTML = boardC();
+  syncSelectAll();
+}
+function refreshAudit() {
+  const el = document.getElementById('audit-body');
+  if (el) el.innerHTML = auditRows();
+}
+
+// ── mutations ────────────────────────────────────────────────────────────────
+function applyAction(id, act, reason) {
+  const b = byId(id);
+  if (!b) return;
+  const m = ACTIONS[act];
+  if (act === 'feature') {
+    b.featured = !b.featured;
+    audit('Feature pin', b.name, b.status, b.status, reason);
+    toast('Featured ' + (b.featured ? 'pinned' : 'unpinned') + ' · ' + b.name + ' · auditLogs row written');
+  } else if (act === 'delete') {
+    DATA.businesses = DATA.businesses.filter((x) => x.id !== id);
+    state.selected = state.selected.filter((x) => x !== id);
+    audit('Hard delete', b.name, b.status, 'deleted', reason);
+    toast('Deleted ' + b.name + ' + children · auditLogs row written');
+  } else {
+    const from = b.status;
+    b.status = m.to;
+    audit(m.label.replace(' listing', ''), b.name, from, m.to, reason);
+    toast(b.name + ' → ' + m.to + ' · auditLogs row written');
+  }
+  state.confirm = null;
+  state.drawerId = act === 'delete' ? null : state.drawerId;
+  state.inspectId = act === 'delete' ? null : state.inspectId;
+  render();
+}
+function applyBulk() {
+  const n = state.selected.length;
+  DATA.businesses.forEach((b) => { if (state.selected.includes(b.id)) b.status = 'approved'; });
+  audit('Bulk approve', n + ' listings', 'pending', 'approved');
+  toast('Approved ' + n + ' listings · ' + n + ' auditLogs rows written');
+  state.selected = [];
+  state.bulkConfirm = false;
+  state.drawerId = null;
+  render();
+}
+function exportCsv() {
+  const header = ['name', 'category', 'status', 'owner', 'rating', 'createdAt', 'updatedAt'];
+  const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = [header.join(',')].concat(
+    DATA.businesses.map((b) => [b.name, b.category, b.status, b.owner, String(b.rating), b.createdAt, b.updatedAt].map(q).join(','))
+  ).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'businesses-prototype-export.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  audit('CSV export', 'Businesses (' + DATA.businesses.length + ' rows)', '', '');
+  toast('Exported ' + DATA.businesses.length + ' rows → businesses-prototype-export.csv');
+  render();
+}
+function catMove(id, dir) {
+  const i = DATA.categories.findIndex((c) => c.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= DATA.categories.length) return;
+  const copy = DATA.categories.slice();
+  const item = copy.splice(i, 1)[0];
+  copy.splice(j, 0, item);
+  DATA.categories = copy;
+  render();
+}
+function catDelete(id) {
+  const c = DATA.categories.find((x) => x.id === id);
+  if (!c) return;
+  if (c.count > 0) { state.catBlocked = id; render(); return; }
+  DATA.categories = DATA.categories.filter((x) => x.id !== id);
+  toast('Category deleted · ' + c.name);
+  render();
+}
+function catReassignDelete(id) {
+  const c = DATA.categories.find((x) => x.id === id);
+  const sel = document.getElementById('cat-reassign');
+  if (!c || !sel || !sel.value) return;
+  const target = DATA.categories.find((x) => x.id === sel.value);
+  if (!target) return;
+  target.count += c.count;
+  DATA.categories = DATA.categories.filter((x) => x.id !== id);
+  audit('Category reassign', c.name, c.name, target.name, c.count + ' businesses moved to ' + target.name);
+  toast(c.count + ' businesses moved to ' + target.name + ' · category deleted · auditLogs row written');
+  state.catBlocked = null;
+  render();
+}
+function catAdd() {
+  const input = document.getElementById('new-category');
+  const name = input ? input.value.trim() : '';
+  if (!name) return;
+  DATA.categories.push({ id: 'cat_' + Date.now(), name, count: 0 });
+  toast('Category added · ' + name);
+  render();
+}
+function cycleVariant(dir) {
+  const i = VARIANTS.indexOf(state.variant);
+  const next = VARIANTS[(i + dir + VARIANTS.length) % VARIANTS.length];
+  state.variant = next;
+  state.selected = [];
+  state.inspectId = null;
+  state.drawerId = null;
+  state.confirm = null;
+  state.bulkConfirm = false;
+  state.addOpen = false;
+  state.catBlocked = null;
+  try { history.replaceState(null, '', location.pathname + '?variant=' + next); } catch (err) { /* file:// contexts */ }
+  render();
+}
+
+// ── events ───────────────────────────────────────────────────────────────────
+function onClick(e) {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action;
+  if (a === 'overlay-close' || a === 'drawer-close' || a === 'sheet-close') {
+    if (e.target !== el) return;
+    state.confirm = null; state.bulkConfirm = false; state.addOpen = false; state.drawerId = null; state.inspectId = a === 'sheet-close' ? null : state.inspectId;
+    render();
+    return;
+  }
+  if (el.tagName === 'SELECT' || el.tagName === 'INPUT') return;
+  switch (a) {
+    case 'viewport': state.viewport = el.dataset.viewport; render(); return;
+    case 'variant-prev': cycleVariant(-1); return;
+    case 'variant-next': cycleVariant(1); return;
+    case 'page': state.page[state.variant] = el.dataset.page; render(); return;
+    case 'view': state.view[state.variant] = el.dataset.view; render(); return;
+    case 'preset': {
+      const p = el.dataset.preset;
+      state.status = p === 'pending' || p === 'suspended' ? p : 'all';
+      state.featured = p === 'featured';
+      render();
+      return;
+    }
+    case 'goto-pending': state.page.A = 'directory'; state.status = 'pending'; render(); return;
+    case 'row-act': {
+      state.confirm = { id: el.dataset.id, act: el.dataset.act };
+      if (state.variant === 'B') state.inspectId = el.dataset.id;
+      if (state.variant === 'C') state.drawerId = el.dataset.id;
+      render();
+      return;
+    }
+    case 'inspect': state.inspectId = el.dataset.id; state.confirm = null; render(); return;
+    case 'drawer-open': state.drawerId = el.dataset.id; state.confirm = null; render(); return;
+    case 'confirm-cancel': state.confirm = null; render(); return;
+    case 'confirm-run': {
+      const c = state.confirm;
+      if (!c) return;
+      const m = ACTIONS[c.act];
+      const reasonEl = document.querySelector('[data-confirm-reason]');
+      const reason = reasonEl ? reasonEl.value.trim() : '';
+      if (m.reason && !reason) {
+        const err = document.getElementById('reason-err');
+        if (err) err.hidden = false;
+        if (reasonEl) reasonEl.focus();
+        return;
+      }
+      applyAction(c.id, c.act, reason);
+      return;
+    }
+    case 'bulk-open': state.bulkConfirm = true; render(); return;
+    case 'bulk-open-visible': {
+      state.selected = filtered().filter((b) => b.status === 'pending').map((b) => b.id);
+      state.bulkConfirm = true;
+      render();
+      return;
+    }
+    case 'bulk-open-column': {
+      state.selected = DATA.businesses.filter((b) => b.status === 'pending').map((b) => b.id);
+      state.bulkConfirm = true;
+      render();
+      return;
+    }
+    case 'bulk-confirm': applyBulk(); return;
+    case 'bulk-cancel': state.bulkConfirm = false; render(); return;
+    case 'bulk-clear': state.selected = []; render(); return;
+    case 'export': exportCsv(); return;
+    case 'add-open': state.addOpen = true; state.confirm = null; render(); return;
+    case 'add-close': state.addOpen = false; render(); return;
+    case 'cat-move': catMove(el.dataset.id, Number(el.dataset.dir)); return;
+    case 'cat-del': catDelete(el.dataset.id); return;
+    case 'cat-reassign-run': catReassignDelete(el.dataset.id); return;
+    case 'cat-cancel': state.catBlocked = null; render(); return;
+    case 'cat-add': catAdd(); return;
+    default: return;
+  }
+}
+function onChange(e) {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action;
+  if (a === 'filter') { state[el.dataset.filter] = el.value; state.featured = false; render(); return; }
+  if (a === 'audit-filter') {
+    if (el.dataset.audit === 'action') state.auditAction = el.value;
+    else state.auditActor = el.value;
+    render();
+    return;
+  }
+  if (a === 'page') { state.page[state.variant] = el.value; render(); return; }
+  if (a === 'select-one') {
+    const id = el.dataset.id;
+    state.selected = el.checked ? state.selected.concat(id) : state.selected.filter((x) => x !== id);
+    render();
+    return;
+  }
+  if (a === 'select-all') {
+    state.selected = el.checked ? filtered().map((b) => b.id) : [];
+    render();
+  }
+}
+function onInput(e) {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action;
+  if (a === 'filter' && el.dataset.filter === 'query') { state.query = el.value; refreshLists(); return; }
+  if (a === 'audit-query') { state.auditQuery = el.value; refreshAudit(); return; }
+  if (a === 'type-input') {
+    const btn = document.getElementById('confirm-delete-btn');
+    if (btn) btn.disabled = el.value.trim() !== el.dataset.name;
+  }
+}
+function onKeydown(e) {
+  const t = e.target;
+  if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable) return;
+  if (e.key === 'ArrowLeft') cycleVariant(-1);
+  if (e.key === 'ArrowRight') cycleVariant(1);
+}
+let resizeTimer = null;
+function onResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => render(), 150);
+}
+
+document.addEventListener('click', onClick);
+document.addEventListener('change', onChange);
+document.addEventListener('input', onInput);
+document.addEventListener('keydown', onKeydown);
+window.addEventListener('resize', onResize);
+
+// init
+const urlVariant = new URLSearchParams(location.search).get('variant');
+if (urlVariant && VARIANTS.includes(urlVariant.toUpperCase())) {
+  state.variant = urlVariant.toUpperCase();
+  state.page[state.variant] = state.variant === 'C' ? 'board' : state.variant === 'A' ? 'overview' : 'directory';
+}
+render();
+</script>
+</body>
+</html>
