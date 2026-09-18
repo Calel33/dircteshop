@@ -1,0 +1,13 @@
+{
+  "$schema": "https://knip.dev/reference/configuration",
+  "project": ["**/*.{ts,tsx,js,jsx,mjs,cjs}"],
+  "entry": ["app/**/*.{ts,tsx}", "convex/**/*.ts"],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "exports": "warn",
+    "nsExports": "warn",
+    "classMembers": "warn",
+    "types": "warn",
+    "enumMembers": "warn"
+  }
+}

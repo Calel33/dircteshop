@@ -1,0 +1,25 @@
+{
+  "threshold": 50,
+  "minLines": 5,
+  "minTokens": 50,
+  "reporters": ["console", "json"],
+  "output": "./jscpd-report.json",
+  "ignore": [
+    "node_modules/**",
+    ".next/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    ".husky/**",
+    "coverage/**",
+    ".swarm/**",
+    ".cursor/**",
+    "prompt/**",
+    "prompts/**",
+    "research/**",
+    "**/*.min.js",
+    "**/*.min.css",
+    "public/**"
+  ],
+  "format": ["javascript", "typescript", "jsx", "tsx", "json"]
+}
