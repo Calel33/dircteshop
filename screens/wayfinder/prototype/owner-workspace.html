@@ -3,395 +3,1184 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LocalHub Editor — Owner Workspace Prototype</title>
+<title>LocalHub Owner Workspace — Prototype (issue #19)</title>
+<!--
+  THROWAWAY PROTOTYPE — issue Calel33/dircteshop#19
+  Question: is the owner editor + approval-loop interaction model unambiguous
+  before B3 (owner onboarding + LocalHub editor + approval loop) is built?
+
+  Covers: owner home · editor section nav · explicit Save Draft · Preview Live
+  from unsaved state · submit / pendingReview / changesRequested / rejected
+  states · compact mobile view.
+
+  Not production code. No backend, no persistence, no tests (per /prototype).
+  Open by double-clicking. Drive the scenarios at the bottom of the page,
+  or click anything freely.
+-->
 <style>
-:root {
-  --brand: #2563eb;
-  --brand-dark: #1e40af;
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --green: #16a34a;
-  --amber: #d97706;
-  --red: #dc2626;
-  --radius: 0.75rem;
-  --sidebar-w: 16rem;
-  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
-  --space-4: 1rem; --space-6: 1.5rem;
-  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+:root{
+  /* brand + surface tokens */
+  --brand:#2563eb; --brand-dark:#1e40af; --brand-tint:#eff6ff;
+  --bg:#f8fafc; --surface:#ffffff; --white:#ffffff; --canvas:#e8edf4;
+  --border:#e2e8f0; --text:#0f172a; --muted:#64748b;
+  /* status tokens */
+  --green:#16a34a; --green-bg:#dcfce7; --green-ink:#166534; --green-light:#4ade80;
+  --amber:#b45309; --amber-bg:#fef3c7; --amber-border:#fcd34d; --amber-ink:#78350f;
+  --red:#dc2626; --red-bg:#fee2e2; --red-border:#fecaca; --red-ink:#7f1d1d;
+  /* neutral + prototype-chrome tokens */
+  --slate-200:#e2e8f0; --slate-600:#475569; --slate-700:#334155;
+  --ink-bg:#0f172a; --ink-surface:#1e293b; --ink-line:#334155;
+  --ink-fg:#e2e8f0; --ink-fg-dim:#cbd5e1; --ink-fg-muted:#94a3b8;
+  --accent:#f59e0b; --accent-fg:#111827;
+  --tint-1:#bfdbfe; --tint-2:#dbeafe;
+  --radius:0.75rem; --radius-sm:0.5rem; --radius-pill:62.5rem;
+  --s1:0.25rem; --s2:0.5rem; --s3:0.75rem; --s4:1rem; --s5:1.25rem; --s6:1.5rem; --s8:2rem;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --shadow:0 0.0625rem 0.125rem rgba(15,23,42,.06), 0 0.75rem 2rem -1rem rgba(15,23,42,.22);
 }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font-sans); background: var(--bg); color: var(--text); font-size: 0.9375rem; }
-.layout { display: grid; grid-template-columns: var(--sidebar-w) 1fr; min-height: 100vh; }
+*{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none !important}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--canvas);color:var(--text);font-size:0.9375rem;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1{font-size:1.375rem;font-weight:700}
+h2{font-size:1rem;font-weight:700}
+h3{font-size:0.9375rem;font-weight:700}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+input,select,textarea{font:inherit;color:inherit}
+.muted{color:var(--muted)}
+.hint{font-size:0.75rem;color:var(--muted);margin-top:var(--s2)}
+:focus-visible{outline:0.125rem solid var(--brand);outline-offset:0.125rem}
 
-/* Sidebar */
-.sidebar { background: var(--surface); border-right: 0.0625rem solid var(--border); padding: var(--space-6) var(--space-4); position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-.brand { font-weight: 700; font-size: 1.125rem; color: var(--brand); margin-bottom: var(--space-6); }
-.brand span { color: var(--text); }
-.nav-group-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: var(--space-4) 0 var(--space-2); }
-.nav-item { display: block; width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; border-radius: var(--radius); cursor: pointer; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.125rem; }
-.nav-item:hover { background: var(--bg); color: var(--text); }
-.nav-item.active { background: var(--brand); color: #fff; font-weight: 600; }
-.nav-item .badge { float: right; background: var(--red); color: #fff; border-radius: 62.5rem; padding: 0 0.4rem; font-size: 0.6875rem; font-weight: 700; }
-.biz-switch { margin-top: var(--space-6); padding: var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 0.75rem; color: var(--text-muted); }
-.biz-switch select { width: 100%; margin-top: var(--space-2); padding: var(--space-2); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-size: 0.8125rem; }
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:2.25rem;padding:var(--s2) var(--s4);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:0.8125rem;font-weight:600;white-space:nowrap;transition:background .15s ease,border-color .15s ease}
+.btn:hover:not(:disabled){background:var(--bg)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.btn.primary:hover:not(:disabled){background:var(--brand-dark)}
+.btn.small{min-height:1.875rem;padding:var(--s1) var(--s3);font-size:0.75rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 
-/* Main */
-.main { padding: var(--space-6); max-width: 75rem; }
-.topbar { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-6); flex-wrap: wrap; }
-.topbar h1 { font-size: 1.375rem; flex: 1; }
-.topbar .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.btn { padding: var(--space-2) var(--space-4); border-radius: var(--radius); border: 0.0625rem solid var(--border); background: var(--surface); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
-.btn:hover { background: var(--bg); }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.primary:hover { background: var(--brand-dark); }
-.btn.success { background: var(--green); border-color: var(--green); color: #fff; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.status-chip { padding: 0.2rem 0.75rem; border-radius: 62.5rem; font-size: 0.75rem; font-weight: 700; }
-.status-chip.approved { background: #dcfce7; color: var(--green); }
-.status-chip.pendingReview { background: #fef3c7; color: var(--amber); }
-.status-chip.changesRequested { background: #fee2e2; color: var(--red); }
-.status-chip.draft { background: var(--border); color: var(--text-muted); }
+/* ---------- prototype chrome ---------- */
+.proto-ribbon{position:fixed;top:0;left:0;right:0;z-index:80;display:flex;align-items:center;gap:var(--s3);height:2.75rem;padding:0 var(--s4);background:var(--ink-bg);color:var(--ink-fg);font-size:0.75rem}
+.proto-tag{background:var(--accent);color:var(--accent-fg);font-weight:800;letter-spacing:.06em;padding:0.1rem var(--s2);border-radius:var(--s1)}
+.proto-title{font-weight:700;color:var(--white)}
+.proto-sub{color:var(--ink-fg-muted)}
+.proto-controls{margin-left:auto;display:flex;align-items:center;gap:var(--s2)}
+.proto-btn{min-height:1.75rem;padding:0 var(--s3);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-pill);color:var(--ink-fg-dim);font-size:0.6875rem;font-weight:600}
+.proto-btn:hover{background:var(--ink-surface)}
+.proto-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.proto-sep{width:0.0625rem;height:1.25rem;background:var(--ink-line)}
 
-/* Banners */
-.banner { padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); font-size: 0.875rem; display: flex; align-items: flex-start; gap: var(--space-2); }
-.banner.info { background: #eff6ff; border: 0.0625rem solid #bfdbfe; color: var(--brand-dark); }
-.banner.warn { background: #fef2f2; border: 0.0625rem solid #fecaca; color: var(--red); }
-.banner strong { display: block; margin-bottom: 0.15rem; }
-#moderation-banner { display: none; }
-#pending-banner { display: none; }
+.stage{padding:4.5rem var(--s4) 12rem;display:flex;justify-content:center}
+.app{width:100%;max-width:84rem;min-height:46rem;background:var(--bg);border:0.0625rem solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);position:relative}
+.stage.device-mobile .app{width:24rem;max-width:24rem;min-height:46rem;border-radius:1.75rem;border:0.5rem solid var(--ink-bg)}
 
-/* Workspace grid */
-.workspace { display: grid; grid-template-columns: 1fr 22rem; gap: var(--space-6); align-items: start; }
-@media (max-width: 64rem) { .workspace { grid-template-columns: 1fr; } .layout { grid-template-columns: 1fr; } .sidebar { height: auto; position: static; } }
+/* ---------- app header ---------- */
+.app-header{display:flex;align-items:center;gap:var(--s4);padding:var(--s3) var(--s5);background:var(--surface);border-bottom:0.0625rem solid var(--border)}
+.app-brand{font-weight:800;font-size:1rem;color:var(--brand);display:flex;align-items:center;gap:var(--s2)}
+.brand-dim{color:var(--text);font-weight:400}
+.logo-dot{display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;border-radius:var(--radius-sm);background:var(--brand);color:var(--white);font-size:0.75rem}
+.app-nav{display:flex;gap:var(--s4);margin-left:var(--s4)}
+.app-nav-item{font-size:0.8125rem;font-weight:600;color:var(--muted);padding:var(--s1) 0;border-bottom:0.125rem solid transparent}
+.app-nav-item.active{color:var(--text);border-bottom-color:var(--brand)}
+.app-header-right{margin-left:auto;display:flex;align-items:center;gap:var(--s3)}
+.avatar{width:2rem;height:2rem;border-radius:var(--radius-pill);background:var(--tint-2);color:var(--brand-dark);display:flex;align-items:center;justify-content:center;font-size:0.6875rem;font-weight:800}
+.back-link{font-size:0.8125rem;font-weight:600;color:var(--brand)}.back-link:hover{text-decoration:underline}
+.editor-id{display:flex;align-items:center;gap:var(--s3)}
+.editor-name{font-weight:700}
+.switcher-label{font-size:0.6875rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.switcher{min-height:2rem;padding:0 var(--s2);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:0.75rem;max-width:11rem}
 
-/* Editor panel */
-.editor-panel { background: var(--surface); border: 0.0625rem solid var(--border); border-radius: var(--radius); padding: var(--space-6); }
-.section-tabs { display: flex; gap: var(--space-1); border-bottom: 0.0625rem solid var(--border); margin-bottom: var(--space-6); flex-wrap: wrap; }
-.tab { padding: var(--space-2) var(--space-4); border: none; background: none; cursor: pointer; font-size: 0.8125rem; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -0.0625rem; }
-.tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
-.field { margin-bottom: var(--space-4); }
-.field label { display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: var(--space-2); }
-.field input[type=text], .field textarea, .field select { width: 100%; padding: var(--space-2) var(--space-3); border: 0.0625rem solid var(--border); border-radius: var(--radius); font-size: 0.875rem; font-family: inherit; background: var(--surface); }
-.field input:focus, .field textarea:focus { outline: 2px solid var(--brand); outline-offset: -0.0625rem; }
-.field textarea { min-height: 4.5rem; resize: vertical; }
-.readonly .field input, .readonly .field textarea, .readonly .field select { background: var(--bg); color: var(--text-muted); pointer-events: none; }
-.presets { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
-.preset { padding: 0.3rem 0.75rem; border-radius: 62.5rem; border: 0.0625rem solid var(--border); background: var(--bg); font-size: 0.75rem; cursor: pointer; font-weight: 600; color: var(--text-muted); }
-.preset:hover { border-color: var(--brand); color: var(--brand); }
-.tools { display: flex; gap: var(--space-2); margin-bottom: var(--space-6); flex-wrap: wrap; }
-.tool { font-size: 0.75rem; }
-.tool:disabled { opacity: 0.4; }
-.hours-row { display: grid; grid-template-columns: 6rem 1fr 1fr; gap: var(--space-2); align-items: center; margin-bottom: var(--space-2); font-size: 0.8125rem; }
-.hours-row .day { font-weight: 600; }
+/* ---------- chips ---------- */
+.status-chip{display:inline-flex;align-items:center;padding:0.15rem var(--s3);border-radius:var(--radius-pill);font-size:0.6875rem;font-weight:700;white-space:nowrap}
+.status-chip.draft{background:var(--border);color:var(--slate-600)}
+.status-chip.pendingReview{background:var(--amber-bg);color:var(--amber)}
+.status-chip.approved{background:var(--green-bg);color:var(--green)}
+.status-chip.changesRequested{background:var(--red-bg);color:var(--red)}
+.status-chip.rejected{background:var(--red-bg);color:var(--red)}
+.status-chip.suspended{background:var(--slate-200);color:var(--slate-600)}
 
-/* Preview */
-.preview-panel { background: var(--surface); border: 0.0625rem solid var(--border); border-radius: var(--radius); overflow: hidden; position: sticky; top: var(--space-6); }
-.preview-panel h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: var(--space-3) var(--space-4); border-bottom: 0.0625rem solid var(--border); background: var(--bg); }
-.preview-body { padding: var(--space-4); }
-.preview-card { border: 0.0625rem solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.preview-hero { height: 7rem; background: linear-gradient(135deg, #bfdbfe, #dbeafe); display: flex; align-items: center; justify-content: center; color: var(--brand-dark); font-size: 0.75rem; font-weight: 600; }
-.preview-content { padding: var(--space-4); }
-.preview-name { font-size: 1.0625rem; font-weight: 700; }
-.preview-meta { font-size: 0.75rem; color: var(--text-muted); margin: 0.2rem 0 var(--space-3); }
-.preview-desc { font-size: 0.8125rem; color: var(--text); margin-bottom: var(--space-3); }
-.preview-actions { display: flex; gap: var(--space-2); }
-.preview-actions .btn { flex: 1; text-align: center; font-size: 0.75rem; padding: 0.4rem 0.5rem; }
-.preview-footer { font-size: 0.6875rem; color: var(--text-muted); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 0.0625rem solid var(--border); }
-.dirty-note { font-size: 0.6875rem; color: var(--amber); font-weight: 700; margin-top: var(--space-2); display: none; }
+/* ---------- owner home ---------- */
+.home-main{padding:var(--s6) var(--s8) var(--s8);max-width:72rem}
+.home-head{margin-bottom:var(--s6)}
+.home-head p{font-size:0.8125rem;max-width:44rem;margin-top:var(--s1)}
+.biz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:var(--s4)}
+.biz-card{display:flex;gap:var(--s4);padding:var(--s4);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius)}
+.biz-thumb{width:3.5rem;height:3.5rem;flex:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--tint-1),var(--tint-2));color:var(--brand-dark);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.125rem}
+.biz-body{flex:1;min-width:0}
+.biz-top{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);margin-bottom:var(--s1)}
+.biz-top h3{font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.biz-body>p{font-size:0.75rem}
+.biz-actions{margin-top:var(--s3);display:flex;gap:var(--s2)}
+.empty-state{text-align:center;padding:var(--s8) var(--s4);background:var(--surface);border:0.0625rem dashed var(--border);border-radius:var(--radius)}
+.empty-state h3{margin-bottom:var(--s2)}
+.empty-state p{font-size:0.8125rem;max-width:30rem;margin:0 auto var(--s4)}
 
-/* History trail */
-.trail { margin-top: var(--space-6); border-top: 0.0625rem solid var(--border); padding-top: var(--space-4); }
-.trail h3 { font-size: 0.8125rem; margin-bottom: var(--space-3); }
-.trail-item { font-size: 0.75rem; color: var(--text-muted); padding: var(--space-2) 0; border-bottom: 0.0625rem dashed var(--border); display: flex; justify-content: space-between; gap: var(--space-2); }
+/* ---------- editor savebar ---------- */
+.savebar{display:flex;align-items:center;gap:var(--s4);padding:var(--s3) var(--s5);background:var(--surface);border-bottom:0.0625rem solid var(--border);flex-wrap:wrap}
+.save-state{display:flex;align-items:center;gap:var(--s2);font-size:0.75rem;font-weight:600}
+.save-dot{width:0.5rem;height:0.5rem;border-radius:var(--radius-pill);background:var(--green)}
+.save-dot.dirty{background:var(--amber)}
+.save-dot.readonly{background:var(--muted)}
+.save-actions{margin-left:auto;display:flex;gap:var(--s2);flex-wrap:wrap}
+
+/* ---------- banners ---------- */
+.banners{padding:0 var(--s5)}
+.banner{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3) var(--s4);border-radius:var(--radius);margin-top:var(--s4);font-size:0.8125rem;border:0.0625rem solid transparent}
+.banner strong{display:block;margin-bottom:0.1rem}
+.banner {line-height:1.45}
+.banner.pending{background:var(--brand-tint);border-color:var(--tint-1);color:var(--brand-dark)}
+.banner.changes{background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber-ink)}
+.banner.rejected{background:var(--red-bg);border-color:var(--red-border);color:var(--red-ink)}
+.banner.identity{background:var(--brand-tint);border-color:var(--tint-1);color:var(--brand-dark)}
+.banner .btn{margin-left:auto;flex:none}
+
+/* ---------- workspace ---------- */
+.workspace{display:grid;grid-template-columns:15rem minmax(0,1fr) 22rem;gap:var(--s5);padding:var(--s5)}
+.section-nav{background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);padding:var(--s3);align-self:start;position:sticky;top:var(--s4)}
+.nav-group{font-size:0.625rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:var(--s3) var(--s2) var(--s1)}
+.nav-group:first-child{margin-top:0}
+.nav-item{display:flex;align-items:center;width:100%;text-align:left;padding:var(--s2) var(--s3);border-radius:var(--radius-sm);font-size:0.8125rem;color:var(--muted);font-weight:500}
+.nav-item:hover{background:var(--bg);color:var(--text)}
+.nav-item.active{background:var(--brand-tint);color:var(--brand);font-weight:700}
+.nav-item .dot{margin-left:auto;width:0.5rem;height:0.5rem;border-radius:var(--radius-pill);background:var(--border);flex:none}
+.nav-item .dot.ok{background:var(--green)}
+.nav-item .dot.partial{background:var(--amber)}
+.nav-stub{font-size:0.625rem;color:var(--muted);font-weight:600}
+
+.editor-panel{background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);min-width:0}
+.panel-head{display:flex;align-items:flex-start;gap:var(--s4);padding:var(--s4) var(--s5);border-bottom:0.0625rem solid var(--border)}
+.panel-head p{font-size:0.75rem;margin-top:0.1rem}
+.panel-tools{margin-left:auto;display:flex;gap:var(--s2)}
+.panel-body{padding:var(--s5)}
+.readonly .panel-body{opacity:.75}
+.readonly input,.readonly textarea,.readonly select{pointer-events:none;background:var(--bg);color:var(--muted)}
+.field{margin-bottom:var(--s4)}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:0.8125rem;font-weight:600;margin-bottom:var(--s2)}
+.field input,.field select,.field textarea{width:100%;padding:var(--s2) var(--s3);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:0.875rem}
+.field textarea{min-height:4.5rem;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:0.125rem solid var(--brand);outline-offset:-0.0625rem}
+.tag-core{display:inline-block;margin-left:var(--s2);padding:0 var(--s2);border-radius:var(--radius-pill);background:var(--amber-bg);color:var(--amber);font-size:0.625rem;font-weight:800;letter-spacing:.04em;vertical-align:middle}
+.presets{display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3)}
+.preset{padding:0.3rem var(--s3);border-radius:var(--radius-pill);border:0.0625rem solid var(--border);background:var(--bg);font-size:0.75rem;font-weight:600;color:var(--muted)}
+.preset:hover{border-color:var(--brand);color:var(--brand)}
+.hours-row{display:grid;grid-template-columns:4rem 1fr 1fr;gap:var(--s3);align-items:center;margin-bottom:var(--s2)}
+.hours-row .day{font-size:0.8125rem;font-weight:600}
+.hours-row input{padding:var(--s2);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);font-size:0.8125rem;width:100%}
+.upload-zone{border:0.125rem dashed var(--border);border-radius:var(--radius);padding:var(--s6);text-align:center;color:var(--muted);font-size:0.8125rem;margin-bottom:var(--s4)}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(5rem,1fr));gap:var(--s3);margin-bottom:var(--s4)}
+.photo-slot{aspect-ratio:1;border-radius:var(--radius-sm);background:var(--bg);border:0.0625rem solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.6875rem;color:var(--muted);font-weight:600}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:var(--s3)}
+.stat{background:var(--bg);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);padding:var(--s4);text-align:center}
+.stat b{display:block;font-size:1.375rem;color:var(--brand)}
+.stat span{font-size:0.6875rem;color:var(--muted);font-weight:600}
+.trail{display:flex;flex-direction:column;gap:0}
+.trail-item{display:flex;justify-content:space-between;gap:var(--s3);font-size:0.75rem;color:var(--muted);padding:var(--s2) 0;border-bottom:0.0625rem dashed var(--border)}
+.stub-note{background:var(--bg);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);padding:var(--s4);font-size:0.8125rem;color:var(--muted)}
+
+/* ---------- preview ---------- */
+.preview-panel{background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);overflow:hidden;align-self:start;position:sticky;top:var(--s4)}
+.preview-head{padding:var(--s3) var(--s4);border-bottom:0.0625rem solid var(--border);background:var(--bg)}
+.preview-head h2{font-size:0.6875rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.preview-head p{font-size:0.6875rem;color:var(--muted);margin-top:var(--s1)}
+.preview-body{padding:var(--s4)}
+.dirty-note{margin:0 var(--s4) var(--s4);padding:var(--s2) var(--s3);border-radius:var(--radius-sm);background:var(--amber-bg);color:var(--amber-ink);font-size:0.6875rem;font-weight:700;text-align:center}
+.profile-preview{border:0.0625rem solid var(--border);border-radius:var(--radius);overflow:hidden}
+.pp-hero{height:6.5rem;background:linear-gradient(135deg,var(--tint-1),var(--tint-2));display:flex;align-items:center;justify-content:center;color:var(--brand-dark);font-size:0.6875rem;font-weight:700;letter-spacing:.06em}
+.pp-body{padding:var(--s4)}
+.pp-top{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.pp-top h3{font-size:1.0625rem}
+.verified{font-size:0.625rem;font-weight:800;color:var(--green);background:var(--green-bg);padding:0.1rem var(--s2);border-radius:var(--radius-pill)}
+.pp-meta{font-size:0.6875rem;color:var(--muted);margin:var(--s2) 0}
+.pp-desc{font-size:0.8125rem;margin-bottom:var(--s3)}
+.pp-actions{display:flex;gap:var(--s2);margin-bottom:var(--s3)}
+.pp-action{flex:1;text-align:center;padding:var(--s2);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);font-size:0.6875rem;font-weight:700;color:var(--brand)}
+.pp-info{display:flex;flex-direction:column;gap:var(--s1);font-size:0.75rem;color:var(--slate-700);margin-bottom:var(--s3)}
+.pp-info div{overflow-wrap:anywhere}
+.pp-hours{border-top:0.0625rem solid var(--border);padding-top:var(--s3);margin-bottom:var(--s3)}
+.pp-hour{display:flex;justify-content:space-between;font-size:0.6875rem;color:var(--slate-700);padding:0.1rem 0}
+.pp-hour span:first-child{font-weight:600;color:var(--muted)}
+.pp-services{list-style:none;display:flex;flex-wrap:wrap;gap:var(--s1);margin-bottom:var(--s3)}
+.pp-services li{font-size:0.6875rem;background:var(--bg);border:0.0625rem solid var(--border);border-radius:var(--radius-pill);padding:0.1rem var(--s2)}
+.pp-footer{border-top:0.0625rem solid var(--border);padding-top:var(--s3);font-size:0.625rem;color:var(--muted)}
+
+/* ---------- overlay ---------- */
+.overlay{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:5rem var(--s4)}
+.overlay-card{width:100%;max-width:26rem;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.overlay-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:0.0625rem solid var(--border)}
+.overlay-head h2{font-size:0.875rem}
+.overlay-body{padding:var(--s4);max-height:70vh;overflow:auto}
+
+/* ---------- state inspector ---------- */
+.inspector{position:fixed;right:var(--s4);bottom:13rem;z-index:70;width:19rem;max-height:60vh;overflow:auto;background:var(--ink-bg);color:var(--ink-fg);border-radius:var(--radius);box-shadow:var(--shadow);padding:var(--s4)}
+.inspector h2{font-size:0.6875rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-fg-muted);margin-bottom:var(--s3)}
+.inspector pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.6875rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.inspector-admin{border-top:0.0625rem solid var(--ink-line);margin-top:var(--s3);padding-top:var(--s3)}
+.inspector-admin p{font-size:0.6875rem;color:var(--ink-fg-muted);margin-bottom:var(--s2)}
+.inspector-admin .btn{background:var(--ink-surface);border-color:var(--ink-line);color:var(--ink-fg);margin:0 var(--s2) var(--s2) 0}
+.inspector-admin .btn:hover{background:var(--ink-line)}
+
+/* ---------- scenario walkthrough ---------- */
+.scenario-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:var(--s4);z-index:85;width:min(76rem,calc(100% - 2rem));display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:var(--s3);align-items:center;padding:var(--s3) var(--s4);background:var(--ink-bg);color:var(--ink-fg);border-radius:var(--radius);box-shadow:var(--shadow)}
+.sc-arrow{width:2rem;height:2rem;border-radius:var(--radius-pill);border:0.0625rem solid var(--ink-line);color:var(--ink-fg-dim);font-size:1rem;line-height:1}
+.sc-arrow:hover{background:var(--ink-surface)}
+.sc-head{display:flex;align-items:center;gap:var(--s2)}
+.sc-count{font-size:0.625rem;font-weight:800;color:var(--accent);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-pill);padding:0 var(--s2)}
+.sc-title{font-weight:700;font-size:0.8125rem;color:var(--white)}
+.sc-desc{font-size:0.6875rem;color:var(--ink-fg-muted);margin:var(--s1) 0 var(--s2)}
+.sc-steps{list-style:none;display:flex;flex-wrap:wrap;gap:var(--s2)}
+.sc-step{font-size:0.6875rem;padding:0.1rem var(--s2);border-radius:var(--radius-pill);border:0.0625rem solid var(--ink-line);color:var(--ink-fg-muted)}
+.sc-step.done{color:var(--green-light);border-color:var(--green-ink)}
+.sc-step.current{color:var(--accent-fg);background:var(--accent);border-color:var(--accent);font-weight:700}
+.sc-actions{display:flex;gap:var(--s2)}
+
+/* ---------- compact app layout (phone frame OR narrow viewport; JS toggles .compact) ---------- */
+.app.compact .workspace{grid-template-columns:1fr}
+.app.compact .section-nav{position:static;display:flex;gap:var(--s1);overflow-x:auto;padding:var(--s2)}
+.app.compact .section-nav .nav-group,.app.compact .nav-item .dot{display:none}
+.app.compact .nav-item{width:auto;white-space:nowrap}
+.app.compact .preview-panel{position:static}
+.app.compact .home-main{padding:var(--s5)}
+.app.compact .app-header{flex-wrap:wrap;gap:var(--s2)}
+.app.compact .switcher-label{display:none}
+.app.compact .editor-id{width:100%}
+.app.compact .app-header-right{width:100%;margin-left:0;justify-content:space-between}
+
+/* ---------- page chrome responds to the real viewport ---------- */
+@media (max-width:64rem){
+  .scenario-bar{grid-template-columns:auto minmax(0,1fr) auto;row-gap:var(--s2)}
+  .sc-actions{grid-column:1/-1;justify-content:flex-end}
+}
+@media (max-width:40rem){
+  .stage{padding:5.5rem var(--s2) 14rem}
+  .proto-ribbon{height:auto;min-height:2.75rem;flex-wrap:wrap;padding:var(--s2) var(--s3)}
+  .proto-sub{display:none}
+  .app-header{flex-wrap:wrap;gap:var(--s2)}
+  .app-header-right{width:100%;margin-left:0}
+  .home-main{padding:var(--s4)}
+  .panel-body{padding:var(--s4)}
+  .inspector{left:var(--s4);right:var(--s4);width:auto}
+  .overlay{padding:5rem var(--s2)}
+  .overlay-card{max-width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;scroll-behavior:auto !important}}
 </style>
 </head>
 <body>
-<div class="layout">
-  <aside class="sidebar">
-    <div class="brand">Local<span>Hub</span></div>
-    <div class="biz-switch">
-      My Businesses
-      <select id="biz-switcher">
-        <option>The Corner Cafe (approved)</option>
-        <option>Green Bowl Co. (draft)</option>
-      </select>
-    </div>
-    <div class="nav-group-label">Listing Details</div>
-    <button class="nav-item active" data-tab="basic">Basic Information</button>
-    <button class="nav-item" data-tab="hours">Operating Hours</button>
-    <button class="nav-item" data-tab="photos">Photos &amp; Media</button>
-    <button class="nav-item" data-tab="contact">Contact Details</button>
-    <button class="nav-item" data-tab="location">Location &amp; Map</button>
-    <button class="nav-item" data-tab="categories">Categories &amp; Tags</button>
-    <button class="nav-item" data-tab="features">Features &amp; Amenities</button>
-    <div class="nav-group-label">Management</div>
-    <button class="nav-item" data-tab="analytics">Analytics <em style="font-style:normal;font-size:0.65rem">(stub)</em></button>
-    <button class="nav-item" data-tab="history">Change History</button>
-    <button class="nav-item" data-tab="settings">Settings <em style="font-style:normal;font-size:0.65rem">(stub)</em></button>
-  </aside>
 
-  <main class="main">
-    <div class="topbar">
-      <h1>Manage Your Listing</h1>
-      <span class="status-chip approved" id="status-chip">Approved</span>
-      <div class="actions">
-        <button class="btn tool" id="undo" disabled>Undo</button>
-        <button class="btn tool" id="redo" disabled>Redo</button>
-        <button class="btn" id="preview-btn">Preview Live</button>
-        <button class="btn" id="save-draft" disabled>Save Draft</button>
-        <button class="btn primary" id="submit-btn">Submit for Approval</button>
+<div class="proto-ribbon">
+  <span class="proto-tag">PROTOTYPE</span>
+  <span class="proto-title">LocalHub — Owner workspace</span>
+  <span class="proto-sub">issue #19 · throwaway · open the file directly · no backend</span>
+  <div class="proto-controls">
+    <button class="proto-btn active" id="btn-desktop" data-device="desktop">Desktop</button>
+    <button class="proto-btn" id="btn-mobile" data-device="mobile">Mobile</button>
+    <span class="proto-sep"></span>
+    <button class="proto-btn" id="btn-inspector">State</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="app" id="app">
+
+    <!-- ================= OWNER HOME ================= -->
+    <div class="view" id="view-home">
+      <header class="app-header">
+        <div class="app-brand"><span class="logo-dot">L</span>Local<span class="brand-dim">Hub</span></div>
+        <nav class="app-nav" aria-label="Owner workspace"><span class="app-nav-item active">My Businesses</span></nav>
+        <div class="app-header-right">
+          <button class="btn primary" id="home-add">Add Your Business</button>
+          <div class="avatar" title="Signed-in owner">RC</div>
+        </div>
+      </header>
+      <main class="home-main">
+        <div class="home-head">
+          <h1>My Businesses</h1>
+          <p class="muted">Any signed-in user can create a listing — owner access is derived from the listing, not granted by an admin. A listing becomes public only after approval.</p>
+        </div>
+        <div class="biz-grid" id="biz-grid"></div>
+        <div class="empty-state" id="home-empty" hidden>
+          <h3>No businesses yet</h3>
+          <p class="muted">Start with a draft. Nothing is visible to the public until an admin approves it.</p>
+          <button class="btn primary" id="empty-add">Add Your Business</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ================= EDITOR ================= -->
+    <div class="view" id="view-editor" hidden>
+      <header class="app-header">
+        <button class="back-link" id="editor-back">← My Businesses</button>
+        <div class="editor-id">
+          <span class="editor-name" id="editor-biz-name">—</span>
+          <span class="status-chip draft" id="status-chip">Draft</span>
+        </div>
+        <div class="app-header-right">
+          <label class="switcher-label" for="biz-switcher">My Businesses</label>
+          <select class="switcher" id="biz-switcher" aria-label="Switch business"></select>
+          <div class="avatar" title="Signed-in owner">RC</div>
+        </div>
+      </header>
+
+      <div class="savebar">
+        <div class="save-state" aria-live="polite">
+          <span class="save-dot" id="save-dot"></span>
+          <span id="save-label">All changes saved</span>
+          <span class="muted" id="save-last"></span>
+        </div>
+        <div class="save-actions">
+          <button class="btn" id="btn-undo" disabled>Undo</button>
+          <button class="btn" id="btn-redo" disabled>Redo</button>
+          <button class="btn" id="btn-preview">Preview Live</button>
+          <button class="btn" id="btn-save">Save Draft</button>
+          <button class="btn primary" id="btn-submit">Submit for Approval</button>
+        </div>
       </div>
-    </div>
 
-    <div class="banner warn" id="moderation-banner">
-      <div>
-        <strong>Changes requested by LocalHub Admin</strong>
-        <span id="moderation-reason">Please update your hours — Wednesday shows 24:00 as closing time.</span>
-        Revise the listing and resubmit for approval.
+      <div class="banners" id="banners">
+        <div class="banner pending" id="banner-pending" hidden>
+          <div><strong>Submitted — pending review</strong><span id="pending-text">Read-only while an admin reviews it.</span></div>
+        </div>
+        <div class="banner changes" id="banner-changes" hidden>
+          <div><strong>Changes requested by LocalHub Admin</strong><span id="changes-reason"></span> Editing is re-enabled — revise and resubmit.</div>
+        </div>
+        <div class="banner rejected" id="banner-rejected" hidden>
+          <div><strong>Listing rejected</strong><span id="rejected-reason"></span> Start a revision to fix it, then submit again.</div>
+          <button class="btn" id="banner-revise">Revise listing</button>
+        </div>
+        <div class="banner identity" id="banner-identity" hidden>
+          <div><strong>Core identity fields changed</strong>Name, category, description and address are core — submitting sends this approved listing back for review. Content edits (hours, contact, photos, services) go live immediately.</div>
+        </div>
       </div>
-    </div>
-    <div class="banner info" id="pending-banner">
-      <div>
-        <strong>Submitted — pending review</strong>
-        Submitted Sep 6, 2026. Your listing is read-only while the admin reviews it.
-      </div>
-    </div>
 
-    <div class="workspace">
-      <div class="editor-panel" id="editor-panel">
-        <div class="section-tabs" id="section-tabs">
-          <button class="tab active" data-tab="basic">Basic Information</button>
-          <button class="tab" data-tab="hours">Operating Hours</button>
-          <button class="tab" data-tab="contact">Contact</button>
-          <button class="tab" data-tab="location">Location</button>
-          <button class="tab" data-tab="features">Features</button>
-        </div>
+      <div class="workspace">
+        <nav class="section-nav" id="section-nav" aria-label="Editor sections">
+          <div class="nav-group">Listing Details</div>
+          <button class="nav-item active" data-section="basic">Basic Information<span class="dot" id="dot-basic"></span></button>
+          <button class="nav-item" data-section="hours">Operating Hours<span class="dot" id="dot-hours"></span></button>
+          <button class="nav-item" data-section="photos">Photos &amp; Media<span class="dot" id="dot-photos"></span></button>
+          <button class="nav-item" data-section="contact">Contact Details<span class="dot" id="dot-contact"></span></button>
+          <div class="nav-group">Advanced</div>
+          <button class="nav-item" data-section="location">Location &amp; Map<span class="dot" id="dot-location"></span></button>
+          <button class="nav-item" data-section="categories">Categories &amp; Tags<span class="dot" id="dot-categories"></span></button>
+          <button class="nav-item" data-section="features">Features &amp; Amenities<span class="dot" id="dot-features"></span></button>
+          <div class="nav-group">Management</div>
+          <button class="nav-item" data-section="analytics">Analytics <span class="nav-stub">stub</span></button>
+          <button class="nav-item" data-section="history">Change History</button>
+          <button class="nav-item" data-section="settings">Settings <span class="nav-stub">stub</span></button>
+        </nav>
 
-        <!-- Basic info -->
-        <div class="field">
-          <label>Business Name</label>
-          <input type="text" id="f-name" value="The Corner Cafe">
-        </div>
-        <div class="field">
-          <label>Primary Category</label>
-          <select id="f-category">
-            <option selected>Food &amp; Drink</option>
-            <option>Beauty &amp; Wellness</option>
-            <option>Professional Services</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Description</label>
-          <textarea id="f-desc">A cozy neighborhood cafe serving fresh pastries, breakfast all day, and expertly pulled espresso.</textarea>
-        </div>
-        <div class="field">
-          <label>Keywords (searchable)</label>
-          <input type="text" id="f-keywords" value="coffee, pastries, breakfast, wifi">
-        </div>
-
-        <!-- Hours -->
-        <div id="hours-block" style="display:none">
-          <div class="presets" id="presets">
-            <button class="preset" data-preset="standard">Standard Hours (9–5)</button>
-            <button class="preset" data-preset="coffee">Coffee Shop (7–6)</button>
-            <button class="preset" data-preset="weekend">Weekend Only</button>
-            <button class="preset" data-preset="custom">Custom</button>
+        <div class="editor-panel" id="editor-panel">
+          <div class="panel-head">
+            <div><h2 id="section-title">Basic Information</h2><p class="muted" id="section-sub">Essential details about your business</p></div>
+            <div class="panel-tools"><button class="btn small" id="tool-reset">Reset Section</button></div>
           </div>
-          <div class="hours-row"><span class="day">Mon–Fri</span><input type="text" id="h-week-open" value="07:00"><input type="text" id="h-week-close" value="18:00"></div>
-          <div class="hours-row"><span class="day">Saturday</span><input type="text" id="h-sat-open" value="08:00"><input type="text" id="h-sat-close" value="16:00"></div>
-          <div class="hours-row"><span class="day">Sunday</span><input type="text" id="h-sun-open" value="Closed"><input type="text" id="h-sun-close" value="Closed"></div>
-          <div class="tools" style="margin-top:1rem">
-            <button class="btn tool" id="reset-section">Reset Section (from last saved)</button>
-          </div>
-        </div>
-
-        <!-- Contact (simplified) -->
-        <div id="contact-block" style="display:none">
-          <div class="field"><label>Phone</label><input type="text" id="f-phone" value="(555) 123-4567"></div>
-          <div class="field"><label>Email</label><input type="text" id="f-email" value="hello@cornercafe.example"></div>
-          <div class="field"><label>Website</label><input type="text" id="f-website" value="cornercafe.example"></div>
-        </div>
-
-        <!-- Location (address only, no map in v1) -->
-        <div id="location-block" style="display:none">
-          <div class="field"><label>Street Address</label><input type="text" value="123 Main St"></div>
-          <div class="field"><label>City / State</label><input type="text" value="Springfield, IL"></div>
-          <p style="font-size:0.75rem;color:var(--text-muted)">Map embed: deferred (geolocation out of scope v1) — lat/lng stored, not displayed.</p>
-        </div>
-
-        <!-- Features -->
-        <div id="features-block" style="display:none">
-          <div class="field"><label>Services / Amenities (one per line)</label><textarea id="f-services">Espresso bar
-Fresh pastries
-Free wifi
-Outdoor seating</textarea></div>
-        </div>
-
-        <div class="trail" id="trail">
-          <h3>Change History (trail)</h3>
-          <div class="trail-item"><span>Status changed: changesRequested → pendingReview</span><span>Sep 5, 2026</span></div>
-          <div class="trail-item"><span>Draft saved</span><span>Sep 4, 2026</span></div>
-          <div class="trail-item"><span>Approved &amp; verified</span><span>Aug 30, 2026</span></div>
-          <div class="trail-item"><span>Listing created</span><span>Aug 28, 2026</span></div>
-        </div>
-      </div>
-
-      <aside class="preview-panel">
-        <h2>Live Preview</h2>
-        <div class="preview-body">
-          <div class="preview-card">
-            <div class="preview-hero">Gallery placeholder</div>
-            <div class="preview-content">
-              <div class="preview-name" id="p-name">The Corner Cafe</div>
-              <div class="preview-meta" id="p-meta">Food &amp; Drink · ★ 4.8 (124) · Open until 18:00</div>
-              <div class="preview-desc" id="p-desc">A cozy neighborhood cafe serving fresh pastries, breakfast all day, and expertly pulled espresso.</div>
-              <div class="preview-actions">
-                <button class="btn">Call</button>
-                <button class="btn">Directions</button>
-                <button class="btn">Website</button>
+          <div class="panel-body">
+            <section class="section" data-section="basic">
+              <div class="field"><label for="f-name">Business Name <span class="tag-core">core</span></label><input id="f-name" type="text" placeholder="e.g. The Corner Café"></div>
+              <div class="field"><label for="f-category">Primary Category <span class="tag-core">core</span></label>
+                <select id="f-category">
+                  <option>Food &amp; Drink</option><option>Restaurants</option><option>Beauty &amp; Wellness</option>
+                  <option>Automotive</option><option>Healthcare</option><option>Legal Services</option>
+                  <option>Retail</option><option>Professional Services</option>
+                </select>
               </div>
-              <div class="preview-footer" id="p-footer">Owner-maintained · Last updated Aug 30, 2026</div>
-            </div>
+              <div class="field"><label for="f-description">Description <span class="tag-core">core</span></label><textarea id="f-description" placeholder="What makes this business worth visiting?"></textarea></div>
+              <div class="field"><label for="f-keywords">Keywords (searchable)</label><input id="f-keywords" type="text" placeholder="coffee, pastries, breakfast">
+                <p class="hint">Content field — for an approved listing these go live immediately, no re-review.</p>
+              </div>
+            </section>
+
+            <section class="section" data-section="hours" hidden>
+              <div class="presets" id="presets">
+                <button class="preset" data-preset="standard">Standard 9–5</button>
+                <button class="preset" data-preset="coffee">Coffee Shop 7–6</button>
+                <button class="preset" data-preset="weekend">Weekend only</button>
+                <button class="preset" data-preset="clear">Clear</button>
+              </div>
+              <p class="hint">Presets are quick-fills only — they stamp ordinary editable values into the form, nothing is stored as a template.</p>
+              <div id="hours-rows"></div>
+            </section>
+
+            <section class="section" data-section="photos" hidden>
+              <div class="upload-zone">Drag photos here — <span class="muted">prototype, no file upload</span></div>
+              <div class="photo-grid" id="photo-grid"></div>
+              <button class="btn small" id="add-photo">Add photo</button>
+              <p class="hint">Photos are content — adding or reordering an approved listing's photos goes live immediately.</p>
+            </section>
+
+            <section class="section" data-section="contact" hidden>
+              <div class="field"><label for="f-phone">Phone</label><input id="f-phone" type="text" placeholder="(555) 123-4567"></div>
+              <div class="field"><label for="f-email">Email</label><input id="f-email" type="text" placeholder="hello@example.com"></div>
+              <div class="field"><label for="f-website">Website</label><input id="f-website" type="text" placeholder="example.com"></div>
+            </section>
+
+            <section class="section" data-section="location" hidden>
+              <div class="field"><label for="f-street">Street Address <span class="tag-core">core</span></label><input id="f-street" type="text" placeholder="123 Main St"></div>
+              <div class="field"><label for="f-city">City / State</label><input id="f-city" type="text" placeholder="Springfield, IL"></div>
+              <p class="stub-note">Simplified in v1: address fields only, lat/lng stored. No map embed — geolocation is out of scope.</p>
+            </section>
+
+            <section class="section" data-section="categories" hidden>
+              <div class="field"><label>Primary Category <span class="tag-core">core</span></label>
+                <p class="hint" style="margin-top:0">Set in Basic Information: <strong id="cat-mirror">—</strong></p>
+              </div>
+              <div class="field"><label for="f-tags">Additional Tags</label><input id="f-tags" type="text" placeholder="vegan, late-night, family-owned">
+                <p class="hint">Tags are content — safe to change on an approved listing.</p>
+              </div>
+            </section>
+
+            <section class="section" data-section="features" hidden>
+              <div class="field"><label for="f-services">Services &amp; Amenities (one per line)</label><textarea id="f-services" placeholder="Espresso bar&#10;Free wifi"></textarea>
+                <p class="hint">Content field — goes live immediately on an approved listing.</p>
+              </div>
+            </section>
+
+            <section class="section" data-section="analytics" hidden>
+              <p class="stub-note">v1 stub — counts read from existing tables. No revenue card.</p>
+              <div class="stat-grid" style="margin-top:1rem">
+                <div class="stat"><b id="stat-views">0</b><span>Profile views</span></div>
+                <div class="stat"><b id="stat-clicks">0</b><span>Contact clicks</span></div>
+                <div class="stat"><b>0</b><span>Orders / bookings</span></div>
+              </div>
+            </section>
+
+            <section class="section" data-section="history" hidden>
+              <h3 style="margin-bottom:0.5rem">Change History</h3>
+              <p class="hint" style="margin-top:0;margin-bottom:0.75rem">Simple saved + status trail — no field-level diffs in v1.</p>
+              <div class="trail" id="trail"></div>
+            </section>
+
+            <section class="section" data-section="settings" hidden>
+              <p class="stub-note">v1 stub — placeholder. Nothing to configure here yet.</p>
+            </section>
           </div>
-          <div class="dirty-note" id="dirty-note">PREVIEWING UNSAVED EDITS — not yet submitted</div>
         </div>
-      </aside>
+
+        <aside class="preview-panel">
+          <div class="preview-head">
+            <h2>Live Preview</h2>
+            <p>Rendered from <strong>unsaved</strong> form state — what you type is what you'd see.</p>
+          </div>
+          <div class="preview-body" id="preview-body"></div>
+          <div class="dirty-note" id="dirty-note" hidden>Previewing unsaved edits — not saved or submitted</div>
+        </aside>
+      </div>
     </div>
-  </main>
+
+  </div>
+</div>
+
+<!-- ================= PREVIEW OVERLAY ================= -->
+<div class="overlay" id="overlay" hidden>
+  <div class="overlay-card" role="dialog" aria-label="Preview Live">
+    <div class="overlay-head"><h2>Preview Live — public profile</h2><button class="btn" id="overlay-close">Close</button></div>
+    <div class="overlay-body" id="overlay-body"></div>
+  </div>
+</div>
+
+<!-- ================= STATE INSPECTOR ================= -->
+<aside class="inspector" id="inspector" hidden>
+  <h2>Prototype state</h2>
+  <pre id="inspector-body"></pre>
+  <div class="inspector-admin">
+    <p>Simulate the admin side (a separate workspace in the real product):</p>
+    <button class="btn small" data-admin="request">Request changes</button>
+    <button class="btn small" data-admin="reject">Reject</button>
+    <button class="btn small" data-admin="approve">Approve</button>
+  </div>
+</aside>
+
+<!-- ================= SCENARIO WALKTHROUGH ================= -->
+<div class="scenario-bar" id="scenario-bar">
+  <button class="sc-arrow" id="sc-prev" aria-label="Previous scenario">‹</button>
+  <div class="sc-body">
+    <div class="sc-head"><span class="sc-count" id="sc-count">1/7</span><span class="sc-title" id="sc-title"></span></div>
+    <p class="sc-desc" id="sc-desc"></p>
+    <ol class="sc-steps" id="sc-steps"></ol>
+  </div>
+  <div class="sc-actions">
+    <button class="btn primary" id="sc-next-step">Next step</button>
+    <button class="btn" id="sc-restart">Restart</button>
+  </div>
+  <button class="sc-arrow" id="sc-next" aria-label="Next scenario">›</button>
 </div>
 
 <script>
-// Prototype interactions per ticket 06 resolution:
-// - preview renders from UNSAVED form state (dirty note appears)
-// - Undo/Redo client-only on form state
-// - hours presets = quick-fills
-// - Reset Section restores last-saved snapshot
-// - status simulation buttons (console) for read-only + banner states
+(function(){
+  'use strict';
 
-const state = {
-  status: 'approved',            // approved | pendingReview | changesRequested | draft
-  history: [],                  // undo stack
-  future: [],                   // redo stack
-  saved: snapshot(),            // last-saved Convex state
-  readonly: false,
-};
-
-function snapshot() {
-  return {
-    name: val('f-name'), desc: val('f-desc'), keywords: val('f-keywords'),
-    phone: val('f-phone'), email: val('f-email'), website: val('f-website'),
-    hours: [val('h-week-open'), val('h-week-close'), val('h-sat-open'), val('h-sat-close'), val('h-sun-open'), val('h-sun-close')],
+  /* =====================================================================
+     PURE STATE MACHINE — liftable into the real module.
+     Transitions match SPEC.md §5 exactly.
+     ===================================================================== */
+  var ALLOWED = {
+    draft:            ['pendingReview','rejected'],
+    pendingReview:    ['approved','changesRequested','rejected'],
+    approved:         ['pendingReview','suspended'],
+    changesRequested: ['pendingReview','draft','rejected'],
+    rejected:         ['draft','pendingReview'],
+    suspended:        ['approved']
   };
-}
-function val(id) { return document.getElementById(id).value; }
-function setVal(id, v) { document.getElementById(id).value = v; }
-function applySnapshot(s) {
-  setVal('f-name', s.name); setVal('f-desc', s.desc); setVal('f-keywords', s.keywords);
-  setVal('f-phone', s.phone); setVal('f-email', s.email); setVal('f-website', s.website);
-  ['h-week-open','h-week-close','h-sat-open','h-sat-close','h-sun-open','h-sun-close'].forEach((id, i) => setVal(id, s.hours[i]));
-}
+  function canTransition(from, to){ return (ALLOWED[from] || []).indexOf(to) !== -1; }
 
-const presets = {
-  standard: ['09:00','17:00','09:00','17:00','Closed','Closed'],
-  coffee:   ['07:00','18:00','08:00','16:00','Closed','Closed'],
-  weekend:  ['Closed','Closed','Closed','Closed','09:00','17:00'],
-  custom:   ['','','','','',''],
-};
-
-document.querySelectorAll('.field input, .field textarea, .field select, .hours-row input').forEach(el => {
-  el.addEventListener('input', () => {
-    state.history.push(JSON.stringify(snapshot()));
-    state.future = [];
-    updateTools(); updatePreview(true);
-  });
-});
-
-function updateTools() {
-  document.getElementById('undo').disabled = state.history.length === 0 || state.readonly;
-  document.getElementById('redo').disabled = state.future.length === 0 || state.readonly;
-  document.getElementById('save-draft').disabled = state.readonly;
-}
-function updatePreview(dirty) {
-  document.getElementById('p-name').textContent = val('f-name');
-  document.getElementById('p-desc').textContent = val('f-desc');
-  document.getElementById('p-meta').textContent =
-    document.getElementById('f-category').selectedOptions[0].textContent +
-    ' · ★ 4.8 (124) · Open until ' + val('h-week-close');
-  document.getElementById('dirty-note').style.display = dirty ? 'block' : 'none';
-}
-
-document.getElementById('undo').onclick = () => {
-  if (!state.history.length) return;
-  state.future.push(JSON.stringify(snapshot()));
-  applySnapshot(JSON.parse(state.history.pop()));
-  updateTools(); updatePreview(true);
-};
-document.getElementById('redo').onclick = () => {
-  if (!state.future.length) return;
-  state.history.push(JSON.stringify(snapshot()));
-  applySnapshot(JSON.parse(state.future.pop()));
-  updateTools(); updatePreview(true);
-};
-document.getElementById('reset-section').onclick = () => {
-  applySnapshot(state.saved);
-  updateTools(); updatePreview(true);
-};
-document.getElementById('preview-btn').onclick = () => updatePreview(true);
-document.getElementById('save-draft').onclick = () => {
-  state.saved = snapshot();
-  state.history = []; state.future = [];
-  updateTools(); updatePreview(false);
-  alert('Draft saved (status: draft). In production this persists to Convex.');
-};
-document.getElementById('submit-btn').onclick = () => {
-  if (state.readonly) return;
-  setStatus('pendingReview');
-  alert('Submitted for approval (approved → pendingReview transition). Editor now read-only.');
-};
-
-document.querySelectorAll('#presets .preset').forEach(btn => {
-  btn.onclick = () => {
-    const p = presets[btn.dataset.preset];
-    ['h-week-open','h-week-close','h-sat-open','h-sat-close','h-sun-open','h-sun-close'].forEach((id, i) => setVal(id, p[i]));
-    updatePreview(true);
+  /* Core identity fields re-trigger review; content fields go live immediately. */
+  var CORE_FIELDS = ['name','category','description','street'];
+  var EDITABLE = ['name','category','description','keywords','phone','email','website','street','city','lat','lng','hours','services','photos','tags'];
+  var STATUS_LABEL = {
+    draft:'Draft', pendingReview:'Pending Review', approved:'Approved',
+    changesRequested:'Changes Requested', rejected:'Rejected', suspended:'Suspended'
   };
-});
 
-// Section tabs + sidebar nav
-const tabs = document.querySelectorAll('.tab');
-const navItems = document.querySelectorAll('.nav-item[data-tab]');
-const blocks = { basic: null, hours: 'hours-block', contact: 'contact-block', location: 'location-block', features: 'features-block' };
-function activate(tabId) {
-  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-  navItems.forEach(n => n.classList.toggle('active', n.dataset.tab === tabId));
-  const tabBlockMap = { basic: null, hours: 'hours-block', contact: 'contact-block', location: 'location-block', features: 'features-block', photos: null, categories: null, analytics: null, history: 'trail-tab', settings: null };
-  Object.values(blocks).forEach(id => { if (id) document.getElementById(id).style.display = 'none'; });
-  if (blocks[tabId]) document.getElementById(blocks[tabId]).style.display = 'block';
-  const isHours = tabId === 'hours';
-  // hours inputs live inside hours-block; keep basic fields visible otherwise
-}
-[...tabs, ...navItems].forEach(el => el.addEventListener('click', () => activate(el.dataset.tab)));
+  /* =====================================================================
+     PROTOTYPE DATA + STATE  (everything below is throwaway)
+     ===================================================================== */
+  var $ = function(sel){ return document.querySelector(sel); };
+  var $$ = function(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); };
+  var compactMQ = window.matchMedia('(max-width:64rem)');
+  function deepClone(x){ return JSON.parse(JSON.stringify(x)); }
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function NOW(){
+    return new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+  function hrs(rows){
+    return rows.map(function(r){ return { d:r[0], open:r[1], close:r[2] }; });
+  }
+  function listing(o){
+    var base = {
+      id:'x', name:'', category:'Food & Drink', description:'', keywords:'', tags:'',
+      phone:'', email:'', website:'', street:'', city:'', lat:null, lng:null,
+      hours: hrs([['Mon','',''],['Tue','',''],['Wed','',''],['Thu','',''],['Fri','',''],['Sat','',''],['Sun','','']]),
+      services:[], photos:0,
+      status:'draft', moderationReason:'', lastSavedAt:'—', submittedAt:null,
+      views:0, contactClicks:0, trail:[]
+    };
+    return Object.assign(base, o);
+  }
+  function cornerApproved(){
+    return listing({
+      id:'corner', name:'The Corner Café', category:'Food & Drink',
+      description:'A cozy neighborhood café serving fresh pastries, breakfast all day, and expertly pulled espresso.',
+      keywords:'coffee, pastries, breakfast, wifi', tags:'coffee, breakfast, wifi',
+      phone:'(555) 123-4567', email:'hello@cornercafe.example', website:'cornercafe.example',
+      street:'123 Main St', city:'Springfield, IL', lat:39.78, lng:-89.65,
+      hours: hrs([['Mon','07:00','18:00'],['Tue','07:00','18:00'],['Wed','07:00','18:00'],['Thu','07:00','18:00'],['Fri','07:00','20:00'],['Sat','08:00','16:00'],['Sun','','']]),
+      services:['Espresso bar','Fresh pastries','Free wifi','Outdoor seating'],
+      photos:3, views:342, contactClicks:28,
+      status:'approved', lastSavedAt:'Aug 30, 2026',
+      trail:[
+        { at:'Aug 30, 2026', text:'Approved & verified' },
+        { at:'Aug 28, 2026', text:'Listing created' }
+      ]
+    });
+  }
+  function greenDraft(){
+    return listing({
+      id:'green', name:'Green Bowl Co.', category:'Food & Drink',
+      description:'Build-your-own grain bowls with seasonal vegetables.',
+      tags:'healthy, takeout',
+      street:'88 Market St', city:'Springfield, IL',
+      hours: hrs([['Mon','11:00','20:00'],['Tue','11:00','20:00'],['Wed','11:00','20:00'],['Thu','11:00','20:00'],['Fri','11:00','21:00'],['Sat','12:00','21:00'],['Sun','','']]),
+      services:['Grain bowls','Salads'],
+      photos:0, status:'draft', lastSavedAt:'Sep 4, 2026',
+      trail:[
+        { at:'Sep 4, 2026', text:'Draft saved' },
+        { at:'Sep 3, 2026', text:'Listing created' }
+      ]
+    });
+  }
+  function luxeChanges(){
+    return listing({
+      id:'luxe', name:'Luxe Hair Studio & Spa', category:'Beauty & Wellness',
+      description:'Cut, colour and spa treatments in a calm studio.',
+      tags:'salon, spa, colour',
+      phone:'', email:'hello@luxestudio.example', website:'luxestudio.example',
+      street:'12 Oak Avenue', city:'Springfield, IL',
+      hours: hrs([['Mon','',''],['Tue','09:00','17:00'],['Wed','09:00','24:00'],['Thu','09:00','17:00'],['Fri','09:00','18:00'],['Sat','10:00','16:00'],['Sun','','']]),
+      services:['Haircut','Colour','Massage'],
+      photos:2, views:120, contactClicks:9,
+      status:'changesRequested', lastSavedAt:'Sep 5, 2026',
+      moderationReason:'Please fix Wednesday hours — closing time shows 24:00 — and add a contact phone number.',
+      trail:[
+        { at:'Sep 5, 2026', text:'Changes requested by admin' },
+        { at:'Sep 1, 2026', text:'Submitted for review' },
+        { at:'Aug 29, 2026', text:'Listing created' }
+      ]
+    });
+  }
+  function rejectedCorner(){
+    var l = cornerApproved();
+    l.status = 'rejected';
+    l.moderationReason = 'Listing does not meet directory standards: the description reads as promotional and the address is incomplete.';
+    l.trail.unshift({ at:'Sep 7, 2026', text:'Rejected by admin' });
+    return l;
+  }
+  function world(kind){
+    var list;
+    switch (kind){
+      case 'new':      list = []; break;
+      case 'draft':    list = [greenDraft()]; break;
+      case 'changes':  list = [luxeChanges()]; break;
+      case 'rejected': list = [rejectedCorner()]; break;
+      case 'pending': {
+        var p = cornerApproved(); p.status = 'pendingReview'; p.submittedAt = 'Aug 31, 2026';
+        p.trail.unshift({ at:'Aug 31, 2026', text:'Submitted for review' }); list = [p]; break;
+      }
+      default: list = [cornerApproved()];
+    }
+    return {
+      listings:list, view:'home', activeId:list.length ? list[0].id : null,
+      form:null, saved:null, dirty:false, identityDirty:false,
+      history:[], future:[], section:'basic', device:'desktop',
+      inspector:false, overlay:false, scenario:0, step:0
+    };
+  }
 
-// Status simulation (demonstrates read-only + banners)
-function setStatus(s) {
-  state.status = s;
-  state.readonly = (s === 'pendingReview');
-  const chip = document.getElementById('status-chip');
-  chip.textContent = { approved: 'Approved', pendingReview: 'Pending Review', changesRequested: 'Changes Requested', draft: 'Draft' }[s];
-  chip.className = 'status-chip ' + s;
-  document.getElementById('pending-banner').style.display = s === 'pendingReview' ? 'flex' : 'none';
-  document.getElementById('moderation-banner').style.display = s === 'changesRequested' ? 'flex' : 'none';
-  document.getElementById('editor-panel').classList.toggle('readonly', state.readonly);
-  document.getElementById('submit-btn').disabled = state.readonly;
-  updateTools();
-}
-// Simulate receiving a change request
-setTimeout(() => setStatus('changesRequested'), 400);
-// Then simulate resubmission flow being available
-console.log('Prototype: status is changesRequested — reason banner shown, editing enabled. Click Submit for Approval to see the pendingReview read-only state.');
+  var S = world('approved');
+  function active(){ for (var i=0;i<S.listings.length;i++){ if (S.listings[i].id === S.activeId) return S.listings[i]; } return null; }
+  function pick(o){ var r={}; EDITABLE.forEach(function(k){ if(k in o) r[k]=deepClone(o[k]); }); return r; }
+  function computeDirty(){
+    if (!S.form || !S.saved) { S.dirty=false; S.identityDirty=false; return; }
+    S.dirty = JSON.stringify(pick(S.form)) !== JSON.stringify(pick(S.saved));
+    S.identityDirty = CORE_FIELDS.some(function(k){ return JSON.stringify(S.form[k]) !== JSON.stringify(S.saved[k]); });
+  }
+  function canEdit(){ var l=active(); return !!l && l.status!=='pendingReview' && l.status!=='suspended'; }
+
+  /* ---------------- actions ---------------- */
+  function goHome(){ S.view='home'; paint(); }
+  function openEditor(id){
+    var l=null; S.listings.forEach(function(x){ if(x.id===id) l=x; });
+    if(!l) return;
+    S.activeId=id; S.section='basic'; S.view='editor';
+    S.form=pick(l); S.saved=deepClone(S.form);
+    S.history=[]; S.future=[]; computeDirty(); paintForm(); paint();
+  }
+  function addBusiness(){
+    var l = listing({ id:'new-'+(S.listings.length+1), name:'', category:'Food & Drink', status:'draft', lastSavedAt:'—',
+      trail:[{ at:NOW(), text:'Listing created' }] });
+    S.listings.push(l); openEditor(l.id);
+  }
+  function setField(k, v){
+    if(!S.form) return;
+    S.history.push(deepClone(S.form)); S.future=[];
+    S.form[k]=v; computeDirty(); paint();
+  }
+  function setFieldQuiet(k, v){
+    if(!S.form) return;
+    S.form[k]=v; computeDirty(); paint();
+  }
+  function undo(){
+    if(!S.history.length) return;
+    S.future.push(deepClone(S.form)); S.form=S.history.pop(); computeDirty(); paintForm(); paint();
+  }
+  function redo(){
+    if(!S.future.length) return;
+    S.history.push(deepClone(S.form)); S.form=S.future.pop(); computeDirty(); paintForm(); paint();
+  }
+  function resetSection(){
+    if(!S.form || !S.saved) return;
+    if(S.section==='basic' || S.section==='contact' || S.section==='location' || S.section==='categories' || S.section==='features'){
+      ['name','category','description','keywords','phone','email','website','street','city','tags','services'].forEach(function(k){
+        if(k in S.saved) S.form[k]=deepClone(S.saved[k]);
+      });
+    } else if(S.section==='hours' && S.saved.hours){ S.form.hours=deepClone(S.saved.hours); }
+    else if(S.section==='photos'){ S.form.photos=S.saved.photos; }
+    computeDirty(); paintForm(); paint();
+  }
+  function applyPreset(name){
+    var p = {
+      standard:[['09:00','17:00'],['09:00','17:00'],['09:00','17:00'],['09:00','17:00'],['09:00','17:00'],['',''],['','']],
+      coffee:  [['07:00','18:00'],['07:00','18:00'],['07:00','18:00'],['07:00','18:00'],['07:00','18:00'],['08:00','16:00'],['','']],
+      weekend: [['',''],['',''],['',''],['',''],['',''],['09:00','17:00'],['09:00','17:00']],
+      clear:   [['',''],['',''],['',''],['',''],['',''],['',''],['','']]
+    }[name];
+    if(!p || !S.form) return;
+    S.form.hours = S.form.hours.map(function(h,i){ return { d:h.d, open:p[i][0], close:p[i][1] }; });
+    computeDirty(); renderHours(); paint();
+  }
+  function commitForm(){
+    var l=active(); if(!l || !S.form) return;
+    Object.keys(pick(S.form)).forEach(function(k){ l[k]=deepClone(S.form[k]); });
+    S.saved = deepClone(pick(S.form));
+    computeDirty();
+  }
+  function saveDraft(){
+    var l=active(); if(!l || !canEdit()) return;
+    commitForm();
+    l.lastSavedAt = NOW();
+    l.trail.unshift({ at:NOW(), text: l.status==='approved' ? 'Content changes published (no re-review)' : 'Draft saved' });
+    S.history=[]; S.future=[]; paint();
+  }
+  function transition(to, note){
+    var l=active(); if(!l) return false;
+    var from=l.status;
+    if(!canTransition(from,to)){ return false; }
+    l.status=to;
+    if(to==='pendingReview') l.submittedAt=NOW();
+    l.trail.unshift({ at:NOW(), text: note || (STATUS_LABEL[from]+' → '+STATUS_LABEL[to]) });
+    paint(); return true;
+  }
+  function submit(){
+    var l=active(); if(!l || !canEdit()) return;
+    if(l.status==='approved'){
+      if(!S.dirty) return;
+      var wasIdentityEdit = S.identityDirty;
+      commitForm();
+      if(wasIdentityEdit) transition('pendingReview','Core identity change — resubmitted for review');
+      else { l.lastSavedAt=NOW(); l.trail.unshift({ at:NOW(), text:'Content changes published (no re-review)' }); paint(); }
+      return;
+    }
+    commitForm(); transition('pendingReview','Submitted for review');
+  }
+  function revise(){
+    var l=active(); if(!l) return;
+    if(canTransition(l.status,'draft')){ l.status='draft'; l.trail.unshift({ at:NOW(), text:'Revision started' }); }
+    paint();
+  }
+  function adminAction(type){
+    var l=active(); if(!l) return;
+    if(type==='request' && canTransition(l.status,'changesRequested')){
+      l.status='changesRequested';
+      l.moderationReason='Please fix Wednesday hours — closing time shows 24:00 — and add a contact phone number.';
+      l.trail.unshift({ at:NOW(), text:'Changes requested by admin' });
+    } else if(type==='reject' && canTransition(l.status,'rejected')){
+      l.status='rejected';
+      l.moderationReason='Listing does not meet directory standards: the description reads as promotional and the address is incomplete.';
+      l.trail.unshift({ at:NOW(), text:'Rejected by admin' });
+    } else if(type==='approve' && canTransition(l.status,'approved')){
+      l.status='approved';
+      l.trail.unshift({ at:NOW(), text:'Approved & verified' });
+    }
+    S.view='editor'; computeDirty(); paint();
+  }
+  function setDevice(d){ S.device=d; paint(); }
+  function activateSection(id){ S.section=id; paint(); }
+  function openOverlay(){ S.overlay=true; paint(); }
+  function closeOverlay(){ S.overlay=false; paint(); }
+
+  /* =====================================================================
+     RENDERING
+     ===================================================================== */
+  var SECTION_META = {
+    basic:      ['Basic Information','Essential details about your business'],
+    hours:      ['Operating Hours','Quick-fill presets, then edit freely'],
+    photos:     ['Photos & Media','Ordered gallery — the first photo is the cover'],
+    contact:    ['Contact Details','How customers reach you'],
+    location:   ['Location & Map','Address fields only — no map embed in v1'],
+    categories: ['Categories & Tags','Primary category is core; tags are content'],
+    features:   ['Features & Amenities','Services customers can expect'],
+    analytics:  ['Analytics','v1 stub — counts from existing tables'],
+    history:    ['Change History','Saved + status trail, no field diffs'],
+    settings:   ['Settings','v1 stub — placeholder']
+  };
+  function DOTS(){
+    var f=S.form; if(!f) return {};
+    return {
+      basic: (f.name && f.description) ? 'ok' : (f.name || f.description ? 'partial' : ''),
+      hours: (f.hours||[]).some(function(h){return h.open;}) ? 'ok' : '',
+      photos: f.photos>0 ? 'ok' : '',
+      contact: f.phone ? 'ok' : ((f.email||f.website) ? 'partial' : ''),
+      location: f.street ? 'ok' : '',
+      categories: f.category ? 'ok' : '',
+      features: (f.services||[]).length ? 'ok' : ''
+    };
+  }
+
+  function profileHTML(){
+    var f=S.form; if(!f) return '<p class="muted">No listing selected.</p>';
+    var hours = (f.hours||[]).map(function(h){
+      return '<div class="pp-hour"><span>'+esc(h.d)+'</span><span>'+(h.open ? esc(h.open)+'–'+esc(h.close) : 'Closed')+'</span></div>';
+    }).join('');
+    var services = (f.services||[]).map(function(s){ return '<li>'+esc(s)+'</li>'; }).join('');
+    var openLine = (f.hours && f.hours[0] && f.hours[0].open) ? ('Open until '+esc(f.hours[0].close)) : 'Closed today';
+    return ''+
+      '<div class="profile-preview">'+
+        '<div class="pp-hero">GALLERY</div>'+
+        '<div class="pp-body">'+
+          '<div class="pp-top"><h3>'+esc(f.name||'Untitled listing')+'</h3><span class="verified">✓ Verified</span></div>'+
+          '<div class="pp-meta">'+esc(f.category||'—')+' · ★ 4.8 (124) · '+openLine+'</div>'+
+          '<p class="pp-desc">'+esc(f.description||'No description yet.')+'</p>'+
+          '<div class="pp-actions"><span class="pp-action">Call</span><span class="pp-action">Directions</span><span class="pp-action">Website</span></div>'+
+          '<div class="pp-info">'+
+            (f.street ? '<div>📍 '+esc(f.street)+', '+esc(f.city||'')+'</div>' : '')+
+            (f.phone ? '<div>☎ '+esc(f.phone)+'</div>' : '')+
+            (f.website ? '<div>🌐 '+esc(f.website)+'</div>' : '')+
+          '</div>'+
+          (hours ? '<div class="pp-hours">'+hours+'</div>' : '')+
+          (services ? '<ul class="pp-services">'+services+'</ul>' : '')+
+          '<div class="pp-footer">Owner-maintained · Last updated '+esc(active() ? (active().lastSavedAt||'—') : '—')+'</div>'+
+        '</div>'+
+      '</div>';
+  }
+
+  function renderHome(){
+    var grid=$('#biz-grid'), empty=$('#home-empty');
+    if(!S.listings.length){ grid.innerHTML=''; empty.hidden=false; return; }
+    empty.hidden=true;
+    var labels = {
+      draft:'Continue editing', pendingReview:'View (read-only)', changesRequested:'Fix & resubmit',
+      rejected:'Revise & resubmit', approved:'Edit listing', suspended:'View listing'
+    };
+    grid.innerHTML = S.listings.map(function(l){
+      return '<article class="biz-card">'+
+        '<div class="biz-thumb">'+esc((l.name||'?').charAt(0).toUpperCase())+'</div>'+
+        '<div class="biz-body">'+
+          '<div class="biz-top"><h3>'+esc(l.name||'Untitled listing')+'</h3>'+
+            '<span class="status-chip '+l.status+'">'+STATUS_LABEL[l.status]+'</span></div>'+
+          '<p class="muted">'+esc(l.category||'—')+' · Updated '+esc(l.lastSavedAt||'—')+'</p>'+
+          '<div class="biz-actions"><button class="btn small" data-open="'+esc(l.id)+'">'+(labels[l.status]||'Open')+'</button></div>'+
+        '</div>'+
+      '</article>';
+    }).join('');
+    $$('#biz-grid [data-open]').forEach(function(b){
+      b.addEventListener('click', function(){ openEditor(b.getAttribute('data-open')); });
+    });
+  }
+
+  function renderHours(){
+    var wrap=$('#hours-rows'); if(!wrap) return;
+    if(!S.form){ wrap.innerHTML=''; return; }
+    wrap.innerHTML = S.form.hours.map(function(h,i){
+      return '<div class="hours-row"><span class="day">'+esc(h.d)+'</span>'+
+        '<input type="text" data-hour="'+i+'" data-bound="open" value="'+esc(h.open)+'" placeholder="opens" aria-label="'+esc(h.d)+' opening">'+
+        '<input type="text" data-hour="'+i+'" data-bound="close" value="'+esc(h.close)+'" placeholder="closes" aria-label="'+esc(h.d)+' closing"></div>';
+    }).join('');
+    $$('#hours-rows input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        var i=parseInt(inp.getAttribute('data-hour'),10), b=inp.getAttribute('data-bound');
+        S.history.push(deepClone(S.form)); S.future=[];
+        S.form.hours[i][b]=inp.value; computeDirty(); paint();
+      });
+    });
+  }
+
+  function renderPhotos(){
+    var g=$('#photo-grid'); if(!g) return;
+    var count = S.form ? S.form.photos : 0;
+    var slots = Math.max(count, 3);
+    var out='';
+    for(var i=0;i<slots;i++){
+      out += '<div class="photo-slot">'+(i<count ? 'Photo '+(i+1) : '+')+'</div>';
+    }
+    g.innerHTML=out;
+  }
+
+  function renderTrail(){
+    var el=$('#trail');
+    if(!S.form){ el.innerHTML=''; return; }
+    var l=active();
+    el.innerHTML = (l && l.trail && l.trail.length ? l.trail : [{at:'—',text:'No history yet'}]).map(function(t){
+      return '<div class="trail-item"><span>'+esc(t.text)+'</span><span>'+esc(t.at)+'</span></div>';
+    }).join('');
+  }
+
+  function renderInspector(){
+    var l=active();
+    var lines = [
+      'view: '+(S.view==='home'?'owner home':'editor'),
+      'active: '+(l ? l.name : '—'),
+      'status: '+(l ? l.status : '—'),
+      'dirty: '+S.dirty,
+      'identityDirty: '+S.identityDirty,
+      'canEdit: '+canEdit(),
+      'lastSavedAt: '+(l ? l.lastSavedAt : '—'),
+      'submittedAt: '+(l && l.submittedAt ? l.submittedAt : '—'),
+      'moderationReason: '+(l && l.moderationReason ? l.moderationReason : '—'),
+      'scenario: '+(S.scenario+1)+'  step: '+S.step,
+      'listings: '+S.listings.length
+    ];
+    $('#inspector-body').textContent = lines.join('\n');
+  }
+
+  function paintForm(){
+    if(!S.form){ renderHours(); renderPhotos(); return; }
+    var map = { 'f-name':'name','f-category':'category','f-description':'description','f-keywords':'keywords',
+      'f-phone':'phone','f-email':'email','f-website':'website','f-street':'street','f-city':'city','f-tags':'tags' };
+    Object.keys(map).forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value = S.form[map[id]] == null ? '' : S.form[map[id]];
+    });
+    var sv=$('#f-services'); if(sv) sv.value = (S.form.services||[]).join('\n');
+    renderHours(); renderPhotos();
+  }
+
+  function paint(){
+    /* views */
+    $('#view-home').hidden = S.view!=='home';
+    $('#view-editor').hidden = S.view!=='editor';
+
+    /* device */
+    var stage=$('#stage');
+    stage.classList.toggle('device-mobile', S.device==='mobile');
+    $('#app').classList.toggle('compact', S.device==='mobile' || compactMQ.matches);
+    $('#btn-desktop').classList.toggle('active', S.device==='desktop');
+    $('#btn-mobile').classList.toggle('active', S.device==='mobile');
+    $('#inspector').hidden = !S.inspector;
+    $('#btn-inspector').classList.toggle('active', S.inspector);
+
+    /* home */
+    renderHome();
+
+    /* editor header + switcher */
+    var l=active();
+    $('#editor-biz-name').textContent = l ? (l.name||'Untitled listing') : '—';
+    var chip=$('#status-chip');
+    chip.textContent = l ? STATUS_LABEL[l.status] : '—';
+    chip.className = 'status-chip '+(l ? l.status : 'draft');
+    var sel=$('#biz-switcher');
+    sel.innerHTML = S.listings.map(function(x){
+      return '<option value="'+esc(x.id)+'"'+(x.id===S.activeId?' selected':'')+'>'+esc((x.name||'Untitled'))+'</option>';
+    }).join('');
+
+    /* savebar */
+    var dot=$('#save-dot'), label=$('#save-label');
+    var editable=canEdit();
+    if(!editable){ dot.className='save-dot readonly'; label.textContent='Read-only — pending review'; }
+    else if(S.dirty){ dot.className='save-dot dirty'; label.textContent='Unsaved changes'; }
+    else { dot.className='save-dot'; label.textContent='All changes saved'; }
+    $('#save-last').textContent = l ? ('· Last saved '+ (l.lastSavedAt||'—')) : '';
+
+    $('#btn-undo').disabled = !editable || !S.history.length;
+    $('#btn-redo').disabled = !editable || !S.future.length;
+    $('#tool-reset').disabled = !editable;
+    $('#btn-preview').disabled = !S.form;
+
+    var saveBtn=$('#btn-save'), subBtn=$('#btn-submit');
+    saveBtn.textContent = (l && l.status==='approved') ? 'Save changes' : 'Save Draft';
+    saveBtn.disabled = !editable || !S.form;
+    if(l && l.status==='approved'){
+      subBtn.textContent = S.identityDirty ? 'Submit changes for review' : (S.dirty ? 'Publish changes' : 'No changes to publish');
+      subBtn.disabled = !editable || !S.dirty;
+    } else if(l && l.status==='pendingReview'){
+      subBtn.textContent = 'Submitted — pending review';
+      subBtn.disabled = true;
+    } else {
+      subBtn.textContent = 'Submit for Approval';
+      subBtn.disabled = !editable || !S.form;
+    }
+
+    /* read-only + banners */
+    $('#editor-panel').classList.toggle('readonly', !editable);
+    var banners={pending:$('#banner-pending'), changes:$('#banner-changes'), rejected:$('#banner-rejected'), identity:$('#banner-identity')};
+    banners.pending.hidden = !(l && l.status==='pendingReview');
+    banners.changes.hidden = !(l && l.status==='changesRequested');
+    banners.rejected.hidden = !(l && l.status==='rejected');
+    banners.identity.hidden = !(l && l.status==='approved' && S.identityDirty);
+    if(l && l.status==='pendingReview') $('#pending-text').textContent = 'Submitted '+(l.submittedAt||NOW())+'. Your listing is read-only while the admin reviews it.';
+    if(l && l.status==='changesRequested') $('#changes-reason').textContent = (l.moderationReason||'—')+' ';
+    if(l && l.status==='rejected') $('#rejected-reason').textContent = (l.moderationReason||'—')+' ';
+
+    /* sections */
+    $$('.section').forEach(function(sec){ sec.hidden = sec.getAttribute('data-section') !== S.section; });
+    $$('#section-nav .nav-item').forEach(function(n){ n.classList.toggle('active', n.getAttribute('data-section')===S.section); });
+    var meta=SECTION_META[S.section]||['',''];
+    $('#section-title').textContent=meta[0]; $('#section-sub').textContent=meta[1];
+
+    /* dots */
+    var dots=DOTS();
+    ['basic','hours','photos','contact','location','categories','features'].forEach(function(k){
+      var d=$('#dot-'+k); if(d) d.className='dot'+(dots[k]?' '+dots[k]:'');
+    });
+
+    /* analytics + category mirror + trail */
+    if($('#cat-mirror')) $('#cat-mirror').textContent = (S.form && S.form.category) ? S.form.category : '—';
+    if($('#stat-views')) $('#stat-views').textContent = l ? (l.views||0) : 0;
+    if($('#stat-clicks')) $('#stat-clicks').textContent = l ? (l.contactClicks||0) : 0;
+    renderTrail();
+
+    /* preview */
+    if($('#preview-body')) $('#preview-body').innerHTML = profileHTML();
+    $('#dirty-note').hidden = !S.dirty || !S.form;
+
+    /* overlay */
+    $('#overlay').hidden = !S.overlay;
+    if(S.overlay && $('#overlay-body')) $('#overlay-body').innerHTML = profileHTML();
+
+    /* inspector + scenario */
+    renderInspector();
+    renderScenario();
+  }
+
+  /* =====================================================================
+     SCENARIO WALKTHROUGH  (guided; the app stays free-play too)
+     ===================================================================== */
+  var SCENARIOS = [
+    {
+      title:'First listing (new owner)',
+      desc:'A signed-in user with no listings creates a first draft. Entry is self-serve and ownership is derived — the listing stays private until approved.',
+      reset:function(){ S=world('new'); },
+      steps:[
+        { label:'Owner home is empty', hint:'Observe the empty state and the Add Your Business entry point.' },
+        { label:'Add Your Business', hint:'Creates a blank draft and opens the editor.', run:addBusiness },
+        { label:'Type a business name', hint:'Nothing persists until you Save Draft.', run:function(){ setField('name','Green Bowl Co.'); } },
+        { label:'Save Draft', hint:'A draft row now exists (status: draft). Still not public.', run:saveDraft },
+        { label:'Back to My Businesses', hint:'The draft appears as a card with a status chip.', run:goHome }
+      ]
+    },
+    {
+      title:'Edit + unsaved Preview Live',
+      desc:'Edits live in client form state. The preview renders from the unsaved form (WYSIWYS) and the dirty state is visible before you save.',
+      reset:function(){ S=world('draft'); },
+      steps:[
+        { label:'Open Green Bowl Co.', hint:'A part-finished draft.', run:function(){ openEditor('green'); } },
+        { label:'Change the description', hint:'Type into the description — watch the preview update live.', run:function(){ setField('description','Build-your-own grain bowls with seasonal vegetables, house sauces and a rotating soup of the day.'); } },
+        { label:'Observe the unsaved preview', hint:'The preview shows the new text and flags that it is unsaved — it is not persisted.' },
+        { label:'Save Draft', hint:'Dirty state clears and Change History gains a saved entry.', run:saveDraft },
+        { label:'Reset Section', hint:'Reset restores the last-saved Convex state — client-only tool.', run:resetSection }
+      ]
+    },
+    {
+      title:'Submit for approval',
+      desc:'Submit for Approval fires draft → pendingReview. The editor becomes read-only with a status banner and the submission date.',
+      reset:function(){ S=world('draft'); },
+      steps:[
+        { label:'Open the draft', run:function(){ openEditor('green'); } },
+        { label:'Submit for Approval', hint:'Fires draft → pendingReview.', run:submit },
+        { label:'Observe read-only state', hint:'Inputs are locked, the banner shows the submission date, and Submit is disabled.' }
+      ]
+    },
+    {
+      title:'Changes requested',
+      desc:'The admin requests changes with a required reason. The owner sees the moderation reason, editing is re-enabled, then they resubmit.',
+      reset:function(){ S=world('pending'); },
+      steps:[
+        { label:'Open the pending listing', run:function(){ openEditor('corner'); } },
+        { label:'Admin requests changes', hint:'Simulates the admin side — a required reason is attached.', run:function(){ adminAction('request'); } },
+        { label:'Read the moderation reason', hint:'The reason banner appears and editing is re-enabled.' },
+        { label:'Fix Wednesday hours', hint:'Edit the hours the reason complained about.', run:function(){ activateSection('hours'); setField('hours', S.form.hours.map(function(h){ return h.d==='Wed' ? {d:'Wed',open:'09:00',close:'17:00'} : h; })); } },
+        { label:'Resubmit', hint:'changesRequested → pendingReview.', run:submit }
+      ]
+    },
+    {
+      title:'Rejected',
+      desc:'A rejection carries a reason and offers a revision path: rejected → draft, edit, then resubmit.',
+      reset:function(){ S=world('rejected'); },
+      steps:[
+        { label:'Open the rejected listing', run:function(){ openEditor('corner'); } },
+        { label:'Read the rejection reason' },
+        { label:'Revise listing', hint:'rejected → draft, editing unlocked.', run:revise },
+        { label:'Resubmit', hint:'draft → pendingReview.', run:submit }
+      ]
+    },
+    {
+      title:'Approved + core identity edit',
+      desc:'On an approved listing, content edits go live immediately; core identity edits (name, category, description, address) send it back for review. The editor must make that distinction obvious.',
+      reset:function(){ S=world('approved'); },
+      steps:[
+        { label:'Open the approved listing', run:function(){ openEditor('corner'); } },
+        { label:'Add a service (content edit)', run:function(){ setField('services', S.form.services.concat(['Loyalty card'])); } },
+        { label:'Publish changes', hint:'Content-only changes publish immediately — the listing stays approved.', run:function(){ saveDraft(); } },
+        { label:'Edit the business name (core)', hint:'Core identity fields are tagged in the form.', run:function(){ setField('name','The Corner Café & Bakery'); } },
+        { label:'Observe the re-review warning', hint:'The identity banner appears and Submit becomes "Submit changes for review".' },
+        { label:'Submit changes for review', hint:'approved → pendingReview.', run:submit }
+      ]
+    },
+    {
+      title:'Mobile compact view',
+      desc:'The sectioned editor is the one surface; on a phone it collapses to a compact layout (section tab strip, stacked preview, compact action bar).',
+      reset:function(){ S=world('approved'); },
+      steps:[
+        { label:'Switch to Mobile', hint:'Constrains the surface to a phone frame so the compact layout is visible.', run:function(){ setDevice('mobile'); } },
+        { label:'Open the approved listing', run:function(){ openEditor('corner'); } },
+        { label:'Section tabs replace the sidebar', hint:'The section nav becomes a horizontal tab strip.', run:function(){ activateSection('hours'); } },
+        { label:'Preview Live opens the profile', hint:'On a phone the side panel gives way to a preview toggle.', run:openOverlay },
+        { label:'Close and go back to Desktop', run:function(){ closeOverlay(); setDevice('desktop'); } }
+      ]
+    }
+  ];
+
+  function renderScenario(){
+    var sc=SCENARIOS[S.scenario];
+    $('#sc-count').textContent=(S.scenario+1)+'/'+SCENARIOS.length;
+    $('#sc-title').textContent=sc.title;
+    $('#sc-desc').textContent=sc.desc;
+    $('#sc-steps').innerHTML = sc.steps.map(function(st,i){
+      var cls = i<S.step ? 'done' : (i===S.step ? 'current' : '');
+      return '<li><button class="sc-step '+cls+'" data-step="'+i+'"'+(i===S.step?'':' disabled')+'>'+(i<S.step?'✓ ':'')+esc(st.label)+'</button></li>';
+    }).join('');
+    $$('#sc-steps [data-step]').forEach(function(b){ b.addEventListener('click', function(){ runStep(); }); });
+    var done = S.step>=sc.steps.length;
+    $('#sc-next-step').textContent = done ? 'Scenario complete ✓' : 'Next step';
+    $('#sc-next-step').disabled = done;
+    var step = sc.steps[S.step];
+    $('#sc-desc').textContent = done ? 'Done — try the next scenario, or keep clicking freely.' : (sc.desc + (step && step.hint ? '  ▸ '+step.hint : ''));
+  }
+  function runStep(){
+    var sc=SCENARIOS[S.scenario], step=sc.steps[S.step];
+    if(!step) return;
+    if(step.run) step.run();
+    S.step++;
+    paint();
+  }
+  function startScenario(i){
+    S.scenario=i; S.step=0;
+    SCENARIOS[i].reset();
+    S.scenario=i; S.step=0;
+    paintForm(); paint();
+  }
+  function cycleScenario(delta){
+    var n=SCENARIOS.length; startScenario(((S.scenario+delta)%n+n)%n);
+  }
+
+  /* =====================================================================
+     WIRING
+     ===================================================================== */
+  function bindStatic(){
+    $('#home-add').addEventListener('click', addBusiness);
+    $('#empty-add').addEventListener('click', addBusiness);
+    $('#editor-back').addEventListener('click', goHome);
+    $('#biz-switcher').addEventListener('change', function(e){ openEditor(e.target.value); });
+    $('#btn-undo').addEventListener('click', undo);
+    $('#btn-redo').addEventListener('click', redo);
+    $('#btn-preview').addEventListener('click', openOverlay);
+    $('#btn-save').addEventListener('click', saveDraft);
+    $('#btn-submit').addEventListener('click', submit);
+    $('#banner-revise').addEventListener('click', revise);
+    $('#tool-reset').addEventListener('click', resetSection);
+    $('#add-photo').addEventListener('click', function(){ if(canEdit() && S.form){ setField('photos', (S.form.photos||0)+1); renderPhotos(); } });
+    $('#overlay-close').addEventListener('click', closeOverlay);
+    $('#overlay').addEventListener('click', function(e){ if(e.target===this) closeOverlay(); });
+    $('#btn-inspector').addEventListener('click', function(){ S.inspector=!S.inspector; paint(); });
+    $('#btn-desktop').addEventListener('click', function(){ setDevice('desktop'); });
+    $('#btn-mobile').addEventListener('click', function(){ setDevice('mobile'); });
+    $('#sc-prev').addEventListener('click', function(){ cycleScenario(-1); });
+    $('#sc-next').addEventListener('click', function(){ cycleScenario(1); });
+    $('#sc-next-step').addEventListener('click', runStep);
+    $('#sc-restart').addEventListener('click', function(){ startScenario(S.scenario); });
+
+    $$('#section-nav .nav-item').forEach(function(n){ n.addEventListener('click', function(){ activateSection(n.getAttribute('data-section')); }); });
+    compactMQ.addEventListener('change', paint);
+    $$('#presets .preset').forEach(function(b){ b.addEventListener('click', function(){ applyPreset(b.getAttribute('data-preset')); }); });
+    $$('#inspector .inspector-admin .btn').forEach(function(b){ b.addEventListener('click', function(){ adminAction(b.getAttribute('data-admin')); }); });
+
+    /* form inputs — update state without clobbering focus */
+    var map = { 'f-name':'name','f-description':'description','f-keywords':'keywords','f-phone':'phone',
+      'f-email':'email','f-website':'website','f-street':'street','f-city':'city','f-tags':'tags' };
+    Object.keys(map).forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      el.addEventListener('input', function(){ setField(map[id], el.value); });
+    });
+    $('#f-category').addEventListener('change', function(){ setField('category', this.value); });
+    $('#f-services').addEventListener('input', function(){
+      setFieldQuiet('services', this.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean));
+    });
+
+    document.addEventListener('keydown', function(e){
+      var t=e.target;
+      if(t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable)) return;
+      if(e.key==='ArrowLeft') cycleScenario(-1);
+      if(e.key==='ArrowRight') cycleScenario(1);
+      if(e.key==='Escape') closeOverlay();
+    });
+  }
+
+  bindStatic();
+  startScenario(0);
+})();
 </script>
 </body>
 </html>
