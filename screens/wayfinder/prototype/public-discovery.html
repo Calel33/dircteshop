@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalConnect Public Discovery — Prototype (issue #18)</title>
+<!--
+  PROTOTYPE — decision record for issue Calel33/dircteshop#18
+  Reviewed live and ACCEPTED: Variant B — "Utility search-first".
+  Kept in-repo (not throwaway) as the primary source for the B4 decisions.
+
+  Question: what public-discovery design should be accepted before B4
+  (landing + search + category browse) is built?
+
+  Plan: three structurally different variants of the public discovery system
+  — landing · search · categories · category detail — switchable via the
+  floating bottom bar, #v=A|B|C, or the left/right arrow keys.
+
+    A — Classic grid    centered hero · category tile grid · 3-col photo cards
+    B — Utility         search-first header · dense rows · sidebar filters  <-- ACCEPTED
+    C — Editorial       split hero + spotlight · rails · split New/Verified band
+
+  Covers (per issue #18): Explore by Category · Trending This Week (isFeatured)
+  · New to LocalConnect · Recently Verified · Open Now + Highly Rated chips
+  (real, computed) · Trending/Special Offers/Nearby disabled w/ tooltips ·
+  BusinessCard (public rich density, actions capped at 2) · Load-more cursor
+  pagination · loading skeletons · hidden-empty sections · no-results state ·
+  responsive collapse (container queries + width toggle).
+
+  Prototype invariants (from ticket 08): only status === 'approved' renders
+  anywhere; the fixture includes 4 non-approved businesses that must never
+  appear. Decision points for the review session are listed at the bottom.
+
+  Not production code. No backend, no persistence, no tests (per /prototype).
+  Open by double-clicking. Kept in-repo per the issue #18 decision.
+  Palette here follows the screen mockups (blue/slate); confirm against the
+  B4 token source in issue #4 (design.md, root) before visual sign-off.
+-->
+<style>
+/* ===== tokens ===== */
+:root{
+  --brand:#2563eb; --brand-dark:#1e40af; --brand-tint:#eff6ff; --brand-soft:#dbeafe;
+  --bg:#f8fafc; --surface:#ffffff; --canvas:#e8edf4;
+  --border:#e2e8f0; --border-strong:#cbd5e1;
+  --text:#0f172a; --muted:#64748b; --muted-2:#94a3b8;
+  --green:#16a34a; --green-bg:#dcfce7; --green-ink:#166534;
+  --amber:#b45309; --amber-bg:#fef3c7; --amber-border:#fcd34d; --amber-ink:#78350f;
+  --red:#dc2626; --red-bg:#fee2e2; --red-ink:#7f1d1d;
+  --ink-bg:#0f172a; --ink-surface:#1e293b; --ink-line:#334155;
+  --ink-fg:#e2e8f0; --ink-fg-dim:#cbd5e1; --ink-fg-muted:#94a3b8;
+  --accent:#f59e0b; --accent-fg:#111827;
+  --white:#ffffff; --sk-hi:#f1f5f9;
+  --t1a:#bfdbfe; --t1b:#dbeafe; --t2a:#bbf7d0; --t2b:#dcfce7; --t3a:#fde68a; --t3b:#fef3c7;
+  --t4a:#fecdd3; --t4b:#ffe4e6; --t5a:#ddd6fe; --t5b:#ede9fe; --t6a:#a5f3fc; --t6b:#cffafe;
+  --radius:0.75rem; --radius-sm:0.5rem; --radius-pill:62.5rem;
+  --s1:0.25rem; --s2:0.5rem; --s3:0.75rem; --s4:1rem; --s5:1.25rem; --s6:1.5rem; --s8:2rem; --s10:2.5rem; --s12:3.5rem;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --shadow-sm:0 0.0625rem 0.125rem rgba(15,23,42,.06);
+  --shadow:0 0.0625rem 0.125rem rgba(15,23,42,.06),0 0.75rem 2rem -1rem rgba(15,23,42,.18);
+  --shadow-lg:0 0.5rem 1.5rem -0.5rem rgba(15,23,42,.25);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none !important}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--canvas);color:var(--text);font-size:0.9375rem;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:8rem}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-0.02em}
+h2{font-size:1.125rem;font-weight:700;letter-spacing:-0.01em}
+h3{font-size:0.9375rem;font-weight:700}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:none;text-align:left}
+input,select{font:inherit;color:inherit}
+.muted{color:var(--muted)}
+.tiny{font-size:0.6875rem}
+.sr-only{position:absolute;width:0.0625rem;height:0.0625rem;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:0.125rem solid var(--brand);outline-offset:0.125rem}
+.icon{width:1rem;height:1rem;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== stage + frame ===== */
+#stage{padding:var(--s6) var(--s3)}
+#frame{container-type:inline-size;margin:0 auto;background:var(--bg);box-shadow:var(--shadow);overflow:hidden;transition:max-width .3s ease}
+#frame[data-w="desktop"]{max-width:78rem;border-radius:var(--radius)}
+#frame[data-w="tablet"]{max-width:52rem;border-radius:var(--radius);outline:0.375rem solid var(--ink-surface)}
+#frame[data-w="mobile"]{max-width:24.375rem;border-radius:1rem;outline:0.375rem solid var(--ink-surface)}
+.wrap{max-width:72rem;margin:0 auto;padding:0 var(--s6)}
+
+/* ===== primitives ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:2.5rem;padding:var(--s2) var(--s5);border:0.0625rem solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:0.875rem;font-weight:600;white-space:nowrap;transition:background .15s ease,border-color .15s ease}
+.btn:hover{background:var(--bg)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.btn.primary:hover{background:var(--brand-dark)}
+.btn.ghost{border-color:transparent;color:var(--brand)}
+.btn.ghost:hover{background:var(--brand-tint)}
+.btn.sm{min-height:2rem;padding:var(--s1) var(--s3);font-size:0.8125rem}
+.btn.block{width:100%}
+.badge-verified{display:inline-flex;align-items:center;gap:0.25rem;color:var(--green-ink);background:var(--green-bg);border-radius:var(--radius-pill);padding:0.1rem var(--s2);font-size:0.6875rem;font-weight:700}
+.badge-verified .icon{width:0.75rem;height:0.75rem}
+.rating{display:inline-flex;align-items:center;gap:0.25rem;font-weight:700;font-size:0.8125rem}
+.rating .icon{width:0.875rem;height:0.875rem;color:var(--accent);fill:var(--accent);stroke:none}
+.rating .cnt{color:var(--muted);font-weight:500}
+.dot{width:0.5rem;height:0.5rem;border-radius:var(--radius-pill);flex:none}
+.dot.open{background:var(--green)} .dot.closed{background:var(--muted-2)}
+.open-line{display:inline-flex;align-items:center;gap:0.375rem;font-size:0.8125rem;color:var(--muted)}
+.open-line .txt-open{color:var(--green-ink);font-weight:600}
+.cat-eyebrow{display:inline-flex;align-items:center;gap:0.375rem;font-size:0.75rem;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.05em}
+.cat-eyebrow .icon{width:0.875rem;height:0.875rem}
+.desc{color:var(--muted);font-size:0.875rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.desc.one{-webkit-line-clamp:1}
+.photo{position:relative;background:linear-gradient(135deg,var(--p-a,var(--t1a)),var(--p-b,var(--t1b)));display:flex;align-items:center;justify-content:center;color:rgba(15,23,42,.45)}
+.photo .ph-ic{width:2.5rem;height:2.5rem;stroke-width:1.5;opacity:.75}
+.photo .ph-initial{position:absolute;right:var(--s3);bottom:var(--s2);font-size:2.25rem;font-weight:800;color:rgba(15,23,42,.18);line-height:1}
+.p1{--p-a:var(--t1a);--p-b:var(--t1b)} .p2{--p-a:var(--t2a);--p-b:var(--t2b)} .p3{--p-a:var(--t3a);--p-b:var(--t3b)}
+.p4{--p-a:var(--t4a);--p-b:var(--t4b)} .p5{--p-a:var(--t5a);--p-b:var(--t5b)} .p6{--p-a:var(--t6a);--p-b:var(--t6b)}
+.chip{display:inline-flex;align-items:center;gap:0.375rem;min-height:2rem;padding:var(--s1) var(--s3);border:0.0625rem solid var(--border);border-radius:var(--radius-pill);background:var(--surface);font-size:0.8125rem;font-weight:600;color:var(--text);transition:background .15s,border-color .15s}
+.chip .icon{width:0.875rem;height:0.875rem}
+.chip:hover{border-color:var(--border-strong)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.chip.off{color:var(--muted-2);background:var(--bg)}
+.chiprow{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.tip{position:relative;display:inline-flex}
+.tipbub{position:absolute;bottom:calc(100% + 0.5rem);left:50%;translate:-50% 0;width:max-content;max-width:min(16rem,80cqw);background:var(--ink-bg);color:var(--ink-fg);font-size:0.6875rem;font-weight:500;line-height:1.45;padding:var(--s2) var(--s3);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);opacity:0;visibility:hidden;transition:opacity .12s ease;pointer-events:none;z-index:40}
+.tipbub::after{content:"";position:absolute;top:100%;left:50%;translate:-50% 0;border:0.375rem solid transparent;border-top-color:var(--ink-bg)}
+.tip:hover .tipbub,.tip:focus-within .tipbub{opacity:1;visibility:visible}
+.sec{padding:var(--s8) 0}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s4);margin-bottom:var(--s4)}
+.sec-head .sec-sub{color:var(--muted);font-size:0.8125rem;margin-top:0.125rem}
+.sec-link{display:inline-flex;align-items:center;gap:0.25rem;font-size:0.8125rem;font-weight:600;color:var(--brand)}
+.sec-link .icon{width:0.875rem;height:0.875rem}
+.crumb{display:flex;align-items:center;gap:var(--s2);font-size:0.8125rem;color:var(--muted);margin-bottom:var(--s3)}
+.crumb button{color:var(--brand);font-weight:600}
+.count-line{font-size:0.875rem;color:var(--muted);margin-bottom:var(--s3)}
+.count-line b{color:var(--text)}
+.loadmore{display:flex;flex-direction:column;align-items:center;gap:var(--s2);padding:var(--s6) 0 var(--s2)}
+.sk{background:linear-gradient(90deg,var(--border) 25%,var(--sk-hi) 37%,var(--border) 63%);background-size:400% 100%;animation:shk 1.4s ease infinite;border-radius:var(--radius-sm)}
+@keyframes shk{0%{background-position:100% 0}100%{background-position:0 0}}
+.sk-card{border:0.0625rem solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.sk-photo{aspect-ratio:16/10}
+.sk-body{padding:var(--s4);display:flex;flex-direction:column;gap:var(--s2)}
+.sk-line{height:0.75rem}
+.sk-line.w60{width:60%} .sk-line.w40{width:40%} .sk-line.w80{width:80%}
+.empty{text-align:center;padding:var(--s12) var(--s6);border:0.0625rem dashed var(--border-strong);border-radius:var(--radius);background:var(--surface)}
+.empty .empty-ic{width:3rem;height:3rem;color:var(--muted-2);stroke-width:1.5;margin-bottom:var(--s3)}
+.empty h3{font-size:1.0625rem;margin-bottom:var(--s1)}
+.empty p{color:var(--muted);font-size:0.875rem;max-width:24rem;margin:0 auto var(--s5)}
+.empty .empty-actions{display:flex;gap:var(--s2);justify-content:center;flex-wrap:wrap}
+.brand{display:inline-flex;align-items:center;gap:var(--s2);font-weight:800;font-size:1.0625rem;letter-spacing:-0.02em}
+.brand .brand-mark{width:1.75rem;height:1.75rem;border-radius:var(--radius-sm);background:var(--brand);color:var(--white);display:flex;align-items:center;justify-content:center}
+.brand .brand-mark .icon{width:1rem;height:1rem}
+.nav{display:flex;align-items:center;gap:var(--s1)}
+.nav button{font-size:0.875rem;font-weight:600;color:var(--muted);padding:var(--s2) var(--s3);border-radius:var(--radius-sm)}
+.nav button:hover{color:var(--text);background:var(--bg)}
+.searchbar{display:flex;align-items:center;gap:var(--s2);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius-pill);padding:0.25rem 0.25rem 0.25rem var(--s4);box-shadow:var(--shadow-sm)}
+.searchbar .icon{color:var(--muted);width:1.125rem;height:1.125rem}
+.searchbar input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:0.9375rem;padding:var(--s2) 0}
+.searchbar input::placeholder{color:var(--muted-2)}
+
+/* ===== utilities ===== */
+.chips-sec{padding:var(--s5) 0 var(--s2)}
+.lead-sub{margin-bottom:var(--s6)}
+.tile-ic{width:2.25rem;height:2.25rem;border-radius:var(--radius-sm);background:var(--brand-tint);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}
+.tile-ic .icon{width:1.125rem;height:1.125rem}
+.tile-name{font-weight:700;font-size:0.875rem}
+.tile-count{font-size:0.75rem;color:var(--muted)}
+.sk-tile{height:6.5rem;border-radius:var(--radius)}
+.sk-mini{height:5.5rem;border-radius:var(--radius)}
+.sk-pill{display:inline-block;width:7rem;height:2rem;border-radius:var(--radius-pill)}
+.sk-spot{aspect-ratio:4/3;border-radius:var(--radius)}
+.sk-row{display:flex;gap:var(--s3);padding:var(--s3);align-items:center;border:0.0625rem solid var(--border);border-radius:var(--radius);background:var(--surface)}
+.sk-row .sk-body{flex:1;padding:0}
+.sk-thumb{width:5.5rem;height:5.5rem;flex:none}
+.sk-thumb-sm{width:3rem;height:3rem;flex:none}
+.vA-toolbar .vA-search{flex:1;margin:0}
+.vC-hero-copy .vA-search{margin:0}
+.vC-toolbar .vA-search{flex:1;min-width:14rem;margin:0}
+.vA-vrow .body{min-width:0}
+.vA-vrow .name{font-size:0.875rem}
+.vB-mini .photo{aspect-ratio:16/9;border-radius:var(--radius-sm)}
+.vB-mini .name{font-weight:700;font-size:0.875rem}
+.vB-cat-ic{width:2rem;height:2rem;border-radius:var(--radius-sm);background:var(--brand-tint);color:var(--brand);display:flex;align-items:center;justify-content:center}
+.vC-band-row .name{font-weight:700;font-size:0.875rem}
+.vC-band-ink .name{color:var(--white)}
+.vC-band-ink .rating .cnt{color:var(--ink-fg-dim)}
+.vC-band-ink .sk-row{background:var(--ink-surface);border-color:var(--ink-line)}
+
+/* ===== variant A — classic grid ===== */
+.vA-head{background:var(--surface);border-bottom:0.0625rem solid var(--border)}
+.vA-head .wrap{display:flex;align-items:center;gap:var(--s6);min-height:4rem}
+.vA-head .nav{margin-left:auto}
+.vA-hero{background:linear-gradient(180deg,var(--brand-tint),var(--bg));border-bottom:0.0625rem solid var(--border);padding:var(--s12) 0}
+.vA-hero h1{font-size:2.5rem;text-align:center;max-width:44rem;margin:0 auto var(--s3)}
+.vA-hero .sub{text-align:center;color:var(--muted);max-width:36rem;margin:0 auto var(--s6)}
+.vA-search{max-width:38rem;margin:0 auto}
+.vA-stats{display:flex;justify-content:center;gap:var(--s6);margin-top:var(--s5);color:var(--muted);font-size:0.8125rem}
+.vA-stats b{color:var(--text)}
+.vA-cats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3)}
+.vA-tile{display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);transition:border-color .15s,box-shadow .15s}
+.vA-tile:hover{border-color:var(--brand);box-shadow:var(--shadow-sm)}
+.vA-tile .tile-name{font-weight:700;font-size:0.875rem}
+.vA-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4)}
+.vA-card{display:flex;flex-direction:column;background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);overflow:hidden;transition:box-shadow .15s,transform .15s}
+.vA-card:hover{box-shadow:var(--shadow);transform:translateY(-0.125rem)}
+.vA-card .photo{aspect-ratio:16/10}
+.vA-card .photo .badge-verified{position:absolute;top:var(--s2);left:var(--s2);background:rgba(255,255,255,.92)}
+.vA-card .body{padding:var(--s4);display:flex;flex-direction:column;gap:var(--s2);flex:1}
+.vA-card .name{font-size:1rem;font-weight:700}
+.vA-card .foot{margin-top:auto;padding-top:var(--s3);display:flex;gap:var(--s2)}
+.vA-minis{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s3)}
+.vA-mini{display:flex;gap:var(--s3);padding:var(--s3);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);align-items:center}
+.vA-mini .photo{width:4rem;height:4rem;border-radius:var(--radius-sm);flex:none}
+.vA-mini .photo .ph-ic{width:1.5rem;height:1.5rem}
+.vA-mini .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.125rem}
+.vA-mini .name{font-weight:700;font-size:0.875rem}
+.vA-vlist{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3)}
+.vA-vrow{display:flex;gap:var(--s3);padding:var(--s3);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);align-items:center}
+.vA-vrow .photo{width:3rem;height:3rem;border-radius:var(--radius-sm);flex:none}
+.vA-vrow .photo .ph-ic{width:1.25rem;height:1.25rem}
+.vA-results{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s4)}
+.vA-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);flex-wrap:wrap;margin-bottom:var(--s4)}
+.vA-banner{margin:0 0 var(--s4);padding:var(--s3) var(--s4);border:0.0625rem dashed var(--amber-border);background:var(--amber-bg);color:var(--amber-ink);border-radius:var(--radius);font-size:0.8125rem}
+
+/* ===== variant B — utility ===== */
+.vB-head{background:var(--ink-bg);color:var(--ink-fg)}
+.vB-head .wrap{display:flex;align-items:center;gap:var(--s5);min-height:4rem}
+.vB-head .brand{color:var(--white)}
+.vB-search{flex:1;max-width:34rem;display:flex;align-items:center;gap:var(--s2);background:var(--ink-surface);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-sm);padding:0 var(--s3)}
+.vB-search .icon{color:var(--ink-fg-muted);width:1.125rem;height:1.125rem}
+.vB-search input{flex:1;min-width:0;border:none;outline:none;background:transparent;color:var(--white);font-size:0.875rem;padding:var(--s2) 0}
+.vB-search input::placeholder{color:var(--ink-fg-muted)}
+.vB-head .nav button{color:var(--ink-fg-dim)}
+.vB-head .nav button:hover{color:var(--white);background:var(--ink-surface)}
+.vB-lead{padding:var(--s6) 0 var(--s2)}
+.vB-lead h1{font-size:1.5rem}
+.vB-lead .sub{color:var(--muted);font-size:0.875rem;margin-top:var(--s1)}
+.vB-pills{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.vB-pill{display:inline-flex;align-items:center;gap:0.375rem;padding:var(--s2) var(--s3);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius-pill);font-size:0.8125rem;font-weight:600}
+.vB-pill:hover{border-color:var(--brand);color:var(--brand)}
+.vB-pill .icon{width:0.875rem;height:0.875rem;color:var(--brand)}
+.vB-pill .cnt{color:var(--muted);font-weight:500}
+.vB-rows{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s3)}
+.vB-row{display:flex;gap:var(--s3);padding:var(--s3);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius)}
+.vB-row .photo{width:5.5rem;height:5.5rem;border-radius:var(--radius-sm);flex:none}
+.vB-row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.25rem}
+.vB-row .side{display:flex;flex-direction:column;gap:var(--s2);justify-content:center;flex:none}
+.vB-minis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3)}
+.vB-mini{padding:var(--s3);background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;gap:var(--s2)}
+.vB-vrows{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s3)}
+.vB-split{display:grid;grid-template-columns:16rem minmax(0,1fr);gap:var(--s6);align-items:start}
+.vB-side{background:var(--surface);border:0.0625rem solid var(--border);border-radius:var(--radius);padding:var(--s4);display:flex;flex-direction:column;gap:var(--s4)}
+.vB-side .side-sec h3{font-size:0.8125rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:var(--s2)}
+.vB-side-link{display:flex;align-items:center;justify-content:space-between;width:100%;padding:var(--s2) var(--s3);border-radius:var(--radius-sm);font-size:0.875rem;font-weight:600;color:var(--muted)}
+.vB-side-link:hover{background:var(--bg);color:var(--text)}
+.vB-side-link.on{background:var(--brand-tint);color:var(--brand)}
+.vB-results{display:flex;flex-direction:column;gap:var(--s3)}
+.vB-banner{margin-bottom:var(--s3);padding:var(--s3) var(--s4);border:0.0625rem dashed var(--amber-border);background:var(--amber-bg);color:var(--amber-ink);border-radius:var(--radius);font-size:0.8125rem}
+/* ===== variant C — editorial ===== */
+.vC-head{background:var(--surface);border-bottom:0.125rem solid var(--ink-bg)}
+.vC-head .wrap{display:flex;align-items:center;gap:var(--s6);min-height:4.5rem}
+.vC-head .brand{font-size:1.25rem}
+.vC-head .nav{margin-left:auto}
+.vC-hero{display:grid;grid-template-columns:1.05fr 0.95fr;gap:var(--s8);align-items:center;padding:var(--s10) 0}
+.vC-hero .eyebrow{font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--brand);margin-bottom:var(--s3)}
+.vC-hero h1{font-size:3rem;line-height:1.05;margin-bottom:var(--s4)}
+.vC-hero .sub{color:var(--muted);max-width:30rem;margin-bottom:var(--s5)}
+.vC-spot{position:relative;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.vC-spot .photo{aspect-ratio:4/3}
+.vC-spot .photo .ph-ic{width:4rem;height:4rem}
+.vC-spot .spot-body{position:absolute;inset:auto 0 0 0;padding:var(--s5);background:linear-gradient(180deg,transparent,rgba(15,23,42,.82));color:var(--white)}
+.vC-spot .spot-flag{display:inline-flex;align-items:center;gap:0.25rem;background:var(--accent);color:var(--accent-fg);border-radius:var(--radius-pill);padding:0.1rem var(--s2);font-size:0.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:var(--s2)}
+.vC-spot .spot-name{font-size:1.25rem;font-weight:800}
+.vC-spot .spot-meta{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s2);font-size:0.8125rem;color:var(--ink-fg-dim)}
+.vC-spot .rating{color:var(--white)}
+.vC-blocks{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s3)}
+.vC-block{position:relative;aspect-ratio:4/3;border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--s4)}
+.vC-block::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,var(--p-a,var(--t1a)),var(--p-b,var(--t1b)));opacity:.9}
+.vC-block:hover::before{opacity:1}
+.vC-block .blk-ic{position:absolute;top:var(--s3);right:var(--s3);width:2.5rem;height:2.5rem;border-radius:var(--radius-sm);background:rgba(255,255,255,.7);color:var(--brand);display:flex;align-items:center;justify-content:center}
+.vC-block .blk-ic .icon{width:1.25rem;height:1.25rem}
+.vC-block .blk-name{position:relative;font-weight:800;font-size:0.9375rem}
+.vC-block .blk-count{position:relative;font-size:0.75rem;color:var(--text);opacity:.7}
+.vC-rail{display:flex;gap:var(--s4);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:var(--s3)}
+.vC-rail-card{flex:0 0 17rem;scroll-snap-align:start}
+.vC-band{display:grid;grid-template-columns:1fr 1fr;border-radius:var(--radius);overflow:hidden;border:0.0625rem solid var(--border)}
+.vC-band-light{background:var(--surface);padding:var(--s6)}
+.vC-band-ink{background:var(--ink-bg);color:var(--ink-fg);padding:var(--s6)}
+.vC-band .band-title{display:flex;align-items:center;gap:var(--s2);font-size:1rem;font-weight:800;margin-bottom:var(--s4)}
+.vC-band-ink .band-title{color:var(--white)}
+.vC-band-row{display:flex;gap:var(--s3);align-items:center;padding:var(--s3) 0;border-top:0.0625rem solid var(--border)}
+.vC-band-row:first-of-type{border-top:none}
+.vC-band-ink .vC-band-row{border-color:var(--ink-line)}
+.vC-band-row .photo{width:3.25rem;height:3.25rem;border-radius:var(--radius-sm);flex:none}
+.vC-band-ink .desc{color:var(--ink-fg-dim)}
+.vC-band-row .body{flex:1;min-width:0}
+.vC-toolbar{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);flex-wrap:wrap;border:0.0625rem solid var(--border);background:var(--surface);border-radius:var(--radius);padding:var(--s3) var(--s4);margin-bottom:var(--s4)}
+.vC-mixed{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s4)}
+.vC-feature{grid-column:1 / -1;display:grid;grid-template-columns:1.1fr 1fr}
+.vC-feature .photo{aspect-ratio:auto;min-height:15rem;height:100%}
+.vC-feature .body{padding:var(--s6);display:flex;flex-direction:column;gap:var(--s3);justify-content:center;background:var(--surface);border:0.0625rem solid var(--border);border-left:none;border-radius:0 var(--radius) var(--radius) 0}
+.vC-banner{margin-bottom:var(--s4);padding:var(--s3) var(--s4);border:0.0625rem dashed var(--amber-border);background:var(--amber-bg);color:var(--amber-ink);border-radius:var(--radius);font-size:0.8125rem}
+
+/* ===== chrome ===== */
+#hint{position:fixed;left:50%;translate:-50% 0;bottom:4.75rem;z-index:90;background:rgba(15,23,42,.88);color:var(--ink-fg-dim);font-size:0.6875rem;padding:0.3rem var(--s3);border-radius:var(--radius-pill);white-space:nowrap;max-width:calc(100vw - 2rem);overflow:hidden;text-overflow:ellipsis}
+#chrome{position:fixed;left:50%;translate:-50% 0;bottom:var(--s3);z-index:95;width:min(78rem,calc(100% - 1.5rem));display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;padding:var(--s2) var(--s3);background:var(--ink-bg);color:var(--ink-fg);border-radius:var(--radius);box-shadow:var(--shadow-lg)}
+.cbtn{display:inline-flex;align-items:center;justify-content:center;min-height:1.875rem;padding:0 var(--s3);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-pill);color:var(--ink-fg-dim);font-size:0.6875rem;font-weight:700}
+.cbtn:hover{color:var(--white);border-color:var(--ink-fg-muted)}
+.cbtn.on{background:var(--brand);border-color:var(--brand);color:var(--white)}
+.carrow{font-size:1rem;line-height:1;min-width:1.875rem;padding:0}
+.clabel{font-size:0.6875rem;font-weight:700;color:var(--ink-fg-muted);text-transform:uppercase;letter-spacing:.06em}
+#vlabel{font-size:0.8125rem;font-weight:700;color:var(--white);white-space:nowrap}
+#vlabel b{color:var(--accent)}
+.cgroup{display:inline-flex;gap:0.25rem;flex-wrap:wrap}
+.csep{width:0.0625rem;height:1.25rem;background:var(--ink-line);margin:0 var(--s1)}
+.cselect{background:var(--ink-surface);color:var(--ink-fg);border:0.0625rem solid var(--ink-line);border-radius:var(--radius-sm);font-size:0.75rem;font-weight:600;padding:0.25rem var(--s2)}
+.cnote{font-size:0.6875rem;color:var(--ink-fg-muted);width:100%;margin-top:0.125rem}
+
+/* ===== responsive (container queries) ===== */
+@media (max-width:56rem){ body{padding-bottom:14rem} }
+@container (max-width:60rem){
+  .vA-cats{grid-template-columns:repeat(3,1fr)}
+  .vA-cards,.vA-results,.vA-vlist{grid-template-columns:repeat(2,1fr)}
+  .vB-rows,.vB-vrows{grid-template-columns:1fr}
+  .vB-minis{grid-template-columns:repeat(3,1fr)}
+  .vB-split{grid-template-columns:1fr}
+  .vB-side{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .vB-side .side-sec{flex:1;min-width:12rem}
+  .vC-hero{grid-template-columns:1fr;gap:var(--s6)}
+  .vC-hero h1{font-size:2.5rem}
+  .vC-blocks{grid-template-columns:repeat(3,1fr)}
+  .vC-band{grid-template-columns:1fr}
+}
+@container (max-width:44rem){
+  .wrap{padding:0 var(--s4)}
+  .vA-head .nav,.vC-head .nav,.vB-head .nav{display:none}
+  .vA-hero{padding:var(--s8) 0}
+  .vA-hero h1{font-size:1.75rem}
+  .vA-cats{grid-template-columns:repeat(2,1fr)}
+  .vA-cards,.vA-results,.vA-vlist,.vA-minis{grid-template-columns:1fr}
+  .vA-card .photo{aspect-ratio:21/9}
+  .vB-minis{grid-template-columns:repeat(2,1fr)}
+  .vB-head .wrap{gap:var(--s3)}
+  .vC-hero h1{font-size:2rem}
+  .vC-blocks{grid-template-columns:repeat(2,1fr)}
+  .vC-mixed{grid-template-columns:1fr}
+  .vC-feature{grid-template-columns:1fr}
+  .vC-feature .photo{min-height:10rem}
+  .vC-feature .body{border:0.0625rem solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)}
+  .vC-rail-card{flex-basis:14rem}
+  .chiprow{flex-wrap:nowrap;overflow-x:auto;padding-bottom:var(--s1)}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="frame" data-w="desktop"><div id="app"></div></div>
+</div>
+<div id="hint" role="status"></div>
+<footer id="chrome" aria-label="Prototype controls">
+  <button class="cbtn carrow" id="vprev" aria-label="Previous variant">&lsaquo;</button>
+  <span id="vlabel"></span>
+  <button class="cbtn carrow" id="vnext" aria-label="Next variant">&rsaquo;</button>
+  <span class="csep" aria-hidden="true"></span>
+  <span class="clabel">View</span>
+  <div class="cgroup" id="viewbtns">
+    <button class="cbtn" data-view="landing">Landing /</button>
+    <button class="cbtn" data-view="search">Search /search</button>
+    <button class="cbtn" data-view="categories">Categories /categories</button>
+    <button class="cbtn" data-view="category">Category /categories/[slug]</button>
+  </div>
+  <span class="csep" aria-hidden="true"></span>
+  <label class="clabel" for="stateSel">State</label>
+  <select class="cselect" id="stateSel"></select>
+  <span class="csep" aria-hidden="true"></span>
+  <span class="clabel">Width</span>
+  <div class="cgroup" id="widthbtns">
+    <button class="cbtn" data-width="desktop">Desktop</button>
+    <button class="cbtn" data-width="tablet">Tablet</button>
+    <button class="cbtn" data-width="mobile">Mobile</button>
+  </div>
+  <div class="cnote" id="cnote"></div>
+</footer>
+<script>
+(function(){
+'use strict';
+/* ===== fixture data =====
+   Mirrors the schema fields in SPEC section 4. `daysAgo` fields stand in for
+   timestamps (smaller = more recent). Hours are minutes since midnight.
+   status !== 'approved' entries are here on purpose: the public surfaces must
+   never render them (ticket 08 invariant). */
+var CATS = [
+  {slug:'restaurants', name:'Restaurants', icon:'utensils'},
+  {slug:'food-drink', name:'Food & Drink', icon:'coffee'},
+  {slug:'beauty-wellness', name:'Beauty & Wellness', icon:'scissors'},
+  {slug:'automotive', name:'Automotive', icon:'wrench'},
+  {slug:'healthcare', name:'Healthcare', icon:'heart'},
+  {slug:'legal-services', name:'Legal Services', icon:'scale'},
+  {slug:'retail', name:'Retail', icon:'bag'},
+  {slug:'professional-services', name:'Professional Services', icon:'briefcase'}
+];
+function wk(o,c){ return {mon:[o,c],tue:[o,c],wed:[o,c],thu:[o,c],fri:[o,c],sat:[o,c],sun:[o,c]}; }
+function wkd(o,c,satO,satC){ return {mon:[o,c],tue:[o,c],wed:[o,c],thu:[o,c],fri:[o,c],sat:satO?[satO,satC]:null,sun:null}; }
+var BIZ = [
+  {id:'green-bowl', name:'Green Bowl Co.', cat:'restaurants', rating:4.8, count:212, featured:true, verified:true,
+   status:'approved', updated:2, submitted:40, verifiedDays:30, hours:wk(660,1260), addr:'214 Market St',
+   desc:'Build-your-own bowls, cold-pressed juices, and a rotating seasonal menu.', kw:['bowls','healthy','salads','vegan'],
+   actions:[{label:'Order Online',kind:'primary'},{label:'Call',kind:'ghost'},{label:'Directions',kind:'ghost'}]},
+  {id:'ember-pizza', name:'Ember Wood-Fired Pizza', cat:'restaurants', rating:4.6, count:158, featured:true, verified:true,
+   status:'approved', updated:5, submitted:60, verifiedDays:45, hours:wk(960,1380), addr:'88 Riverside Ave',
+   desc:'Neapolitan-style pies from a 900-degree wood oven, plus local drafts.', kw:['pizza','italian','dinner'],
+   actions:[{label:'Order Online',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  {id:'corner-cafe', name:'The Corner Café', cat:'food-drink', rating:4.4, count:96, featured:false, verified:true,
+   status:'approved', updated:9, submitted:120, verifiedDays:90, hours:wk(420,900), addr:'12 Elm St',
+   desc:'Neighborhood café pouring single-origin espresso and fresh pastries.', kw:['coffee','brunch','espresso'],
+   actions:[{label:'Call',kind:'primary'},{label:'Directions',kind:'ghost'}]},
+  {id:'sunrise-bakery', name:'Sunrise Bakery & Café', cat:'food-drink', rating:4.7, count:341, featured:true, verified:true,
+   status:'approved', updated:3, submitted:200, verifiedDays:150, hours:wk(360,840), addr:'301 Sunrise Blvd',
+   desc:'Sourdough, laminated pastries, and breakfast served all morning.', kw:['bakery','breakfast','pastries'],
+   actions:[{label:'Order Online',kind:'primary'},{label:'Call',kind:'ghost'},{label:'Website',kind:'ghost'}]},
+  {id:'daily-grind', name:'The Daily Grind Coffee', cat:'food-drink', rating:4.3, count:74, featured:false, verified:false,
+   status:'approved', updated:14, submitted:90, verifiedDays:null, hours:wk(360,1080), addr:'77 Route 9',
+   desc:'Drive-thru coffee bar with cold brew on tap.', kw:['coffee','drive-thru','cold brew'],
+   actions:[{label:'Call',kind:'primary'},{label:'Directions',kind:'ghost'}]},
+  {id:'elite-auto', name:'Elite Auto Service', cat:'automotive', rating:4.9, count:187, featured:true, verified:true,
+   status:'approved', updated:6, submitted:300, verifiedDays:260, hours:wkd(480,1080,540,840), addr:'1420 Industrial Pkwy',
+   desc:'ASE-certified mechanics, diagnostics, and 24/7 towing dispatch.', kw:['auto repair','towing','diagnostics'],
+   actions:[{label:'Request Towing',kind:'primary'},{label:'Call',kind:'ghost'},{label:'Directions',kind:'ghost'}]},
+  {id:'quick-lane', name:'Quick Lane Tire & Auto', cat:'automotive', rating:4.1, count:52, featured:false, verified:false,
+   status:'approved', updated:21, submitted:150, verifiedDays:null, hours:wkd(480,1020,null,null), addr:'560 Grand Ave',
+   desc:'Tires, alignments, and oil changes while you wait.', kw:['tires','oil change','alignment'],
+   actions:[{label:'Call',kind:'primary'},{label:'Directions',kind:'ghost'}]},
+  {id:'oakwood-vet', name:'Oakwood Veterinary Clinic', cat:'healthcare', rating:4.8, count:129, featured:true, verified:true,
+   status:'approved', updated:4, submitted:180, verifiedDays:120, hours:wkd(480,1140,null,null), addr:'9 Oakwood Ln',
+   desc:'Full-service small-animal clinic with urgent-care hours.', kw:['vet','pets','urgent care'],
+   actions:[{label:'Book Appointment',kind:'primary'},{label:'Call',kind:'ghost'},{label:'Emergency Line',kind:'ghost'}]},
+  {id:'harbor-dental', name:'Harbor Dental Care', cat:'healthcare', rating:4.6, count:88, featured:false, verified:true,
+   status:'approved', updated:11, submitted:75, verifiedDays:60, hours:wkd(540,1020,null,null), addr:'410 Harbor Rd',
+   desc:'General and cosmetic dentistry for the whole family.', kw:['dentist','teeth','cosmetic'],
+   actions:[{label:'Book Appointment',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  {id:'cedar-pharmacy', name:'Cedar Pharmacy', cat:'healthcare', rating:4.4, count:58, featured:false, verified:true,
+   status:'approved', updated:8, submitted:220, verifiedDays:200, hours:'24h', addr:'18 Cedar St',
+   desc:'24-hour pharmacy with prescriptions, vaccines, and home delivery.', kw:['pharmacy','24 hour','vaccines'],
+   actions:[{label:'Call',kind:'primary'},{label:'Directions',kind:'ghost'}]},
+  {id:'sterling-law', name:'Sterling & Associates Law Firm', cat:'legal-services', rating:4.9, count:64, featured:true, verified:true,
+   status:'approved', updated:7, submitted:260, verifiedDays:240, hours:wkd(540,1020,null,null), addr:'700 Courthouse Sq',
+   desc:'Estate planning, family law, and small-business counsel.', kw:['attorney','legal','estate planning'],
+   actions:[{label:'Schedule Consultation',kind:'primary'},{label:'Call',kind:'ghost'},{label:'Send Message',kind:'ghost'}]},
+  {id:'luxe-hair', name:'Luxe Hair Studio & Spa', cat:'beauty-wellness', rating:4.7, count:203, featured:true, verified:true,
+   status:'approved', updated:1, submitted:160, verifiedDays:140, hours:{mon:null,tue:[540,1200],wed:[540,1200],thu:[540,1200],fri:[540,1200],sat:[540,1200],sun:null}, addr:'245 Fifth Ave',
+   desc:'Master stylists, color specialists, and a full spa menu.', kw:['salon','spa','hair','color'],
+   actions:[{label:'Book Appointment',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  {id:'cedar-sage', name:'Cedar & Sage Wellness', cat:'beauty-wellness', rating:4.5, count:41, featured:false, verified:false,
+   status:'approved', updated:16, submitted:3, verifiedDays:null, hours:wkd(600,1140,600,1140), addr:'62 Cedar St',
+   desc:'Massage, acupuncture, and herbal consultations.', kw:['massage','acupuncture','wellness'],
+   actions:[{label:'Book Appointment',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  {id:'blue-ridge', name:'Blue Ridge Outfitters', cat:'retail', rating:4.2, count:67, featured:false, verified:true,
+   status:'approved', updated:19, submitted:110, verifiedDays:100, hours:wk(600,1080), addr:'33 Summit Rd',
+   desc:'Camping gear, trail maps, and rentals for the weekend.', kw:['outdoor','camping','gear'],
+   actions:[{label:'Directions',kind:'primary'},{label:'Website',kind:'ghost'}]},
+  {id:'paper-petal', name:'Paper & Petal Books', cat:'retail', rating:4.6, count:113, featured:false, verified:true,
+   status:'approved', updated:12, submitted:8, verifiedDays:6, hours:wk(540,1140), addr:'5 Rosewood St',
+   desc:'Independent bookshop with a garden café and weekly readings.', kw:['books','gifts','readings'],
+   actions:[{label:'Directions',kind:'primary'},{label:'Website',kind:'ghost'}]},
+  {id:'northside-plumbing', name:'Northside Plumbing Co.', cat:'professional-services', rating:4.4, count:39, featured:false, verified:false,
+   status:'approved', updated:23, submitted:130, verifiedDays:null, hours:wkd(420,1020,null,null), addr:'812 Northside Dr',
+   desc:'Emergency plumbing, water heaters, and repiping.', kw:['plumber','emergency','water heater'],
+   actions:[{label:'Request Quote',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  {id:'atlas-accounting', name:'Atlas Accounting Group', cat:'professional-services', rating:4.8, count:57, featured:true, verified:true,
+   status:'approved', updated:10, submitted:190, verifiedDays:170, hours:wkd(540,1020,null,null), addr:'91 Commerce St',
+   desc:'Tax prep, bookkeeping, and payroll for small businesses.', kw:['accountant','tax','payroll'],
+   actions:[{label:'Schedule Consultation',kind:'primary'},{label:'Call',kind:'ghost'}]},
+  /* non-approved — must never render on any public surface */
+  {id:'midnight-ramen', name:'Midnight Ramen House', cat:'restaurants', rating:4.5, count:12, featured:false, verified:false,
+   status:'pendingReview', updated:1, submitted:1, verifiedDays:null, hours:wk(1020,1440), addr:'3 Lantern Alley',
+   desc:'Late-night ramen counter.', kw:['ramen'], actions:[{label:'Call',kind:'ghost'}]},
+  {id:'vista-eye', name:'Vista Eye Clinic', cat:'healthcare', rating:0, count:0, featured:false, verified:false,
+   status:'draft', updated:2, submitted:2, verifiedDays:null, hours:wkd(540,1020,null,null), addr:'44 Vista Way',
+   desc:'Optometry and eyewear.', kw:['eye'], actions:[{label:'Call',kind:'ghost'}]},
+  {id:'rust-chrome', name:'Rust & Chrome Customs', cat:'automotive', rating:4.0, count:9, featured:false, verified:false,
+   status:'suspended', updated:30, submitted:100, verifiedDays:null, hours:wkd(540,1020,null,null), addr:'12 Depot Rd',
+   desc:'Custom fabrication.', kw:['custom'], actions:[{label:'Call',kind:'ghost'}]},
+  {id:'bright-smile', name:'Bright Smile Orthodontics', cat:'healthcare', rating:3.8, count:21, featured:false, verified:false,
+   status:'rejected', updated:25, submitted:80, verifiedDays:null, hours:wkd(540,1020,null,null), addr:'88 Smile Blvd',
+   desc:'Braces and aligners.', kw:['orthodontics'], actions:[{label:'Call',kind:'ghost'}]}
+];
+var CHIPS = [
+  {key:'openNow', label:'Open Now', real:true, tip:'Computed live from each business\u2019 hours against the current time.'},
+  {key:'highlyRated', label:'Highly Rated', real:true, tip:'Rating \u2265 4.5 with at least one rating (ticket 08).'},
+  {key:'trending', label:'Trending', real:false, tip:'Trending is admin-curated (isFeatured), not a visitor filter in v1.'},
+  {key:'offers', label:'Special Offers', real:false, tip:'No offers field exists in v1 \u2014 deferred with the offers decision.'},
+  {key:'nearby', label:'Nearby', real:false, tip:'Location services are deferred in v1 (no geolocation).'}
+];
+
+/* ===== state ===== */
+var S = {v:'A', view:'landing', state:'normal', w:'desktop', q:'', cat:'restaurants',
+  chips:{openNow:false, highlyRated:false}, shown:6};
+var VIEWS = ['landing','search','categories','category'];
+var VARIANTS = ['A','B','C'];
+var VNAMES = {A:'Classic grid', B:'Utility search-first', C:'Editorial'};
+
+/* ===== helpers ===== */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+var ICONS = {
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  pin:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  star:'<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  check:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  left:'<polyline points="15 18 9 12 15 6"/>',
+  right:'<polyline points="9 18 15 12 9 6"/>',
+  arrow:'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  sliders:'<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  searchx:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="8" x2="14" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/>',
+  utensils:'<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+  coffee:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+  scissors:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
+  wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/><polyline points="3.5 12 8 12 10 9 12.5 15 14.5 12 20.5 12"/>',
+  scale:'<path d="M12 3v18"/><path d="M3 7h18"/><path d="M6 7l-3 7a3 3 0 0 0 6 0z"/><path d="M18 7l-3 7a3 3 0 0 0 6 0z"/>',
+  bag:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  briefcase:'<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'
+};
+function ic(n, cls){ return '<svg class="icon '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true">'+ICONS[n]+'</svg>'; }
+function fmtTime(m){ var h=Math.floor(m/60), mm=m%60, ap=h<12?'AM':'PM', hh=h%12||12; return hh+(mm?':'+String(mm).padStart(2,'0'):'')+' '+ap; }
+var DAYKEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+function openNow(b){
+  if(!b.hours) return {open:false, label:'Hours not listed'};
+  if(b.hours === '24h') return {open:true, label:'Open 24 hours'};
+  var d = new Date(), day = DAYKEYS[d.getDay()], mins = d.getHours()*60 + d.getMinutes(), span = b.hours[day];
+  if(!span) return {open:false, label:'Closed today'};
+  if(mins >= span[0] && mins < span[1]) return {open:true, label:'Open now \u00b7 closes '+fmtTime(span[1])};
+  if(mins < span[0]) return {open:false, label:'Closed \u00b7 opens '+fmtTime(span[0])};
+  return {open:false, label:'Closed now'};
+}
+function catOf(slug){ for(var i=0;i<CATS.length;i++){ if(CATS[i].slug===slug) return CATS[i]; } return CATS[0]; }
+function catName(slug){ return catOf(slug).name; }
+function approved(){ return BIZ.filter(function(b){ return b.status === 'approved'; }); }
+function hay(b){ return (b.name+' '+b.kw.join(' ')+' '+b.desc).toLowerCase(); }
+function matchesChips(b){
+  if(S.chips.openNow && !openNow(b).open) return false;
+  if(S.chips.highlyRated && !(b.rating >= 4.5 && b.count > 0)) return false;
+  return true;
+}
+function matchesQuery(b, q){
+  if(!q) return true;
+  var t = q.trim().toLowerCase(); if(!t) return true;
+  return hay(b).indexOf(t) !== -1;
+}
+function sorted(list, key, dir){
+  return list.slice().sort(function(a,b){ return dir * ((a[key]||0) - (b[key]||0)); });
+}
+function activeChipCount(){ var n=0; if(S.chips.openNow)n++; if(S.chips.highlyRated)n++; return n; }
+function resultsAll(){
+  if(S.state === 'no-results') return [];
+  var list = approved().filter(function(b){ return S.view === 'category' ? b.cat === S.cat : true; })
+    .filter(matchesChips).filter(function(b){ return matchesQuery(b, S.q); });
+  return sorted(list, 'rating', -1);
+}
+function catCount(slug){ return approved().filter(function(b){ return b.cat === slug; }).length; }
+function hasChips(){ return activeChipCount() > 0; }
+function skPills(n){ var o=''; for(var i=0;i<n;i++) o+='<span class="sk sk-pill" aria-hidden="true"></span>'; return o; }
+/* ===== shared partials ===== */
+function photoHtml(b, extra){
+  var c = catOf(b.cat);
+  var tint = 'p' + (1 + (BIZ.indexOf(b) % 6));
+  return '<div class="photo '+tint+'" role="img" aria-label="'+esc(b.name)+' — photo placeholder">'+
+    ic(c.icon,'ph-ic')+'<span class="ph-initial" aria-hidden="true">'+esc(b.name.charAt(0))+'</span>'+(extra||'')+'</div>';
+}
+function ratingHtml(b){
+  if(!b.count) return '<span class="rating muted">No ratings yet</span>';
+  return '<span class="rating">'+ic('star')+b.rating.toFixed(1)+'<span class="cnt">('+b.count+')</span></span>';
+}
+function openHtml(b){
+  var o = openNow(b);
+  return '<span class="open-line"><span class="dot '+(o.open?'open':'closed')+'"></span><span class="'+(o.open?'txt-open':'')+'">'+esc(o.label)+'</span></span>';
+}
+function verifiedHtml(b){
+  return b.verified ? '<span class="badge-verified">'+ic('check')+'Verified</span>' : '';
+}
+function actionsHtml(b, max){
+  return b.actions.slice(0, max||2).map(function(a){
+    return '<button class="btn '+(a.kind==='primary'?'primary':'ghost')+' sm" data-act="noop" title="Prototype: action not wired">'+esc(a.label)+'</button>';
+  }).join('');
+}
+function metaLine(b){
+  return '<span class="meta-line">'+ic('pin')+esc(b.addr)+'</span>';
+}
+function cardA(b){
+  return '<article class="vA-card">'+photoHtml(b, verifiedHtml(b))+
+    '<div class="body">'+
+      '<span class="cat-eyebrow">'+ic(catOf(b.cat).icon)+esc(catName(b.cat))+'</span>'+
+      '<h3 class="name">'+esc(b.name)+'</h3>'+
+      '<div class="meta-line">'+ratingHtml(b)+openHtml(b)+'</div>'+
+      '<p class="desc">'+esc(b.desc)+'</p>'+
+      '<div class="foot">'+actionsHtml(b,2)+'</div>'+
+    '</div></article>';
+}
+function rowB(b){
+  return '<article class="vB-row">'+photoHtml(b)+
+    '<div class="body">'+
+      '<div class="meta-line"><span class="cat-eyebrow">'+ic(catOf(b.cat).icon)+esc(catName(b.cat))+'</span>'+verifiedHtml(b)+'</div>'+
+      '<h3 class="name">'+esc(b.name)+'</h3>'+
+      '<div class="meta-line">'+ratingHtml(b)+openHtml(b)+'</div>'+
+      '<p class="desc one">'+esc(b.desc)+'</p>'+
+      '<span class="meta-line tiny">'+ic('pin')+esc(b.addr)+'</span>'+
+    '</div>'+
+    '<div class="side">'+actionsHtml(b,2)+'</div>'+
+  '</article>';
+}
+function miniA(b){
+  return '<article class="vA-mini">'+photoHtml(b)+
+    '<div class="body">'+
+      '<h3 class="name">'+esc(b.name)+'</h3>'+
+      '<div class="meta-line">'+ratingHtml(b)+'</div>'+
+      '<span class="tiny muted">'+esc(catName(b.cat))+' · '+esc(openNow(b).label)+'</span>'+
+    '</div></article>';
+}
+function vrowA(b){
+  return '<article class="vA-vrow">'+photoHtml(b)+
+    '<div class="body">'+
+      '<h3 class="name">'+esc(b.name)+'</h3>'+
+      '<div class="meta-line">'+verifiedHtml(b)+ratingHtml(b)+'</div>'+
+    '</div></article>';
+}
+function chipbarHtml(){
+  return '<div class="chiprow" role="group" aria-label="Filters">'+CHIPS.map(function(c){
+    if(c.real){
+      var on = S.chips[c.key];
+      return '<button class="chip '+(on?'on':'')+'" data-act="chip:'+c.key+'" data-focus="chip:'+c.key+'" aria-pressed="'+(on?'true':'false')+'">'+
+        ic(c.key==='openNow'?'clock':'star')+esc(c.label)+'</button>';
+    }
+    return '<span class="tip"><button class="chip off" data-act="noop" aria-disabled="true" aria-describedby="tip-'+c.key+'">'+
+      ic('info')+esc(c.label)+'</button><span class="tipbub" id="tip-'+c.key+'" role="tooltip">'+esc(c.tip)+'</span></span>';
+  }).join('')+
+  (activeChipCount() ? '<button class="btn ghost sm" data-act="clear-chips" data-focus="clear-chips">'+ic('x')+'Clear filters</button>' : '')+
+  '</div>';
+}
+function countLineHtml(total){
+  var shown = Math.min(S.shown, total);
+  var txt = '<b>'+total+'</b> result'+(total===1?'':'s');
+  if(S.view==='search' && S.q) txt += ' for \u201c'+esc(S.q)+'\u201d';
+  if(hasChips()) txt += ' · '+activeChipCount()+' filter'+(activeChipCount()===1?'':'s')+' active';
+  if(total>0) txt += ' · showing '+shown;
+  return '<div class="count-line" role="status">'+txt+'</div>';
+}
+function loadMoreHtml(total){
+  if(S.state==='loading' || total===0) return '';
+  var shown = Math.min(S.shown, total);
+  if(shown >= total) return '<div class="loadmore"><span class="tiny muted">All '+total+' results shown</span></div>';
+  return '<div class="loadmore"><button class="btn" data-act="loadmore" data-focus="loadmore">Load more</button>'+
+    '<span class="tiny muted">Showing '+shown+' of '+total+'</span></div>';
+}
+function emptyHtml(){
+  return '<div class="empty" role="status">'+ic('searchx','empty-ic')+
+    '<h3>No businesses found</h3>'+
+    '<p>Try removing a filter or searching for a different term. New local businesses are added every week.</p>'+
+    '<div class="empty-actions"><button class="btn primary" data-act="clear-all" data-focus="clear-all">Clear filters</button>'+
+    '<button class="btn ghost" data-act="view:categories">Browse categories</button></div></div>';
+}
+function skeletonCards(n){
+  var out = '';
+  for(var i=0;i<n;i++) out += '<div class="sk-card" aria-hidden="true"><div class="sk sk-photo"></div><div class="sk-body"><div class="sk sk-line w40"></div><div class="sk sk-line w80"></div><div class="sk sk-line w60"></div></div></div>';
+  return out;
+}
+function skeletonRows(n){
+  var out = '';
+  for(var i=0;i<n;i++) out += '<div class="sk-row" aria-hidden="true"><div class="sk sk-thumb"></div><div class="sk-body"><div class="sk sk-line w40"></div><div class="sk sk-line w80"></div><div class="sk sk-line w60"></div></div></div>';
+  return out;
+}
+function headerA(){
+  return '<header class="site-head vA-head"><div class="wrap">'+
+    '<button class="brand" data-act="view:landing" data-focus="brand"><span class="brand-mark">'+ic('pin')+'</span>LocalConnect</button>'+
+    '<nav class="nav" aria-label="Primary">'+
+      '<button data-act="view:search">Directory</button><button data-act="view:categories">Categories</button>'+
+      '<button data-act="noop">About</button><button data-act="noop">Add Your Business</button>'+
+      '<button class="btn primary sm" data-act="noop">Sign In</button></nav>'+
+    '</div></header>';
+}
+function headerB(){
+  return '<header class="site-head vB-head"><div class="wrap">'+
+    '<button class="brand" data-act="view:landing" data-focus="brand"><span class="brand-mark">'+ic('pin')+'</span>LocalConnect</button>'+
+    '<div class="vB-search">'+ic('search')+'<input id="q-input" type="search" placeholder="Search businesses, services, keywords" value="'+esc(S.q)+'" aria-label="Search businesses"></div>'+
+    '<nav class="nav" aria-label="Primary"><button data-act="view:categories">Categories</button><button class="btn primary sm" data-act="noop">Sign In</button></nav>'+
+    '</div></header>';
+}
+function headerC(){
+  return '<header class="site-head vC-head"><div class="wrap">'+
+    '<button class="brand" data-act="view:landing" data-focus="brand"><span class="brand-mark">'+ic('pin')+'</span>LocalConnect</button>'+
+    '<nav class="nav" aria-label="Primary">'+
+      '<button data-act="view:search">Directory</button><button data-act="view:categories">Categories</button>'+
+      '<button data-act="noop">About</button><button data-act="noop">Add Your Business</button>'+
+      '<button class="btn primary sm" data-act="noop">Sign In</button></nav>'+
+    '</div></header>';
+}
+function searchBarA(){
+  return '<div class="searchbar vA-search">'+ic('search')+
+    '<input id="q-input" type="search" placeholder="Search businesses, services, keywords" value="'+esc(S.q)+'" aria-label="Search businesses">'+
+    '<button class="btn primary" data-act="search-go">Search</button></div>';
+}
+function titleHtml(){
+  if(S.view==='category'){
+    return '<div class="crumb"><button data-act="view:landing">Home</button>'+ic('right')+
+      '<button data-act="view:categories">Categories</button>'+ic('right')+'<span>'+esc(catName(S.cat))+'</span></div>'+
+      '<h1>'+esc(catName(S.cat))+'</h1>';
+  }
+  return '<h1>Search results</h1>';
+}
+function headerFor(v){ return v==='A' ? headerA() : v==='B' ? headerB() : headerC(); }
+/* ===== landing data (shared by all variants) ===== */
+function landingData(){
+  var a = approved();
+  var trending = S.state==='sparse' ? [] : sorted(a.filter(function(b){ return b.featured && matchesChips(b); }), 'updated', 1).slice(0,3);
+  var fresh = sorted(a.filter(matchesChips), 'submitted', 1).slice(0,4);
+  var verified = S.state==='sparse' ? [] : sorted(a.filter(function(b){ return b.verified && matchesChips(b); }), 'verifiedDays', 1).slice(0,3);
+  return {trending:trending, fresh:fresh, verified:verified};
+}
+function skTiles(n){ var o=''; for(var i=0;i<n;i++) o+='<div class="sk sk-tile" aria-hidden="true"></div>'; return o; }
+function skMinis(n){ var o=''; for(var i=0;i<n;i++) o+='<div class="sk sk-mini" aria-hidden="true"></div>'; return o; }
+function skRows(n){ var o=''; for(var i=0;i<n;i++) o+='<div class="sk-row" aria-hidden="true"><div class="sk sk-thumb-sm"></div><div class="sk-body"><div class="sk sk-line w60"></div><div class="sk sk-line w40"></div></div></div>'; return o; }
+
+/* ===== variant A — classic grid ===== */
+function tileA(c){
+  return '<button class="vA-tile" data-act="cat:'+c.slug+'"><span class="tile-ic">'+ic(c.icon)+'</span>'+
+    '<span class="tile-name">'+esc(c.name)+'</span><span class="tile-count">'+catCount(c.slug)+' businesses</span></button>';
+}
+function categoriesSectionA(){
+  return '<section class="sec"><div class="sec-head"><div><h2>Explore by Category</h2>'+
+    '<div class="sec-sub">'+approved().length+' approved businesses across '+CATS.length+' categories</div></div>'+
+    '<button class="sec-link" data-act="view:categories">All categories'+ic('arrow')+'</button></div>'+
+    '<div class="vA-cats">'+CATS.map(tileA).join('')+'</div></section>';
+}
+function trendingSectionA(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>Trending This Week</h2>'+
+    '<div class="sec-sub">Featured by the LocalConnect team</div></div>'+
+    '<button class="sec-link" data-act="view:search">View directory'+ic('arrow')+'</button></div>'+
+    '<div class="vA-cards">'+list.map(cardA).join('')+'</div></section>';
+}
+function freshSectionA(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>New to LocalConnect</h2>'+
+    '<div class="sec-sub">Recently joined businesses</div></div></div>'+
+    '<div class="vA-minis">'+list.map(miniA).join('')+'</div></section>';
+}
+function verifiedSectionA(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>Recently Verified</h2>'+
+    '<div class="sec-sub">Independently checked listings</div></div></div>'+
+    '<div class="vA-vlist">'+list.map(vrowA).join('')+'</div></section>';
+}
+var A = {
+  name: 'Classic grid',
+  land: function(){
+    var d = landingData();
+    var hero = '<section class="vA-hero"><div class="wrap"><h1>Discover Amazing Local Businesses</h1>'+
+      '<p class="sub">Search the local directory, browse categories, and find trusted businesses near you.</p>'+
+      searchBarA()+
+      '<div class="vA-stats"><span><b>'+approved().length+'</b> approved listings</span>'+
+      '<span><b>'+CATS.length+'</b> categories</span>'+
+      '<span><b>'+approved().filter(function(b){return b.verified;}).length+'</b> verified</span></div>'+
+      '</div></section>';
+    if(S.state==='loading'){
+      return headerA()+hero+'<div class="wrap">'+
+        '<section class="sec"><div class="sec-head"><div><h2>Explore by Category</h2></div></div><div class="vA-cats">'+skTiles(8)+'</div></section>'+
+        '<section class="sec"><div class="sec-head"><div><h2>Trending This Week</h2></div></div><div class="vA-cards">'+skeletonCards(3)+'</div></section>'+
+        '<section class="sec"><div class="sec-head"><div><h2>New to LocalConnect</h2></div></div><div class="vA-minis">'+skMinis(4)+'</div></section>'+
+        '<section class="sec"><div class="sec-head"><div><h2>Recently Verified</h2></div></div><div class="vA-vlist">'+skRows(3)+'</div></section>'+
+        '</div>';
+    }
+    var body = '<div class="wrap">'+
+      (S.state==='sparse' ? '<div class="vA-banner">'+ic('info')+' Sparse-data demo: Trending This Week and Recently Verified have no approved data, so both sections are hidden entirely (SPEC section 8).</div>' : '')+
+      categoriesSectionA()+
+      trendingSectionA(d.trending)+
+      '<section class="chips-sec">'+chipbarHtml()+'</section>'+
+      freshSectionA(d.fresh)+
+      verifiedSectionA(d.verified)+
+      ((d.trending.length + d.fresh.length + d.verified.length === 0 && hasChips()) ? emptyHtml() : '')+
+      '</div>';
+    return headerA()+hero+body;
+  },
+  results: function(){
+    return headerA()+'<div class="wrap"><div class="sec">'+titleHtml()+
+      '<div class="vA-toolbar">'+(S.view==='search' ? searchBarA() : '')+'</div>'+
+      '<div id="results-region">'+A.resultsRegion()+'</div>'+
+      '</div></div>';
+  },
+  resultsRegion: function(){
+    if(S.state==='loading') return chipbarHtml()+'<div class="vA-results">'+skeletonCards(6)+'</div>';
+    var list = resultsAll(), total = list.length;
+    if(total===0) return chipbarHtml()+emptyHtml();
+    return chipbarHtml()+countLineHtml(total)+
+      '<div class="vA-results">'+list.slice(0,S.shown).map(cardA).join('')+'</div>'+loadMoreHtml(total);
+  },
+  cats: function(){
+    var grid = S.state==='loading' ? '<div class="vA-cats">'+skTiles(8)+'</div>'
+      : '<div class="vA-cats">'+CATS.map(tileA).join('')+'</div>';
+    return headerA()+'<div class="wrap"><div class="sec"><h1>Browse Categories</h1>'+
+      '<div class="sec-sub lead-sub">Every approved business, grouped by category.</div>'+grid+'</div></div>';
+  }
+};
+/* ===== variant B — utility search-first ===== */
+function pillB(c){
+  return '<button class="vB-pill" data-act="cat:'+c.slug+'">'+ic(c.icon)+esc(c.name)+'<span class="cnt">'+catCount(c.slug)+'</span></button>';
+}
+function catCardB(c){
+  return '<button class="vB-mini" data-act="cat:'+c.slug+'"><span class="vB-cat-ic">'+ic(c.icon)+'</span>'+
+    '<span class="tile-name">'+esc(c.name)+'</span><span class="tile-count">'+catCount(c.slug)+' businesses</span></button>';
+}
+function miniB(b){
+  return '<article class="vB-mini">'+photoHtml(b)+
+    '<h3 class="name">'+esc(b.name)+'</h3>'+
+    '<div class="meta-line">'+ratingHtml(b)+'</div>'+
+    '<span class="tiny muted">'+esc(catName(b.cat))+' · '+esc(openNow(b).label)+'</span></article>';
+}
+function sideB(){
+  return '<aside class="vB-side" aria-label="Filters">'+
+    '<div class="side-sec"><h3>Categories</h3>'+
+      '<button class="vB-side-link'+(S.view!=='category'?' on':'')+'" data-act="all-businesses">All businesses<span>'+approved().length+'</span></button>'+
+      CATS.map(function(c){
+        return '<button class="vB-side-link'+((S.view==='category' && S.cat===c.slug)?' on':'')+'" data-act="cat:'+c.slug+'">'+esc(c.name)+'<span>'+catCount(c.slug)+'</span></button>';
+      }).join('')+
+    '</div>'+
+    '<div class="side-sec"><h3>Filters</h3>'+chipbarHtml()+'</div>'+
+  '</aside>';
+}
+var B = {
+  name: 'Utility search-first',
+  land: function(){
+    var d = landingData();
+    var lead = '<div class="wrap vB-lead"><h1>LocalConnect Directory</h1>'+
+      '<div class="sub">'+approved().length+' approved local businesses · '+CATS.length+' categories · updated weekly</div></div>';
+    if(S.state==='loading'){
+      return headerB()+lead+'<div class="wrap">'+
+        '<section class="sec"><div class="vB-pills">'+skPills(8)+'</div></section>'+
+        '<section class="sec"><div class="vB-rows">'+skeletonRows(4)+'</div></section>'+
+        '<section class="sec"><div class="vB-minis">'+skMinis(4)+'</div></section>'+
+        '</div>';
+    }
+    var body = '<div class="wrap">'+
+      (S.state==='sparse' ? '<div class="vB-banner">'+ic('info')+' Sparse-data demo: Trending This Week and Recently Verified have no approved data, so both sections are hidden entirely (SPEC section 8).</div>' : '')+
+      '<section class="sec"><div class="vB-pills">'+CATS.map(pillB).join('')+'</div></section>'+
+      trendingSectionB(d.trending)+
+      '<section class="chips-sec">'+chipbarHtml()+'</section>'+
+      freshSectionB(d.fresh)+
+      verifiedSectionB(d.verified)+
+      ((d.trending.length + d.fresh.length + d.verified.length === 0 && hasChips()) ? emptyHtml() : '')+
+      '</div>';
+    return headerB()+lead+body;
+  },
+  results: function(){
+    return headerB()+'<div class="wrap"><div class="sec">'+titleHtml()+
+      '<div class="vB-split">'+sideB()+'<div id="results-region">'+B.resultsRegion()+'</div></div>'+
+      '</div></div>';
+  },
+  resultsRegion: function(){
+    if(S.state==='loading') return '<div class="vB-results">'+skeletonRows(4)+'</div>';
+    var list = resultsAll(), total = list.length;
+    if(total===0) return emptyHtml();
+    return countLineHtml(total)+'<div class="vB-results">'+list.slice(0,S.shown).map(rowB).join('')+'</div>'+loadMoreHtml(total);
+  },
+  cats: function(){
+    var grid = S.state==='loading' ? '<div class="vB-minis">'+skMinis(8)+'</div>'
+      : '<div class="vB-minis">'+CATS.map(catCardB).join('')+'</div>';
+    return headerB()+'<div class="wrap"><div class="sec"><h1>Browse Categories</h1>'+
+      '<div class="sec-sub lead-sub">Every approved business, grouped by category.</div>'+grid+'</div></div>';
+  }
+};
+function trendingSectionB(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>Trending This Week</h2>'+
+    '<div class="sec-sub">Featured by the LocalConnect team</div></div>'+
+    '<button class="sec-link" data-act="view:search">View all'+ic('arrow')+'</button></div>'+
+    '<div class="vB-rows">'+list.map(rowB).join('')+'</div></section>';
+}
+function freshSectionB(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>New to LocalConnect</h2>'+
+    '<div class="sec-sub">Recently joined businesses</div></div></div>'+
+    '<div class="vB-minis">'+list.map(miniB).join('')+'</div></section>';
+}
+function verifiedSectionB(list){
+  if(!list.length) return '';
+  return '<section class="sec"><div class="sec-head"><div><h2>Recently Verified</h2>'+
+    '<div class="sec-sub">Independently checked listings</div></div></div>'+
+    '<div class="vB-vrows">'+list.map(rowB).join('')+'</div></section>';
+}
+/* ===== variant C — editorial ===== */
+function spotC(b){
+  var o = openNow(b);
+  return '<div class="vC-spot">'+photoHtml(b)+
+    '<div class="spot-body">'+
+      '<span class="spot-flag">'+ic('star')+'Featured this week</span>'+
+      '<div class="spot-name">'+esc(b.name)+'</div>'+
+      '<div class="spot-meta">'+ratingHtml(b)+'<span>'+esc(catName(b.cat))+'</span>'+
+      '<span class="open-line"><span class="dot '+(o.open?'open':'closed')+'"></span>'+esc(o.label)+'</span></div>'+
+    '</div></div>';
+}
+function blockC(c){
+  var tint = 'p' + (1 + (CATS.indexOf(c) % 6));
+  return '<button class="vC-block '+tint+'" data-act="cat:'+c.slug+'">'+
+    '<span class="blk-ic">'+ic(c.icon)+'</span>'+
+    '<span class="blk-name">'+esc(c.name)+'</span>'+
+    '<span class="blk-count">'+catCount(c.slug)+' businesses</span></button>';
+}
+function bandRowC(b){
+  return '<div class="vC-band-row">'+photoHtml(b)+
+    '<div class="body"><h3 class="name">'+esc(b.name)+'</h3>'+
+    '<div class="meta-line">'+ratingHtml(b)+'<span class="tiny">'+esc(catName(b.cat))+'</span></div></div></div>';
+}
+var C = {
+  name: 'Editorial',
+  land: function(){
+    var d = landingData();
+    var spot = (S.state!=='loading' && d.trending.length) ? spotC(d.trending[0]) : '<div class="sk sk-spot" aria-hidden="true"></div>';
+    var hero = '<section class="vC-hero wrap"><div class="vC-hero-copy"><div class="eyebrow">Local directory · v1</div>'+
+      '<h1>Find the best of your town.</h1>'+
+      '<p class="sub">Hand-checked listings, real hours, and a category for everything — from wood-fired pizza to estate planning.</p>'+
+      searchBarA()+'</div>'+spot+'</section>';
+    if(S.state==='loading'){
+      return headerC()+hero+'<div class="wrap">'+
+        '<section class="sec"><div class="vC-blocks">'+skTiles(8)+'</div></section>'+
+        '<section class="sec"><div class="vC-rail"><div class="vC-rail-card">'+skeletonCards(1)+'</div><div class="vC-rail-card">'+skeletonCards(1)+'</div><div class="vC-rail-card">'+skeletonCards(1)+'</div></div></section>'+
+        '<section class="sec"><div class="vC-band"><div class="vC-band-light">'+skRows(3)+'</div><div class="vC-band-ink">'+skRows(3)+'</div></div></section>'+
+        '</div>';
+    }
+    var body = '<div class="wrap">'+
+      (S.state==='sparse' ? '<div class="vC-banner">'+ic('info')+' Sparse-data demo: Trending This Week and Recently Verified have no approved data, so both sections are hidden entirely (SPEC section 8).</div>' : '')+
+      '<section class="sec"><div class="sec-head"><div><h2>Explore by Category</h2>'+
+      '<div class="sec-sub">'+approved().length+' approved businesses across '+CATS.length+' categories</div></div>'+
+      '<button class="sec-link" data-act="view:categories">All categories'+ic('arrow')+'</button></div>'+
+      '<div class="vC-blocks">'+CATS.map(blockC).join('')+'</div></section>'+
+      (d.trending.length ? '<section class="sec"><div class="sec-head"><div><h2>Trending This Week</h2>'+
+        '<div class="sec-sub">Featured by the LocalConnect team · scroll sideways</div></div></div>'+
+        '<div class="vC-rail">'+d.trending.map(function(b){ return '<div class="vC-rail-card">'+cardA(b)+'</div>'; }).join('')+'</div></section>' : '')+
+      '<section class="chips-sec">'+chipbarHtml()+'</section>'+
+      ((d.fresh.length || d.verified.length) ? '<section class="sec"><div class="vC-band">'+
+        '<div class="vC-band-light"><div class="band-title">'+ic('arrow')+'New to LocalConnect</div>'+
+          (d.fresh.length ? d.fresh.map(bandRowC).join('') : '<span class="tiny muted">No new listings right now.</span>')+'</div>'+
+        '<div class="vC-band-ink"><div class="band-title">'+ic('check')+'Recently Verified</div>'+
+          (d.verified.length ? d.verified.map(bandRowC).join('') : '<span class="tiny">No recently verified listings.</span>')+'</div>'+
+        '</div></section>' : '')+
+      ((d.trending.length + d.fresh.length + d.verified.length === 0 && hasChips()) ? emptyHtml() : '')+
+      '</div>';
+    return headerC()+hero+body;
+  },
+  results: function(){
+    return headerC()+'<div class="wrap"><div class="sec">'+titleHtml()+
+      '<div class="vC-toolbar">'+(S.view==='search' ? searchBarA() : '')+chipbarHtml()+'<span class="tiny muted">Sorted by rating (prototype)</span></div>'+
+      '<div id="results-region">'+C.resultsRegion()+'</div>'+
+      '</div></div>';
+  },
+  resultsRegion: function(){
+    if(S.state==='loading') return '<div class="vC-mixed">'+skeletonCards(5)+'</div>';
+    var list = resultsAll(), total = list.length;
+    if(total===0) return emptyHtml();
+    var vis = list.slice(0,S.shown), first = vis[0], rest = vis.slice(1);
+    var feature = '<article class="vA-card vC-feature">'+photoHtml(first, verifiedHtml(first))+
+      '<div class="body"><span class="cat-eyebrow">'+ic(catOf(first.cat).icon)+esc(catName(first.cat))+'</span>'+
+      '<h3 class="name">'+esc(first.name)+'</h3>'+
+      '<div class="meta-line">'+ratingHtml(first)+openHtml(first)+'</div>'+
+      '<p class="desc">'+esc(first.desc)+'</p>'+
+      '<span class="meta-line tiny">'+ic('pin')+esc(first.addr)+'</span>'+
+      '<div class="foot">'+actionsHtml(first,2)+'</div></div></article>';
+    return countLineHtml(total)+'<div class="vC-mixed">'+feature+rest.map(cardA).join('')+'</div>'+loadMoreHtml(total);
+  },
+  cats: function(){
+    var grid = S.state==='loading' ? '<div class="vC-blocks">'+skTiles(8)+'</div>'
+      : '<div class="vC-blocks">'+CATS.map(blockC).join('')+'</div>';
+    return headerC()+'<div class="wrap"><div class="sec"><h1>Browse Categories</h1>'+
+      '<div class="sec-sub lead-sub">Every approved business, grouped by category.</div>'+grid+'</div></div>';
+  }
+};
+
+/* ===== paint + chrome + events ===== */
+var V = {A:A, B:B, C:C};
+var app = document.getElementById('app');
+var frame = document.getElementById('frame');
+var hintEl = document.getElementById('hint');
+var chrome = document.getElementById('chrome');
+var stateSel = document.getElementById('stateSel');
+
+function stateOptions(){
+  return S.view==='landing'
+    ? [['normal','Normal data'],['loading','Loading skeletons'],['sparse','Hidden-empty sections']]
+    : [['normal','Normal data'],['loading','Loading skeletons'],['no-results','No results']];
+}
+function validateState(){
+  var ok = stateOptions().some(function(o){ return o[0]===S.state; });
+  if(!ok) S.state = 'normal';
+}
+function renderView(){
+  if(S.view==='landing') return V[S.v].land();
+  if(S.view==='categories') return V[S.v].cats();
+  return V[S.v].results();
+}
+function updateChrome(){
+  document.getElementById('vlabel').innerHTML = '<b>'+S.v+'</b> — '+VNAMES[S.v];
+  Array.prototype.forEach.call(document.querySelectorAll('#viewbtns .cbtn'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-view')===S.view);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#widthbtns .cbtn'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-width')===S.w);
+  });
+  stateSel.innerHTML = stateOptions().map(function(o){
+    return '<option value="'+o[0]+'"'+(o[0]===S.state?' selected':'')+'>'+o[1]+'</option>';
+  }).join('');
+  frame.setAttribute('data-w', S.w);
+  var notes = ['Fixture: 21 businesses, 17 approved — the 4 non-approved never render', 'Card actions capped at 2', 'Search: try “coffee” or “pizza”'];
+  if(S.state==='sparse') notes.push('Sparse: empty sections hidden');
+  if(S.state==='loading') notes.push('Skeletons');
+  if(S.state==='no-results') notes.push('No-results empty state');
+  document.getElementById('cnote').textContent = notes.join(' · ');
+  hintEl.textContent = '← → cycle variants ('+S.v+' of 3) · B accepted for B4 (issue #18) · chips filter live · view: '+S.view+' · width: '+S.w;
+}
+function paint(){
+  app.innerHTML = renderView();
+  writeState();
+  updateChrome();
+}
+function updateResults(){
+  var el = document.getElementById('results-region');
+  if(el){ el.innerHTML = V[S.v].resultsRegion(); writeState(); updateChrome(); }
+}
+function rememberFocus(){
+  var el = document.activeElement;
+  return (el && el.getAttribute && el.getAttribute('data-focus')) || null;
+}
+function restoreFocus(key){
+  if(!key) return;
+  var el = app.querySelector('[data-focus="'+key+'"]');
+  if(el && el.focus) el.focus();
+}
+function cycleVariant(d){
+  var i = VARIANTS.indexOf(S.v);
+  S.v = VARIANTS[(i+d+VARIANTS.length) % VARIANTS.length];
+  paint();
+}
+function act(a){
+  var parts = a.split(':'), k = parts[0], arg = parts.slice(1).join(':');
+  if(k==='view'){ S.view=arg; S.shown=6; validateState(); paint(); }
+  else if(k==='cat'){ S.view='category'; S.cat=arg; S.shown=6; validateState(); paint(); }
+  else if(k==='chip'){ S.chips[arg]=!S.chips[arg]; S.shown=6; paint(); }
+  else if(k==='loadmore'){ S.shown+=6; updateResults(); }
+  else if(k==='clear-chips'){ S.chips.openNow=false; S.chips.highlyRated=false; S.shown=6; paint(); }
+  else if(k==='clear-all'){ S.chips.openNow=false; S.chips.highlyRated=false; if(S.view==='search') S.q=''; S.shown=6; paint(); }
+  else if(k==='search-go'){ var qi=document.getElementById('q-input'); if(qi) S.q=qi.value; S.view='search'; S.shown=6; validateState(); paint(); }
+  else if(k==='all-businesses'){ S.view='search'; S.q=''; S.shown=6; validateState(); paint(); }
+}
+app.addEventListener('click', function(e){
+  var el = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+  if(!el) return;
+  var key = rememberFocus();
+  act(el.getAttribute('data-act'));
+  restoreFocus(key);
+});
+app.addEventListener('input', function(e){
+  if(e.target && e.target.id==='q-input'){ S.q=e.target.value; S.shown=6; updateResults(); }
+});
+app.addEventListener('keydown', function(e){
+  if(e.target && e.target.id==='q-input' && e.key==='Enter'){ S.view='search'; S.shown=6; validateState(); paint(); }
+});
+chrome.addEventListener('click', function(e){
+  var b = e.target && e.target.closest ? e.target.closest('[data-view]') : null;
+  if(b){ S.view=b.getAttribute('data-view'); S.shown=6; validateState(); paint(); return; }
+  var w = e.target.closest ? e.target.closest('[data-width]') : null;
+  if(w){ S.w=w.getAttribute('data-width'); updateChrome(); writeState(); return; }
+  if(e.target.closest('#vprev')) cycleVariant(-1);
+  else if(e.target.closest('#vnext')) cycleVariant(1);
+});
+stateSel.addEventListener('change', function(){ S.state=stateSel.value; validateState(); paint(); });
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if(t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.tagName==='SELECT' || t.isContentEditable)) return;
+  if(e.key==='ArrowLeft') cycleVariant(-1);
+  if(e.key==='ArrowRight') cycleVariant(1);
+});
+
+/* ===== URL state (shareable / reload-stable) ===== */
+function readState(){
+  var hp = new URLSearchParams(location.hash.replace(/^#/,''));
+  var qp = new URLSearchParams(location.search);
+  function get(k){ var a=hp.get(k); if(a!==null) return a; return qp.get(k); }
+  var v = get('v') || get('variant');
+  if(v && VARIANTS.indexOf(v.toUpperCase())>=0) S.v = v.toUpperCase();
+  var view = get('view'); if(view && VIEWS.indexOf(view)>=0) S.view = view;
+  var st = get('state'); if(st) S.state = st;
+  var w = get('w'); if(w && ['desktop','tablet','mobile'].indexOf(w)>=0) S.w = w;
+  var q = get('q'); if(q!==null) S.q = q;
+  var cat = get('cat');
+  if(cat && CATS.some(function(c){ return c.slug===cat; })) S.cat = cat;
+  var chips = get('chips');
+  if(chips){ S.chips.openNow = chips.indexOf('openNow')>=0; S.chips.highlyRated = chips.indexOf('highlyRated')>=0; }
+  validateState();
+}
+function writeState(){
+  var p = new URLSearchParams();
+  p.set('v', S.v); p.set('view', S.view); p.set('state', S.state); p.set('w', S.w);
+  if(S.view==='search' && S.q) p.set('q', S.q);
+  if(S.view==='category') p.set('cat', S.cat);
+  var chips = [];
+  if(S.chips.openNow) chips.push('openNow');
+  if(S.chips.highlyRated) chips.push('highlyRated');
+  if(chips.length) p.set('chips', chips.join(','));
+  var url = location.pathname + location.search + '#' + p.toString();
+  try{ history.replaceState(null, '', url); }catch(err){ location.hash = p.toString(); }
+}
+
+readState();
+paint();
+
+/*
+  ===== DECISION POINTS — reviewed 2026-09-18 for issue #18 =====
+  VERDICT: Variant B accepted; the points below are resolved as prototyped in B.
+  Still open: B4 token/palette source (issue #4 → design.md, root) and the exact
+  breakpoint values (prototyped as container queries at 60rem / 44rem).
+  1. Landing hierarchy — pick A (classic grid), B (utility search-first), or
+     C (editorial) — or name the hybrid ("hero from A, results rows from B").
+  2. Do chips filter landing sections in place (as prototyped), or navigate to
+     /search with the filter applied? Prototype uses in-place filtering + the
+     chips persist into search/category views.
+  3. Results presentation — A grid (3-up cards) vs B dense rows + sidebar vs
+     C mixed (feature + grid). Confirm BusinessCard density + 2-action cap.
+  4. Category index — A tile grid vs B compact pill/grid vs C color blocks.
+  5. Load-more wording/placement ("Load more" + "Showing X of Y" + end state).
+  6. Disabled-chip tooltip copy (Trending / Special Offers / Nearby).
+  7. Empty-state copy + CTAs (Clear filters + Browse categories).
+  8. Responsive collapse: confirm the two breakpoints (60rem / 44rem) and the
+     mobile card compaction (photo 21/9, single column, chip row scrolls).
+  9. Categories landing section on /categories — same tiles as the landing, or
+     richer (descriptions / subcategories)?
+  10. Header: search-in-header (B) vs hero search (A/C) as the product default.
+*/
+})();
+</script>
+</body>
+</html>
