@@ -1,6 +1,8 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
+// NOTE: createRouteMatcher is deprecated in @clerk/nextjs v7 (still functional).
+// Middleware authenticates only — authorization is the layout gate + Convex guard.
+const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/admin(.*)']);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) await auth.protect();

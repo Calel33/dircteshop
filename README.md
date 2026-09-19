@@ -90,10 +90,11 @@ CLERK_SECRET_KEY=sk_test_your_clerk_secret_key_here
 NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://your-clerk-frontend-api-url.clerk.accounts.dev
 
 # Clerk Redirect URLs
-NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL=/dashboard
-NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/dashboard
-NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard
-NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard
+# Authed product surface is the owner workspace (see screens/SPEC.md §2)
+NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL=/owner
+NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL=/owner
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/owner
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/owner
 ```
 
 4. Initialize Convex:
@@ -115,6 +116,8 @@ npx convex dev
 # In Convex Dashboard Environment Variables
 CLERK_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://your-clerk-frontend-api-url.clerk.accounts.dev
+# Super-admin whitelist: exactly one Clerk user ID in production (comma-separate for local testing)
+SUPER_ADMIN_CLERK_IDS=user_your_clerk_user_id_here
 ```
 
 7. Set up Clerk webhooks (in Clerk Dashboard, not Convex):
@@ -159,7 +162,7 @@ Your application will be available at `http://localhost:3000`.
 - Automatic user sync to Convex database
 - Protected routes with middleware
 - Social login support
-- Automatic redirects to dashboard after auth
+- Automatic redirects to the owner workspace after auth
 
 ### Payment Flow
 
@@ -174,7 +177,8 @@ Your application will be available at `http://localhost:3000`.
 // Users table
 users: {
   name: string,
-  externalId: string // Clerk user ID
+  externalId: string, // Clerk user ID
+  role: 'user' | 'superAdmin' // stamped only by the Clerk webhook from SUPER_ADMIN_CLERK_IDS
 }
 
 // Payment attempts tracking
@@ -259,15 +263,17 @@ The starter kit includes a fully customizable theme system. You can customize co
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key
 - `CLERK_SECRET_KEY` - Clerk secret key
 - `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` - Clerk frontend API URL (from JWT template)
-- `NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL` - Redirect after sign in
-- `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL` - Redirect after sign up
-- `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` - Fallback redirect for sign in
-- `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` - Fallback redirect for sign up
+- `NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL` - Redirect after sign in (product surface `/owner`)
+- `NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL` - Redirect after sign up (product surface `/owner`)
+- `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` - Fallback redirect for sign in (product surface `/owner`)
+- `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` - Fallback redirect for sign up (product surface `/owner`)
+- Set each of the four per environment (they must never point at the demo `/dashboard`).
 
 ### Required for Convex Dashboard
 
 - `CLERK_WEBHOOK_SECRET` - Clerk webhook secret (set in Convex dashboard)
 - `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` - Clerk frontend API URL (set in Convex dashboard)
+- `SUPER_ADMIN_CLERK_IDS` - Comma-separated Clerk user IDs allowed to reach `/admin`; exactly one in production. Set via `npx convex env set SUPER_ADMIN_CLERK_IDS=<clerk_user_id>` or the Convex dashboard. The whitelist is read on the next request (no redeploy required), but existing users also require a subsequent Clerk user update (webhook) or a one-time role backfill before `/admin` access is granted.
 
 ## Deployment
 
