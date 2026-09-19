@@ -273,7 +273,7 @@ The starter kit includes a fully customizable theme system. You can customize co
 
 - `CLERK_WEBHOOK_SECRET` - Clerk webhook secret (set in Convex dashboard)
 - `NEXT_PUBLIC_CLERK_FRONTEND_API_URL` - Clerk frontend API URL (set in Convex dashboard)
-- `SUPER_ADMIN_CLERK_IDS` - Comma-separated Clerk user IDs allowed to reach `/admin`; exactly one in production. Set via `npx convex env set SUPER_ADMIN_CLERK_IDS=<clerk_user_id>` or the Convex dashboard. Changes take effect on the next request (no redeploy required).
+- `SUPER_ADMIN_CLERK_IDS` - Comma-separated Clerk user IDs allowed to reach `/admin`; exactly one in production. Set via `npx convex env set SUPER_ADMIN_CLERK_IDS=<clerk_user_id>` or the Convex dashboard. The whitelist is read on the next request (no redeploy required), but existing users also require a subsequent Clerk user update (webhook) or a one-time role backfill before `/admin` access is granted.
 
 ## Deployment
 
