@@ -10,10 +10,7 @@ import { api } from '@/convex/_generated/api';
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { getToken } = await auth();
 
-  // Prefer the `convex` JWT template; fall back to the default session token,
-  // which Convex also accepts when the Clerk integration sets aud=convex.
-  const token =
-    (await getToken({ template: 'convex' }).catch(() => null)) ?? (await getToken());
+  const token = await getToken({ template: 'convex' }).catch(() => null);
 
   if (!token) {
     notFound();
