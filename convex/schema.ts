@@ -167,7 +167,8 @@ export default defineSchema({
       v.literal('cancelled')
     ),
   })
-    .index('byBusinessId', ['businessId']),
+    .index('byBusinessId', ['businessId'])
+    .index('byCancelToken', ['cancelToken']),
 
   quoteRequests: defineTable({
     businessId: v.id('businesses'),
