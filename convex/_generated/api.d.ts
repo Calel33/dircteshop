@@ -9,6 +9,7 @@
  */
 
 import type * as authz from "../authz.js";
+import type * as businessTypes from "../businessTypes.js";
 import type * as http from "../http.js";
 import type * as paymentAttemptTypes from "../paymentAttemptTypes.js";
 import type * as paymentAttempts from "../paymentAttempts.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authz: typeof authz;
+  businessTypes: typeof businessTypes;
   http: typeof http;
   paymentAttemptTypes: typeof paymentAttemptTypes;
   paymentAttempts: typeof paymentAttempts;
