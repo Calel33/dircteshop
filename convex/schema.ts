@@ -42,6 +42,9 @@ export default defineSchema({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     website: v.optional(v.string()),
+    // IANA timezone name, e.g. "America/New_York". bookings.startAt is
+    // stored in UTC and rendered in the business's local time.
+    timezone: v.string(),
     photos: v.array(photoValidator),
     hours: hoursValidator,
     status: listingStatusValidator,
