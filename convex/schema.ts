@@ -147,7 +147,8 @@ export default defineSchema({
       v.literal('completed')
     ),
     createdAt: v.number(),
-  }),
+  })
+    .index('byBusinessId', ['businessId']),
 
   bookings: defineTable({
     businessId: v.id('businesses'),
@@ -165,7 +166,8 @@ export default defineSchema({
       v.literal('declined'),
       v.literal('cancelled')
     ),
-  }),
+  })
+    .index('byBusinessId', ['businessId']),
 
   quoteRequests: defineTable({
     businessId: v.id('businesses'),
@@ -175,7 +177,8 @@ export default defineSchema({
     sourceLabel: v.optional(v.string()),
     status: v.union(v.literal('new'), v.literal('responded'), v.literal('closed')),
     createdAt: v.number(),
-  }),
+  })
+    .index('byBusinessId', ['businessId']),
 
   auditLogs: defineTable({
     actorUserId: v.id('users'),
@@ -186,7 +189,9 @@ export default defineSchema({
     toStatus: v.optional(listingStatusValidator),
     reason: v.optional(v.string()),
     createdAt: v.number(),
-  }),
+  })
+    .index('byActorUserId', ['actorUserId'])
+    .index('byTarget', ['targetType', 'targetId']),
 
   notifications: defineTable({
     userId: v.id('users'),
@@ -196,5 +201,6 @@ export default defineSchema({
     reason: v.optional(v.string()),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
-  }),
+  })
+    .index('byUserId', ['userId']),
 });
