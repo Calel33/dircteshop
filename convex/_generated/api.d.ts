@@ -13,6 +13,7 @@ import type * as businessTypes from "../businessTypes.js";
 import type * as businesses_helpers from "../businesses/helpers.js";
 import type * as businesses_mutations from "../businesses/mutations.js";
 import type * as businesses_queries from "../businesses/queries.js";
+import type * as businesses_seed from "../businesses/seed.js";
 import type * as categories from "../categories.js";
 import type * as http from "../http.js";
 import type * as paymentAttemptTypes from "../paymentAttemptTypes.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   "businesses/helpers": typeof businesses_helpers;
   "businesses/mutations": typeof businesses_mutations;
   "businesses/queries": typeof businesses_queries;
+  "businesses/seed": typeof businesses_seed;
   categories: typeof categories;
   http: typeof http;
   paymentAttemptTypes: typeof paymentAttemptTypes;
