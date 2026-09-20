@@ -13,6 +13,7 @@
     "lint:tech-debt": "node scripts/check-tech-debt.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "seed": "node scripts/seed.ts",
     "prepare": "husky install"
   },
   "dependencies": {
