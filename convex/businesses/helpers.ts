@@ -23,7 +23,7 @@ export const STATUS_TRANSITIONS: Record<ListingStatus, readonly ListingStatus[]>
   suspended: ['approved'],
 };
 
-/** Actions a caller may request; the server maps each to a role + status. */
+/** Actions a caller may request; the server resolves each against the current status. */
 export type TransitionAction =
   | 'submitForReview'
   | 'approve'
@@ -42,9 +42,9 @@ type TransitionResolution = {
 };
 
 /**
- * Action -> (required role, target status). Callers still check the target
- * against `STATUS_TRANSITIONS` for the business's current status, so the
- * allow-list stays the single source of legal transitions.
+ * Action -> default (required role, target status). The default role assumes
+ * the acting role is uniform per action; transitions where the actor differs
+ * are listed in `TRANSITION_ROLE_OVERRIDES` and applied by `resolveTransition`.
  */
 export const TRANSITION_ACTIONS = {
   submitForReview: { requiredRole: 'owner', targetStatus: 'pendingReview' },
@@ -56,9 +56,44 @@ export const TRANSITION_ACTIONS = {
   reopenAsDraft: { requiredRole: 'owner', targetStatus: 'draft' },
 } as const satisfies Record<TransitionAction, TransitionResolution>;
 
-/** Resolves a requested action to the role allowed to perform it and the status it produces. */
-export function resolveTransition(action: TransitionAction) {
-  return TRANSITION_ACTIONS[action];
+/**
+ * Per-transition role overrides where the acting role differs from the action
+ * default. The authoritative actor table
+ * (`screens/wayfinder/research/convex-domain-model.md` L184-196) assigns
+ * `rejected -> pendingReview` to Super Admin (the admin reopen path), while
+ * every other `-> pendingReview` row belongs to the owner.
+ */
+const TRANSITION_ROLE_OVERRIDES: readonly {
+  from: ListingStatus;
+  to: ListingStatus;
+  requiredRole: TransitionRole;
+}[] = [{ from: 'rejected', to: 'pendingReview', requiredRole: 'superAdmin' }];
+
+/**
+ * Resolves a requested action against the business's current status. Returns
+ * the role allowed to perform it and the status it produces, or `undefined`
+ * when the action's target is not a legal transition from `currentStatus`.
+ * Callers must reject `undefined`. The role is transition-aware, so the
+ * Super-Admin-only `rejected -> pendingReview` reopen cannot be fired by an
+ * owner.
+ */
+export function resolveTransition(
+  currentStatus: ListingStatus,
+  action: TransitionAction
+): TransitionResolution | undefined {
+  const { targetStatus } = TRANSITION_ACTIONS[action];
+  if (!STATUS_TRANSITIONS[currentStatus].includes(targetStatus)) {
+    return undefined;
+  }
+
+  const override = TRANSITION_ROLE_OVERRIDES.find(
+    (candidate) => candidate.from === currentStatus && candidate.to === targetStatus
+  );
+
+  return {
+    requiredRole: override?.requiredRole ?? TRANSITION_ACTIONS[action].requiredRole,
+    targetStatus,
+  };
 }
 
 /**
