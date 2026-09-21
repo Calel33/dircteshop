@@ -23,6 +23,25 @@ type SeedResult = {
   draftBusinessId: string;
 };
 
+/**
+ * Narrows an unknown Convex return value to `SeedResult`. Mirrors the
+ * `Array.isArray` guard on the categories result — a shape change should fail
+ * loudly here rather than print `undefined` ids.
+ */
+function isSeedResult(value: unknown): value is SeedResult {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.ownerId === 'string' &&
+    typeof candidate.approvedBusinessId === 'string' &&
+    typeof candidate.draftBusinessId === 'string'
+  );
+}
+
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const convexCli = path.join(repoRoot, 'node_modules', 'convex', 'bin', 'main.js');
 
@@ -39,14 +58,14 @@ function runConvexFunction(functionName: string): unknown {
 }
 
 const categories = runConvexFunction('categories:seedCategories');
-const seed = runConvexFunction('businesses/seed:seedBusinesses') as SeedResult | null;
+const seed = runConvexFunction('businesses/seed:seedBusinesses');
 
 if (!Array.isArray(categories)) {
   throw new Error('categories:seedCategories did not return the seeded categories');
 }
 
-if (seed === null) {
-  throw new Error('businesses/seed:seedBusinesses returned no value');
+if (!isSeedResult(seed)) {
+  throw new Error('businesses/seed:seedBusinesses did not return the seeded ids');
 }
 
 console.log(`Seeded ${categories.length} categories.`);
