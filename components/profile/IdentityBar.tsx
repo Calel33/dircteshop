@@ -90,13 +90,13 @@ export function IdentityBar({ business, categoryName, now = new Date() }: Identi
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{categoryName}</Badge>
         {business.verification.isVerified ? (
-          <Badge className="gap-1">
+          <Badge>
             <BadgeCheck aria-hidden />
             Verified
           </Badge>
         ) : null}
         {status.isOpen ? (
-          <Badge variant="outline" className="gap-1">
+          <Badge variant="outline">
             <Clock aria-hidden />
             {status.closesAt === undefined ? 'Open now' : `Open until ${status.closesAt}`}
           </Badge>
