@@ -41,7 +41,32 @@ export const getPublic = query({
       return null;
     }
 
-    return { business, category };
+    // Project to a public shape: the raw doc carries `ownerId`, moderation
+    // internals (`verification.verifiedBy`, `moderationReason`, `moderatedAt`)
+    // and search-maintenance fields (`searchText`, `keywords`) that must not
+    // reach a client. Public visibility is defined by `status` (SPEC §5), not by
+    // exposing them. `verifiedBy`/`verifiedAt` are admin-only; the badge keeps
+    // only `isVerified`.
+    return {
+      business: {
+        _id: business._id,
+        name: business.name,
+        description: business.description,
+        address: business.address,
+        phone: business.phone,
+        email: business.email,
+        website: business.website,
+        photos: business.photos,
+        hours: business.hours,
+        verification: { isVerified: business.verification.isVerified },
+        rating: business.rating,
+        ratingCount: business.ratingCount,
+        services: business.services,
+        credentials: business.credentials,
+        lastUpdatedAt: business.lastUpdatedAt,
+      },
+      category,
+    };
   },
 });
 

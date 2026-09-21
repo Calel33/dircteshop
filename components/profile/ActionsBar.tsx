@@ -2,16 +2,17 @@ import { CalendarCheck, Globe, MapPin, MessageSquare, Phone } from 'lucide-react
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { isSafeExternalUrl } from '@/lib/utils';
 import type { ProfileAction } from '@/lib/verticals';
+
+import type { BusinessAddress, PublicBusiness } from './profile-types';
 
 type LinkAction = Extract<ProfileAction, { kind: 'call' | 'directions' | 'website' }>;
 type WorkflowAction = Extract<ProfileAction, { kind: 'book' | 'quote' }>;
 
 export type ActionsBarProps = {
   actions: readonly ProfileAction[];
-  business: Doc<'businesses'>;
+  business: PublicBusiness;
 };
 
 function isWorkflowAction(action: ProfileAction): action is WorkflowAction {
@@ -19,7 +20,7 @@ function isWorkflowAction(action: ProfileAction): action is WorkflowAction {
 }
 
 /** Google Maps search URL built from the business address. */
-function buildDirectionsHref(address: Doc<'businesses'>['address']): string {
+function buildDirectionsHref(address: BusinessAddress): string {
   const query = [
     address.addressLine1,
     address.city,
@@ -35,7 +36,7 @@ function buildDirectionsHref(address: Doc<'businesses'>['address']): string {
 
 function resolveLinkAction(
   action: LinkAction,
-  business: Doc<'businesses'>,
+  business: PublicBusiness,
 ): { label: string; icon: ReactNode; href?: string } {
   switch (action.kind) {
     case 'call':

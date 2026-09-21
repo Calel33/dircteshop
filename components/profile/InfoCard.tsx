@@ -2,11 +2,12 @@ import { Globe, Mail, MapPin, Phone } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { isSafeExternalUrl } from '@/lib/utils';
 
+import type { PublicBusiness } from './profile-types';
+
 export type InfoCardProps = {
-  business: Doc<'businesses'>;
+  business: PublicBusiness;
 };
 
 function InfoRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {

@@ -1,9 +1,8 @@
 import { BadgeCheck, Clock, Star } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import type { Doc } from '@/convex/_generated/dataModel';
 
-import type { BusinessHours } from './profile-types';
+import type { BusinessHours, PublicBusiness } from './profile-types';
 
 const DAY_KEYS: readonly (keyof BusinessHours)[] = [
   'sunday',
@@ -74,7 +73,7 @@ function getOpenStatus(hours: BusinessHours, now: Date): OpenStatus {
 }
 
 export type IdentityBarProps = {
-  business: Doc<'businesses'>;
+  business: PublicBusiness;
   categoryName: string;
   now?: Date;
 };
