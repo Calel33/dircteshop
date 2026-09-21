@@ -53,6 +53,8 @@ export function BusinessProfile({ data, actions, mainContent, sidebar }: Busines
           { label: business.name },
         ]}
       />
+      {/* TODO(#2): pass `photoUrls` once B7 (uploads) resolves storage URLs;
+          the gallery renders placeholders until then. */}
       <ProfileHero businessName={business.name} photos={business.photos} />
       <IdentityBar business={business} categoryName={category.name} />
       <ActionsBar actions={actions ?? vertical.defaultActions} business={business} />
