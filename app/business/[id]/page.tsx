@@ -1,10 +1,46 @@
 import { fetchQuery } from 'convex/nextjs';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 
 import { BusinessProfile } from '@/components/profile/BusinessProfile';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
 import { api } from '@/convex/_generated/api';
 import { getVerticalConfig } from '@/lib/verticals';
+
+/** Memoized per request so `generateMetadata` and the page share one fetch. */
+const getPublicBusiness = cache((id: string) =>
+  fetchQuery(api.businesses.queries.getPublic, { id }).catch(() => null)
+);
+
+/**
+ * Public page metadata (SEO): reuses the `getPublic` fetch and falls back to a
+ * plain title when the listing is absent (the page 404s in that case).
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const result = await getPublicBusiness(id);
+
+  if (result === null) {
+    return { title: 'Business not found' };
+  }
+
+  const { business } = result;
+
+  return {
+    title: business.name,
+    description: business.description,
+    openGraph: {
+      title: business.name,
+      description: business.description,
+      type: 'website',
+    },
+  };
+}
 
 /**
  * Public business profile (SPEC §2, `/business/[id]`).
@@ -20,7 +56,7 @@ import { getVerticalConfig } from '@/lib/verticals';
 export default async function BusinessPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const result = await fetchQuery(api.businesses.queries.getPublic, { id }).catch(() => null);
+  const result = await getPublicBusiness(id);
 
   if (result === null) {
     notFound();
