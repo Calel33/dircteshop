@@ -11,7 +11,7 @@
     "lint:dead-code": "knip",
     "lint:duplicates": "jscpd",
     "lint:tech-debt": "node scripts/check-tech-debt.js",
-    "test": "node scripts/verify-state-machine.ts",
+    "test": "node scripts/verify-state-machine.ts && node --test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky install"
