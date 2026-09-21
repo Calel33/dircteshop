@@ -49,7 +49,15 @@ function getOpenStatus(hours: BusinessHours, now: Date): OpenStatus {
       continue;
     }
 
-    if (current >= opensAt && current < closesAt) {
+    // A period whose close is not after its open wraps past midnight (e.g.
+    // 22:00-02:00): open from `opensAt` through the end of the day, or before
+    // `closesAt` in the early morning.
+    const wrapsMidnight = closesAt <= opensAt;
+    const isOpen = wrapsMidnight
+      ? current >= opensAt || current < closesAt
+      : current >= opensAt && current < closesAt;
+
+    if (isOpen) {
       return { isOpen: true, closesAt: period.closesAt };
     }
   }
