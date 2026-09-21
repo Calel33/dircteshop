@@ -13,7 +13,7 @@ export function cn(...inputs: ClassValue[]) {
  * URL that fails validation degrades visibly (plain text / disabled button)
  * rather than being relabeled or dropped silently.
  *
- * Docs: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
+ * Docs: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/javascript
  * (see also OWASP "Unvalidated URLs and web redirects")
  */
 export function isSafeExternalUrl(value: string | undefined | null): value is string {
