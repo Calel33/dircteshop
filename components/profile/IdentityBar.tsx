@@ -36,7 +36,15 @@ function toMinutes(value: string): number | null {
   return hours * 60 + minutes;
 }
 
-/** Compare the current time against today's opening periods. */
+/**
+ * Compare the current time against today's opening periods.
+ *
+ * TODO(#2): `now` is the server clock (UTC on Vercel) while `hours` are
+ * business-local wall-clock times, so this status is wrong for any business
+ * outside the server's timezone. A correct fix needs a `timezone` field on
+ * `businesses` (SPEC §7) and zone-aware evaluation; that field arrives in a
+ * follow-up to #2, so the limitation is recorded here per AGENTS.md §10.
+ */
 function getOpenStatus(hours: BusinessHours, now: Date): OpenStatus {
   const periods = hours[DAY_KEYS[now.getDay()]] ?? [];
   const current = now.getHours() * 60 + now.getMinutes();
