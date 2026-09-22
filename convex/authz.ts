@@ -1,3 +1,4 @@
+import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 
 type AuthenticatedCtx = QueryCtx | MutationCtx;
@@ -43,4 +44,31 @@ export async function requireSuperAdmin(ctx: AuthenticatedCtx) {
   }
 
   return user;
+}
+
+/**
+ * The real authorization boundary for owner-scoped Convex functions. Fails
+ * closed: no identity, no users row, a missing business, or a business owned
+ * by someone else all throw. Ownership is derived from `businesses.ownerId`
+ * (owner is not a `users.role` value). Returns the owned business doc so
+ * callers can patch it without a second read.
+ */
+export async function requireBusinessOwner(ctx: AuthenticatedCtx, businessId: Id<'businesses'>) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity === null) {
+    throw new Error('Unauthorized');
+  }
+
+  const user = await ctx.db
+    .query('users')
+    .withIndex('byExternalId', (q) => q.eq('externalId', identity.subject))
+    .unique();
+
+  const business = await ctx.db.get('businesses', businessId);
+
+  if (user === null || business === null || business.ownerId !== user._id) {
+    throw new Error('Forbidden');
+  }
+
+  return business;
 }

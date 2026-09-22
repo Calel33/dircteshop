@@ -9,6 +9,12 @@
  */
 
 import type * as authz from "../authz.js";
+import type * as businessTypes from "../businessTypes.js";
+import type * as businesses_helpers from "../businesses/helpers.js";
+import type * as businesses_mutations from "../businesses/mutations.js";
+import type * as businesses_queries from "../businesses/queries.js";
+import type * as businesses_seed from "../businesses/seed.js";
+import type * as categories from "../categories.js";
 import type * as http from "../http.js";
 import type * as paymentAttemptTypes from "../paymentAttemptTypes.js";
 import type * as paymentAttempts from "../paymentAttempts.js";
@@ -22,6 +28,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authz: typeof authz;
+  businessTypes: typeof businessTypes;
+  "businesses/helpers": typeof businesses_helpers;
+  "businesses/mutations": typeof businesses_mutations;
+  "businesses/queries": typeof businesses_queries;
+  "businesses/seed": typeof businesses_seed;
+  categories: typeof categories;
   http: typeof http;
   paymentAttemptTypes: typeof paymentAttemptTypes;
   paymentAttempts: typeof paymentAttempts;

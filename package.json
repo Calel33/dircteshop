@@ -3,6 +3,9 @@
   "name": "elite-next-starter",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.6"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,8 +14,10 @@
     "lint:dead-code": "knip",
     "lint:duplicates": "jscpd",
     "lint:tech-debt": "node scripts/check-tech-debt.js",
+    "test": "node scripts/verify-state-machine.ts && node --test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "seed": "node scripts/seed.ts",
     "prepare": "husky install"
   },
   "dependencies": {
