@@ -9,19 +9,26 @@ import { buildSearchText } from './helpers';
 //
 //   npx convex run businesses/seed:seedBusinesses
 //
-// Idempotency: the synthetic owner is upserted by `externalId`, categories are
-// resolved by slug (seeded separately by `categories:seedCategories`), and a
-// business is inserted only when the seed owner has no business of that name.
-// Re-running therefore returns the same ids and writes nothing.
+// Idempotency: the synthetic owner and Super Admin are upserted by
+// `externalId`, categories are resolved by slug (seeded separately by
+// `categories:seedCategories`), and a business is inserted only when the seed
+// owner has no business of that name. Re-running therefore returns the same
+// ids and writes nothing.
 //
 // This module exists so `businesses/transition` stays a pure state machine —
 // the seed never fabricates a transition, it writes the terminal docs directly.
 
 // A fresh dev deployment has no `users` rows (they are created by the Clerk
 // webhook) while `businesses.ownerId` is a required `v.id('users')`, so the
-// seed must guarantee an owner row exists before inserting listings.
+// seed must guarantee an owner row exists before inserting listings. The
+// approving Super Admin row is seeded the same way for `verification.verifiedBy`.
 const SEED_OWNER_EXTERNAL_ID = 'seed-owner-localconnect';
 const SEED_OWNER_NAME = 'LocalConnect Seed Owner';
+
+// `verification.verifiedBy` must reference the approving Super Admin, not the
+// listing's owner, so the seed upserts a dedicated `superAdmin` row.
+const SEED_ADMIN_EXTERNAL_ID = 'seed-admin-localconnect';
+const SEED_ADMIN_NAME = 'LocalConnect Seed Admin';
 
 // The approved food-drink listing the generic public profile renders (plan T7/T8).
 const APPROVED_FOOD_DRINK = {
@@ -78,6 +85,7 @@ export const seedBusinesses = internalMutation({
   args: {},
   handler: async (ctx) => {
     const ownerId = await ensureSeedOwner(ctx);
+    const adminId = await ensureSeedAdmin(ctx);
     const foodDrinkCategoryId = await categoryIdBySlug(ctx, 'food-drink');
     const retailCategoryId = await categoryIdBySlug(ctx, 'retail');
     const now = Date.now();
@@ -85,12 +93,13 @@ export const seedBusinesses = internalMutation({
     const approvedBusinessId = await ensureApprovedFoodDrink(
       ctx,
       ownerId,
+      adminId,
       foodDrinkCategoryId,
       now
     );
     const draftBusinessId = await ensureDraftRetail(ctx, ownerId, retailCategoryId, now);
 
-    return { ownerId, approvedBusinessId, draftBusinessId };
+    return { ownerId, adminId, approvedBusinessId, draftBusinessId };
   },
 });
 
@@ -112,6 +121,24 @@ async function ensureSeedOwner(ctx: MutationCtx): Promise<Id<'users'>> {
   });
 }
 
+/** Upserts the synthetic Super Admin so approved listings can stamp `verifiedBy`. */
+async function ensureSeedAdmin(ctx: MutationCtx): Promise<Id<'users'>> {
+  const existing = await ctx.db
+    .query('users')
+    .withIndex('byExternalId', (q) => q.eq('externalId', SEED_ADMIN_EXTERNAL_ID))
+    .unique();
+
+  if (existing !== null) {
+    return existing._id;
+  }
+
+  return await ctx.db.insert('users', {
+    name: SEED_ADMIN_NAME,
+    externalId: SEED_ADMIN_EXTERNAL_ID,
+    role: 'superAdmin',
+  });
+}
+
 /** Resolves a seeded category by slug; fails loudly when the category seed has not run. */
 async function categoryIdBySlug(ctx: MutationCtx, slug: string): Promise<Id<'categories'>> {
   const category = await ctx.db
@@ -130,6 +157,7 @@ async function categoryIdBySlug(ctx: MutationCtx, slug: string): Promise<Id<'cat
 async function ensureApprovedFoodDrink(
   ctx: MutationCtx,
   ownerId: Id<'users'>,
+  adminId: Id<'users'>,
   categoryId: Id<'categories'>,
   now: number
 ): Promise<Id<'businesses'>> {
@@ -146,9 +174,9 @@ async function ensureApprovedFoodDrink(
     categoryId,
     photos: [],
     status: 'approved',
-    // `verifiedBy` normally holds the approving Super Admin; the seed has only
-    // the synthetic owner row, so it stamps that id (schema-valid, dev-only).
-    verification: { isVerified: true, verifiedAt: now, verifiedBy: ownerId },
+    // `verifiedBy` must reference the approving Super Admin, so the seed stamps
+    // the seeded Super Admin row rather than the listing's owner.
+    verification: { isVerified: true, verifiedAt: now, verifiedBy: adminId },
     searchText: buildSearchText(
       APPROVED_FOOD_DRINK.name,
       APPROVED_FOOD_DRINK.keywords,

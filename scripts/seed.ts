@@ -19,6 +19,7 @@ import path from 'node:path';
 
 type SeedResult = {
   ownerId: string;
+  adminId: string;
   approvedBusinessId: string;
   draftBusinessId: string;
 };
@@ -37,6 +38,7 @@ function isSeedResult(value: unknown): value is SeedResult {
 
   return (
     typeof candidate.ownerId === 'string' &&
+    typeof candidate.adminId === 'string' &&
     typeof candidate.approvedBusinessId === 'string' &&
     typeof candidate.draftBusinessId === 'string'
   );
@@ -70,5 +72,6 @@ if (!isSeedResult(seed)) {
 
 console.log(`Seeded ${categories.length} categories.`);
 console.log(`Seed owner id:                ${seed.ownerId}`);
+console.log(`Seed admin id:                ${seed.adminId}`);
 console.log(`Approved food-drink business: ${seed.approvedBusinessId}`);
 console.log(`Draft retail business:        ${seed.draftBusinessId}`);
