@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { mutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
@@ -36,6 +36,12 @@ const actionValidator = v.union(
 export const createDraft = mutation({
   args: { name: v.string(), categoryId: v.id('categories') },
   handler: async (ctx, { name, categoryId }) => {
+    const trimmedName = name.trim();
+
+    if (trimmedName.length === 0) {
+      throw new ConvexError('Business name is required');
+    }
+
     const owner = await getCurrentUserOrThrow(ctx);
 
     const category = await ctx.db.get(categoryId);
@@ -47,7 +53,7 @@ export const createDraft = mutation({
     const now = Date.now();
 
     return await ctx.db.insert('businesses', {
-      name,
+      name: trimmedName,
       categoryId,
       description,
       address: { addressLine1: '', city: '', state: '', country: '' },
@@ -60,7 +66,7 @@ export const createDraft = mutation({
       services: [],
       credentials: [],
       keywords: [],
-      searchText: buildSearchText(name, [], description),
+      searchText: buildSearchText(trimmedName, [], description),
       ownerId: owner._id,
       lastUpdatedAt: now,
       isFeatured: false,
