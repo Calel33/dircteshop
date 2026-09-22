@@ -59,6 +59,7 @@ export const createDraft = mutation({
       address: { addressLine1: '', city: '', state: '', country: '' },
       photos: [],
       hours: {},
+      timezone: 'America/New_York',
       status: 'draft',
       verification: { isVerified: false },
       rating: 0,
@@ -97,7 +98,11 @@ export const transition = mutation({
       throw new Error('Business not found');
     }
 
-    const resolution = resolveTransition(args.action);
+    const resolution = resolveTransition(business.status, args.action);
+    if (resolution === undefined) {
+      throw new Error(`Invalid transition from ${business.status} for ${args.action}`);
+    }
+
     const actor = await authorizeAction(ctx, args.businessId, resolution.requiredRole);
     assertTransitionAllowed(business.status, args.action, resolution.targetStatus);
 
