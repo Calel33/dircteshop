@@ -158,6 +158,8 @@ export const verticalConfigs: Record<CategorySlug, VerticalConfig> = {
  * generic fallback instead of throwing.
  */
 export function getVerticalConfig(slug: string): VerticalConfig {
-  const config: VerticalConfig | undefined = verticalConfigs[slug as CategorySlug];
-  return config ?? FALLBACK_VERTICAL;
+  if (!Object.hasOwn(verticalConfigs, slug)) {
+    return FALLBACK_VERTICAL;
+  }
+  return verticalConfigs[slug as CategorySlug];
 }
