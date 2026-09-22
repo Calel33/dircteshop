@@ -9,6 +9,9 @@ import { query } from '../_generated/server';
 
 const SEARCH_RESULT_LIMIT = 20;
 
+// TODO(#4): narrow the public read shape — getPublic/searchPublic currently return
+// full business docs (ownerId, searchText, moderation fields). B4 defines the
+// public projection via the shared BusinessCard/BusinessResults contract.
 /**
  * Public profile read for `/business/[id]`: the business plus its category, or
  * `null` unless the listing is `approved`.
