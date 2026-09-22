@@ -173,6 +173,7 @@ async function ensureApprovedFoodDrink(
     ...APPROVED_FOOD_DRINK,
     categoryId,
     photos: [],
+    timezone: 'America/Chicago',
     status: 'approved',
     // `verifiedBy` must reference the approving Super Admin, so the seed stamps
     // the seeded Super Admin row rather than the listing's owner.
@@ -208,6 +209,7 @@ async function ensureDraftRetail(
     categoryId,
     photos: [],
     hours: {},
+    timezone: 'America/Chicago',
     status: 'draft',
     verification: { isVerified: false },
     rating: 0,
