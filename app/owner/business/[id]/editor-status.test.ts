@@ -14,6 +14,7 @@ import {
   deriveHistoryEntries,
   getPrimaryAction,
   getPrimaryActionLabel,
+  getSaveActionLabel,
   getSaveAvailability,
   getStatusBanner,
   isEditableStatus,
@@ -35,19 +36,112 @@ test('marks only draft, changesRequested, and approved as editable', () => {
 });
 
 test('selects the single primary action for each status', () => {
-  assert.equal(getPrimaryAction({ status: 'draft', coreStaged: false }), 'submit');
-  assert.equal(getPrimaryAction({ status: 'changesRequested', coreStaged: false }), 'submit');
-  assert.equal(getPrimaryAction({ status: 'rejected', coreStaged: false }), 'revise');
-  assert.equal(getPrimaryAction({ status: 'approved', coreStaged: true }), 'resubmit');
-  assert.equal(getPrimaryAction({ status: 'approved', coreStaged: false }), null);
-  assert.equal(getPrimaryAction({ status: 'pendingReview', coreStaged: false }), null);
-  assert.equal(getPrimaryAction({ status: 'suspended', coreStaged: false }), null);
+  assert.equal(
+    getPrimaryAction({ status: 'draft', coreStaged: false, contentDirty: false }),
+    'submit'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'changesRequested', coreStaged: false, contentDirty: false }),
+    'submit'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'rejected', coreStaged: false, contentDirty: false }),
+    'revise'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: true, contentDirty: false }),
+    'resubmit'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: true, contentDirty: true }),
+    'resubmit'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: false, contentDirty: true }),
+    'publish'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: false, contentDirty: false }),
+    null
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'pendingReview', coreStaged: false, contentDirty: false }),
+    null
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'suspended', coreStaged: false, contentDirty: false }),
+    null
+  );
+});
+
+test('offers a Publish changes primary only for approved content-only edits', () => {
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: false, contentDirty: true }),
+    'publish'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: true, contentDirty: true }),
+    'resubmit'
+  );
+  assert.equal(
+    getPrimaryAction({ status: 'approved', coreStaged: false, contentDirty: false }),
+    null
+  );
 });
 
 test('uses distinct, user-facing primary-action labels', () => {
   assert.equal(getPrimaryActionLabel('submit'), 'Submit for approval');
-  assert.equal(getPrimaryActionLabel('resubmit'), 'Save & resubmit for review');
+  assert.equal(getPrimaryActionLabel('resubmit'), 'Submit changes for review');
   assert.equal(getPrimaryActionLabel('revise'), 'Revise listing');
+  assert.equal(getPrimaryActionLabel('publish'), 'Publish changes');
+});
+
+test('labels the save button by status — approved listings say "Save changes"', () => {
+  assert.equal(getSaveActionLabel('approved'), 'Save changes');
+  assert.equal(getSaveActionLabel('draft'), 'Save draft');
+  assert.equal(getSaveActionLabel('changesRequested'), 'Save draft');
+  assert.equal(getSaveActionLabel('pendingReview'), 'Save draft');
+  assert.equal(getSaveActionLabel('rejected'), 'Save draft');
+  assert.equal(getSaveActionLabel('suspended'), 'Save draft');
+});
+
+test('enables Publish changes exactly when savable content edits exist', () => {
+  assert.deepStrictEqual(
+    getSaveAvailability({
+      readOnly: false,
+      busy: false,
+      savableCount: 2,
+      saveNameError: null,
+      primaryAction: 'publish',
+      primaryNameError: null,
+    }),
+    { canSave: true, canRunPrimary: true }
+  );
+
+  // Publish persists content only, so a staged core name error never gates it.
+  assert.equal(
+    getSaveAvailability({
+      readOnly: false,
+      busy: false,
+      savableCount: 1,
+      saveNameError: null,
+      primaryAction: 'publish',
+      primaryNameError: 'Business name is required.',
+    }).canRunPrimary,
+    true
+  );
+
+  assert.equal(
+    getSaveAvailability({
+      readOnly: false,
+      busy: false,
+      savableCount: 0,
+      saveNameError: null,
+      primaryAction: 'publish',
+      primaryNameError: null,
+    }).canRunPrimary,
+    false
+  );
 });
 
 test('disables both actions while a mutation is in flight', () => {

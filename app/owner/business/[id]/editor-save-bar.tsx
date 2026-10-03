@@ -9,6 +9,8 @@ interface EditorSaveBarProps {
   readOnly: boolean;
   isDirty: boolean;
   canSave: boolean;
+  /** Status-dependent save button copy ("Save draft" / "Save changes"). */
+  saveLabel: string;
   isSaving: boolean;
   error: string | null;
   /** True when approved core identity edits are staged for a future resubmit. */
@@ -39,6 +41,7 @@ export function EditorSaveBar({
   readOnly,
   isDirty,
   canSave,
+  saveLabel,
   isSaving,
   error,
   coreStaged,
@@ -74,7 +77,7 @@ export function EditorSaveBar({
         </Button>
         {readOnly ? null : (
           <Button type="button" onClick={onSave} disabled={!canSave}>
-            {isSaving ? 'Saving…' : 'Save draft'}
+            {isSaving ? 'Saving…' : saveLabel}
           </Button>
         )}
         {primaryAction === null ? null : (
