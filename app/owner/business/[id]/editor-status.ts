@@ -5,8 +5,12 @@ import type { ListingStatus } from '@/convex/businesses/helpers';
 // unit-testable under `node --test` (editor-status.test.ts). The React shell owns
 // only rendering, mutation calls, and loading state.
 
-/** The three owner-initiated lifecycle actions the editor can offer. */
-export type EditorActionKind = 'submit' | 'resubmit' | 'revise';
+/**
+ * The owner-initiated lifecycle actions the editor can offer. `publish`
+ * persists approved content-only edits in place (no status change); `resubmit`
+ * sends staged core-identity edits back for review.
+ */
+export type EditorActionKind = 'submit' | 'resubmit' | 'revise' | 'publish';
 
 /** Visual tone of a status banner; the UI maps it to semantic design tokens. */
 export type BannerTone = 'info' | 'warning' | 'danger' | 'brand';
@@ -23,6 +27,8 @@ export interface PrimaryActionInput {
   status: ListingStatus;
   /** True when approved core-identity edits are staged client-side. */
   coreStaged: boolean;
+  /** True when approved content edits are staged client-side. */
+  contentDirty: boolean;
 }
 
 export interface StatusBannerInput {
@@ -64,13 +70,14 @@ export function isEditableStatus(status: ListingStatus): boolean {
 
 /**
  * The single primary lifecycle action for the current status, or `null` when the
- * status offers none. Pending/suspended are read-only; an approved listing with
- * no staged core-identity edit has no primary action (its content-only save is
- * the plain Save Draft).
+ * status offers none. Pending/suspended are read-only. An approved listing with
+ * staged core-identity edits resubmits; with content-only dirt it publishes in
+ * place; with nothing staged it offers no primary action.
  */
 export function getPrimaryAction({
   status,
   coreStaged,
+  contentDirty,
 }: PrimaryActionInput): EditorActionKind | null {
   if (status === 'draft' || status === 'changesRequested') {
     return 'submit';
@@ -78,20 +85,34 @@ export function getPrimaryAction({
   if (status === 'rejected') {
     return 'revise';
   }
-  if (status === 'approved' && coreStaged) {
-    return 'resubmit';
+  if (status === 'approved') {
+    if (coreStaged) {
+      return 'resubmit';
+    }
+    if (contentDirty) {
+      return 'publish';
+    }
   }
   return null;
 }
 
 const PRIMARY_ACTION_LABELS: Record<EditorActionKind, string> = {
   submit: 'Submit for approval',
-  resubmit: 'Save & resubmit for review',
+  resubmit: 'Submit changes for review',
   revise: 'Revise listing',
+  publish: 'Publish changes',
 };
 
 export function getPrimaryActionLabel(action: EditorActionKind): string {
   return PRIMARY_ACTION_LABELS[action];
+}
+
+/**
+ * Label for the plain save button. An approved listing's content edits publish
+ * immediately, so its save reads "Save changes" rather than "Save draft".
+ */
+export function getSaveActionLabel(status: ListingStatus): string {
+  return status === 'approved' ? 'Save changes' : 'Save draft';
 }
 
 export interface SaveAvailabilityInput {
@@ -116,7 +137,9 @@ export interface SaveAvailability {
 /**
  * Whether the save and primary-action buttons are enabled. Save Draft is never
  * offered on a read-only listing; Revise is available even on a read-only
- * (rejected) one, because reopening as a draft is exactly the way out.
+ * (rejected) one, because reopening as a draft is exactly the way out. Publish
+ * mirrors the content save — it is enabled purely by savable content edits, with
+ * no name-error gate, because name never persists on that path.
  */
 export function getSaveAvailability({
   readOnly,
@@ -135,7 +158,9 @@ export function getSaveAvailability({
       ? false
       : primaryAction === 'revise'
         ? true
-        : primaryNameError === null;
+        : primaryAction === 'publish'
+          ? !readOnly && savableCount > 0
+          : primaryNameError === null;
 
   return {
     canSave: !readOnly && savableCount > 0 && saveNameError === null,

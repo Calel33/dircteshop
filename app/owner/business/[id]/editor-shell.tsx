@@ -9,6 +9,7 @@ import type { EditableBusinessField } from '@/convex/businessTypes';
 import { ownerSaveMode, persistableSaveFields } from '@/convex/businesses/ownerSavePolicy';
 import { getVerticalConfig } from '@/lib/verticals';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { EditorHeader } from './editor-header';
 import { EditorPreview } from './editor-preview';
@@ -16,9 +17,11 @@ import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
 import { EditorHistory } from './editor-history';
 import {
+  ANALYTICS_SECTION,
   EDITOR_NAV_SECTIONS,
   EDITOR_SECTIONS,
   HISTORY_SECTION,
+  SETTINGS_SECTION,
   EditorSectionNav,
   type EditorSectionId,
 } from './editor-sections';
@@ -27,6 +30,7 @@ import type { OwnerEditorDocument } from './editor-types';
 import {
   deriveHistoryEntries,
   getPrimaryAction,
+  getSaveActionLabel,
   getSaveAvailability,
   getStatusBanner,
   isEditableStatus,
@@ -80,8 +84,9 @@ function messageFromError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-/** The editable fields each primary action persists. Submit saves the draft's
- * dirty fields; Resubmit saves every dirty field including staged identity. */
+/** The editable fields each primary action persists. Submit and Publish save the
+ * savable content fields; Resubmit saves every dirty field including staged
+ * identity. */
 function fieldsForPrimaryAction(
   action: EditorActionKind | null,
   dirty: readonly EditableBusinessField[],
@@ -90,7 +95,7 @@ function fieldsForPrimaryAction(
   if (action === 'resubmit') {
     return dirty;
   }
-  if (action === 'submit') {
+  if (action === 'submit' || action === 'publish') {
     return savable;
   }
   return [];
@@ -135,7 +140,13 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   const dirty = dirtyFields(form, baseline);
   const savable = persistableSaveFields(mode, EDITOR_FIELD_CLASS, dirty);
   const coreStaged = mode === 'persistContent' && coreIdentityFields(dirty).length > 0;
-  const primaryAction = getPrimaryAction({ status: business.status, coreStaged });
+  const contentDirty = mode === 'persistContent' && savable.length > 0;
+  const primaryAction = getPrimaryAction({
+    status: business.status,
+    coreStaged,
+    contentDirty,
+  });
+  const saveLabel = getSaveActionLabel(business.status);
   const banner = getStatusBanner({
     status: business.status,
     moderationReason: business.moderationReason,
@@ -176,6 +187,23 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     setError(null);
   }
 
+  /**
+   * Persists the savable content fields and reconciles local state. Shared by
+   * Save Draft and the approved-listing "Publish changes" primary — both use the
+   * `saveDraft` mutation with no status change. Saved fields stop being dirty;
+   * approved core identity edits were ignored by the server and stay staged for
+   * `saveAndResubmit`. Reconcile against the latest form so edits typed while the
+   * mutation was in flight are kept.
+   */
+  async function persistSavable() {
+    const patch = buildEditablePatch(form, savable);
+    await saveDraft({ businessId: business._id, patch });
+
+    const canonical = canonicalizeForm(form, savable);
+    setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
+    setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
+  }
+
   async function handleSave() {
     if (!canSave) {
       return;
@@ -185,15 +213,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     setIsSaving(true);
 
     try {
-      const patch = buildEditablePatch(form, savable);
-      await saveDraft({ businessId: business._id, patch });
-
-      // Saved fields stop being dirty; approved core identity edits were ignored
-      // by the server and stay staged for `saveAndResubmit`. Reconcile against the
-      // latest form so edits typed while the mutation was in flight are kept.
-      const canonical = canonicalizeForm(form, savable);
-      setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
-      setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
+      await persistSavable();
     } catch (saveError) {
       setError(messageFromError(saveError, 'Could not save the listing.'));
     } finally {
@@ -266,6 +286,17 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       await handleResubmit();
     } else if (primaryAction === 'revise') {
       await handleRevise();
+    } else if (primaryAction === 'publish') {
+      setError(null);
+      setIsSubmitting(true);
+
+      try {
+        await persistSavable();
+      } catch (publishError) {
+        setError(messageFromError(publishError, 'Could not publish the changes.'));
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -277,6 +308,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         readOnly={readOnly}
         isDirty={dirty.length > 0}
         canSave={canSave}
+        saveLabel={saveLabel}
         isSaving={isSaving}
         error={error}
         coreStaged={coreStaged}
@@ -292,6 +324,15 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         <EditorSectionNav activeId={activeId} onSelect={setActiveId} />
         {activeId === HISTORY_SECTION.id ? (
           <EditorHistory entries={history} />
+        ) : activeId === ANALYTICS_SECTION.id || activeId === SETTINGS_SECTION.id ? (
+          <Card className="rounded-card py-card">
+            <CardHeader>
+              <CardTitle className="font-display text-lg">{activeSection.label}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-sm">{activeSection.description}</p>
+            </CardContent>
+          </Card>
         ) : (
           <EditorSectionView
             sectionId={activeId}

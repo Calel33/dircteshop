@@ -12,4 +12,6 @@ export interface EditorSection {
   id: string;
   label: string;
   description: string;
+  /** Nav-only placeholder section with no editor wired yet. */
+  stub?: true;
 }
