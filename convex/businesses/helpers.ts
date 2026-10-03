@@ -97,6 +97,20 @@ export function resolveTransition(
 }
 
 /**
+ * The target status for the B3a approved-identity re-review path
+ * (`saveAndResubmit`, issue #12). Derived from the same single-source-of-truth
+ * table as every other transition, so the dedicated mutation never hardcodes a
+ * status. Returns `undefined` for any non-`approved` status so callers fail
+ * closed.
+ */
+export function approvedResubmitTarget(currentStatus: ListingStatus): ListingStatus | undefined {
+  if (currentStatus !== 'approved') {
+    return undefined;
+  }
+  return resolveTransition(currentStatus, 'submitForReview')?.targetStatus;
+}
+
+/**
  * The `searchText` invariant from SPEC §4:
  * `[name, keywords.join(' '), description].join(' ')`. Every business write
  * recomputes this; it is never client-supplied.
