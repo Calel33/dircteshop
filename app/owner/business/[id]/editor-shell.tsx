@@ -189,11 +189,11 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
 
   /**
    * Persists the savable content fields and reconciles local state. Shared by
-   * Save Draft and the approved-listing "Publish changes" primary — both use the
-   * `saveDraft` mutation with no status change. Saved fields stop being dirty;
-   * approved core identity edits were ignored by the server and stay staged for
-   * `saveAndResubmit`. Reconcile against the latest form so edits typed while the
-   * mutation was in flight are kept.
+   * Save Draft, Submit, and the approved-listing "Publish changes" primary — all
+   * use the `saveDraft` mutation with no status change. Saved fields stop being
+   * dirty; approved core identity edits were ignored by the server and stay
+   * staged for `saveAndResubmit`. Reconcile against the latest form so edits
+   * typed while the mutation was in flight are kept.
    */
   async function persistSavable() {
     const patch = buildEditablePatch(form, savable);
@@ -229,10 +229,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       // The transition mutation does not carry editable fields, so persist dirty
       // edits first — otherwise submitting a draft would silently drop them.
       if (savable.length > 0) {
-        await saveDraft({ businessId: business._id, patch: buildEditablePatch(form, savable) });
-        const canonical = canonicalizeForm(form, savable);
-        setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
-        setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
+        await persistSavable();
       }
       await transition({ businessId: business._id, action: 'submitForReview' });
     } catch (submitError) {
