@@ -1,10 +1,12 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { getCurrentUser } from '../users';
+import { toOwnerEditorDocument, toOwnerSummary } from './ownerProjections';
 
-// Public discovery reads. Every query in this module is client-callable, so
-// public visibility — `status === 'approved'` only (SPEC §5) — is enforced here
-// by construction, never by trusting a client-supplied status.
+// Public discovery reads. Every public query in this module is client-callable,
+// so public visibility — `status === 'approved'` only (SPEC §5) — is enforced
+// here by construction, never by trusting a client-supplied status.
 // Docs: https://docs.convex.dev/text-search · https://docs.convex.dev/database/reading-data
 
 const SEARCH_RESULT_LIMIT = 20;
@@ -103,5 +105,69 @@ export const searchPublic = query({
             .take(SEARCH_RESULT_LIMIT);
 
     return results.filter((business) => business.status === 'approved');
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Authenticated owner reads (B3a, issue #12 / todo #3).
+//
+// Separate from the public approved-only reads above: identity comes from the
+// Convex auth context — never a client-supplied owner id — and each handler
+// returns only the current user's own records. Both fail closed: anonymous
+// callers receive no private data (`[]` / `null`).
+// Contract: tasks/issue-12-contract.md §4.1.
+// Docs: https://docs.convex.dev/auth/functions-auth
+// ---------------------------------------------------------------------------
+
+/**
+ * Owner home list: the signed-in user's owned listings, summarized for the
+ * owner cards. Anonymous (no identity, or no matching `users` row) → `[]`.
+ * Never accepts an owner id, so a caller cannot request someone else's list.
+ */
+export const listMine = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (user === null) {
+      return [];
+    }
+
+    const owned = await ctx.db
+      .query('businesses')
+      .withIndex('byOwnerId', (q) => q.eq('ownerId', user._id))
+      .collect();
+
+    return owned.map((business) => toOwnerSummary(business));
+  },
+});
+
+/**
+ * Owned editor detail: the editor projection of a business the signed-in user
+ * owns, or `null` for anonymous, missing, or foreign-owned requests — one
+ * not-found shape that leaks nothing about whether an id exists.
+ *
+ * Ownership is checked inline against the same `businesses.ownerId` relation as
+ * `requireBusinessOwner`, rather than via that helper: the helper throws
+ * `Forbidden`, while this read must return the uniform `null`.
+ *
+ * `businessId` is `v.id('businesses')` per contract §4.1, so a malformed id is
+ * rejected by Convex argument validation before the handler runs. That is a
+ * client programming error rather than a user-reachable path, and it fails
+ * closed on the same no-data boundary.
+ */
+export const getMine = query({
+  args: { businessId: v.id('businesses') },
+  handler: async (ctx, { businessId }) => {
+    const user = await getCurrentUser(ctx);
+    if (user === null) {
+      return null;
+    }
+
+    const business = await ctx.db.get(businessId);
+    if (business === null || business.ownerId !== user._id) {
+      return null;
+    }
+
+    return toOwnerEditorDocument(business);
   },
 });

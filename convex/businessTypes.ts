@@ -56,3 +56,48 @@ export const photoValidator = v.object({
   altText: v.optional(v.string()),
   ordering: v.number(),
 });
+
+// Free-form tags/amenities (B3a editor), stored directly on the listing. Both
+// are optional so documents written before these fields existed remain valid;
+// no taxonomy tables or indexes (tasks/issue-12-contract.md §3).
+export const tagsValidator = v.optional(v.array(v.string()));
+export const amenitiesValidator = v.optional(v.array(v.string()));
+
+// ---------------------------------------------------------------------------
+// B3a (issue #12) owner-editable field policy.
+//
+// Classifies the fields an owner may write through the editor. CORE identity
+// edits on an APPROVED listing re-enter review (`approved -> pendingReview`);
+// CONTENT edits on an approved listing publish immediately. Data only — the
+// save/submit mutations read this map; no behaviour lives here.
+// Sources: SPEC §5 re-review policy (`screens/SPEC.md` L90) and the editor
+// surface in SPEC §9. Contract: tasks/issue-12-contract.md.
+// ---------------------------------------------------------------------------
+
+/** Owner-editable field whose edit on an approved listing triggers re-review. */
+export type CoreIdentityField = 'name' | 'categoryId' | 'description' | 'address';
+
+/** Owner-editable field whose edit on an approved listing publishes immediately. */
+export type ContentField = 'hours' | 'phone' | 'email' | 'website' | 'tags' | 'amenities';
+
+/** Every B3a owner-editable field. */
+export type EditableBusinessField = CoreIdentityField | ContentField;
+
+/**
+ * The frozen core-vs-content classification for every B3a editable field.
+ * Server-derived values (`status`, `ownerId`, timestamps, moderation) and
+ * out-of-scope vertical/photo fields are deliberately absent, so they can
+ * never be patched. Optional `tags`/`amenities` are content.
+ */
+export const EDITABLE_FIELD_CLASS = {
+  name: 'core',
+  categoryId: 'core',
+  description: 'core',
+  address: 'core',
+  hours: 'content',
+  phone: 'content',
+  email: 'content',
+  website: 'content',
+  tags: 'content',
+  amenities: 'content',
+} as const satisfies Record<EditableBusinessField, 'core' | 'content'>;

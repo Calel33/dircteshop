@@ -95,14 +95,28 @@
 }
 
 @theme inline {
+  /* Fonts — design.md: Inter for display/body, JetBrains Mono for labels.
+     next/font exposes Inter as --font-sans and JetBrains Mono as --font-mono (app/layout.tsx). */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+  --font-display: var(--font-sans);
+  --font-body: var(--font-sans);
+  --font-label: var(--font-mono);
 
   --radius-sm: 0.5rem;
   --radius-md: 0.5rem;
   --radius-lg: 1rem;
   --radius-xl: 1rem;
+  /* Semantic radii — design.md: card 16px, control 8px, pill 9999px. */
+  --radius-card: 1rem;
+  --radius-control: 0.5rem;
+  --radius-pill: 9999px;
+  /* Spacing scale — design.md: 8px base, 16px gap, 24px card padding, 80px section padding. */
+  --spacing-base: 0.5rem;
+  --spacing-gap: 1rem;
+  --spacing-card: 1.5rem;
+  --spacing-section: 5rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);

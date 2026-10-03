@@ -82,12 +82,57 @@ function assertIllegalTransitionsRejected(): void {
   assert.equal(stateMachine.resolveTransition('suspended', 'reopenAsDraft'), undefined);
 }
 
+/**
+ * The exact owner-permitted transition rows (issue #12, todo #6). Owners may
+ * submit for review from draft / changesRequested, revise a rejected listing to
+ * draft, and the dedicated identity-resubmit path derives `approved ->
+ * pendingReview` from the table. Nothing else may resolve to the owner role.
+ */
+const specOwnerRows: readonly { from: ListingStatus; action: TransitionAction }[] = [
+  { from: 'draft', action: 'submitForReview' },
+  { from: 'changesRequested', action: 'submitForReview' },
+  { from: 'changesRequested', action: 'reopenAsDraft' },
+  { from: 'approved', action: 'submitForReview' },
+  { from: 'rejected', action: 'reopenAsDraft' },
+];
+
+function assertOwnerRowsAreTheOnlyOwnerTransitions(): void {
+  const statuses = Object.keys(stateMachine.STATUS_TRANSITIONS) as ListingStatus[];
+  const actions = Object.keys(stateMachine.TRANSITION_ACTIONS) as TransitionAction[];
+
+  for (const from of statuses) {
+    for (const action of actions) {
+      const isOwnerRow = specOwnerRows.some((row) => row.from === from && row.action === action);
+      const resolution = stateMachine.resolveTransition(from, action);
+
+      if (isOwnerRow) {
+        assert.equal(
+          resolution?.requiredRole,
+          'owner',
+          `${from} -[${action}]-> must be owner-authorized`
+        );
+        continue;
+      }
+
+      // Owner moderation outcomes are impossible by construction: every
+      // non-owner row is either undefined or superAdmin-only.
+      assert.notEqual(
+        resolution?.requiredRole,
+        'owner',
+        `${from} -[${action}]-> is not an owner row and must never resolve to owner`
+      );
+    }
+  }
+}
+
 assertTransitionAllowList();
 assertActorTable();
 assertRejectedReopenGuard();
 assertIllegalTransitionsRejected();
+assertOwnerRowsAreTheOnlyOwnerTransitions();
 
 console.log(
   `verify-state-machine: ${Object.keys(stateMachine.STATUS_TRANSITIONS).length} statuses, ` +
-    `${specActors.length} actor rows pinned.`
+    `${specActors.length} actor rows pinned, ` +
+    `${specOwnerRows.length} owner rows pinned (owner moderation refused).`
 );

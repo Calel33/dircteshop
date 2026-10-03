@@ -2,9 +2,11 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import {
   addressValidator,
+  amenitiesValidator,
   hoursValidator,
   listingStatusValidator,
   photoValidator,
+  tagsValidator,
   verificationValidator,
 } from './businessTypes';
 import { paymentAttemptSchemaValidator } from './paymentAttemptTypes';
@@ -54,6 +56,9 @@ export default defineSchema({
     services: v.array(v.string()),
     credentials: v.array(v.string()),
     keywords: v.array(v.string()),
+    // free-form editor values (B3a); optional so pre-existing rows remain valid
+    tags: tagsValidator,
+    amenities: amenitiesValidator,
     // maintained by mutations as [name, keywords.join(' '), description].join(' ')
     searchText: v.string(),
     ownerId: v.id('users'),
