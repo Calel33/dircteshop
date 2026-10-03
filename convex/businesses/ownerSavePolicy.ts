@@ -1,4 +1,4 @@
-import type { EditableBusinessField } from '../businessTypes';
+import type { CoreIdentityField, EditableBusinessField } from '../businessTypes';
 import type { ListingStatus } from './helpers';
 
 // B3a (issue #12, todo #5) owner save/submit decision logic. Pure functions with
@@ -61,6 +61,23 @@ export function providedEditableFields(
   );
 }
 
+/**
+ * The trimmed value of a supplied `name`, or `undefined` when the patch omitted
+ * it (T4). The client `validateForm` is bypassable by calling the mutation
+ * directly and `v.string()` accepts whitespace-only values, so the server trims
+ * and persists this value rather than `patch.name` verbatim.
+ */
+export function normalizePatchName(patch: object): string | undefined {
+  const name = (patch as Record<string, unknown>).name;
+  return typeof name === 'string' ? name.trim() : undefined;
+}
+
+/** Whether a patch supplied a name that is blank after trimming (T4). */
+export function isBlankPatchName(patch: object): boolean {
+  const name = normalizePatchName(patch);
+  return name !== undefined && name.length === 0;
+}
+
 /** The subset of `fields` the server persists under the given save mode. */
 export function persistableSaveFields(
   mode: OwnerSaveMode,
@@ -81,6 +98,104 @@ export function hasCoreIdentityField(
   fields: readonly EditableBusinessField[]
 ): boolean {
   return fields.some((field) => fieldClass[field] === 'core');
+}
+
+/**
+ * The persisted core identity values `saveAndResubmit` compares a patch against.
+ * Typed structurally (not `Doc<'businesses'>`) so this module keeps no
+ * Convex-generated runtime imports — the editor client imports it directly.
+ */
+export interface PersistedCoreIdentity {
+  readonly name: string;
+  readonly categoryId: string;
+  readonly description: string;
+  readonly address: AddressValue;
+}
+
+/** The `addressValidator` shape (`convex/businessTypes.ts`). */
+export interface AddressValue {
+  readonly addressLine1: string;
+  readonly addressLine2?: string;
+  readonly city: string;
+  readonly state: string;
+  readonly country: string;
+  readonly postalCode?: string;
+  readonly latitude?: number;
+  readonly longitude?: number;
+}
+
+/**
+ * Core identity fields a patch supplies whose value differs from the persisted
+ * document (T5). Presence alone (`hasCoreIdentityField`) is not enough: without
+ * this check an approved listing can be pulled back into review by re-sending an
+ * unchanged value. Name and required address parts compare trimmed; optional
+ * address parts treat `undefined` and `''` as equal; coordinates compare
+ * strictly when present. Content fields and unknown keys are ignored.
+ */
+export function changedCoreIdentityFields(
+  fieldClass: FieldClassMap,
+  patch: object,
+  business: PersistedCoreIdentity
+): CoreIdentityField[] {
+  const suppliedCore = providedEditableFields(fieldClass, patch).filter(
+    (field): field is CoreIdentityField => fieldClass[field] === 'core'
+  );
+
+  return suppliedCore.filter((field) => coreIdentityFieldDiffers(field, patch, business));
+}
+
+function coreIdentityFieldDiffers(
+  field: CoreIdentityField,
+  patch: object,
+  business: PersistedCoreIdentity
+): boolean {
+  const record = patch as Record<string, unknown>;
+  switch (field) {
+    case 'name':
+      return normalizedString(record.name) !== normalizedString(business.name);
+    case 'categoryId':
+      return record.categoryId !== business.categoryId;
+    case 'description':
+      return record.description !== business.description;
+    case 'address':
+      return !addressesEqual(record.address, business.address);
+  }
+}
+
+function addressesEqual(supplied: unknown, persisted: AddressValue): boolean {
+  if (!isAddressValue(supplied)) {
+    return false;
+  }
+
+  return (
+    supplied.addressLine1.trim() === persisted.addressLine1.trim() &&
+    normalizedString(supplied.addressLine2) === normalizedString(persisted.addressLine2) &&
+    supplied.city.trim() === persisted.city.trim() &&
+    supplied.state.trim() === persisted.state.trim() &&
+    supplied.country.trim() === persisted.country.trim() &&
+    normalizedString(supplied.postalCode) === normalizedString(persisted.postalCode) &&
+    supplied.latitude === persisted.latitude &&
+    supplied.longitude === persisted.longitude
+  );
+}
+
+function isAddressValue(value: unknown): value is AddressValue {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const address = value as Record<string, unknown>;
+  return (
+    typeof address.addressLine1 === 'string' &&
+    typeof address.city === 'string' &&
+    typeof address.state === 'string' &&
+    typeof address.country === 'string'
+  );
+}
+
+/** Trimmed string, or `''` for a missing value, so `undefined` and `''` compare equal. */
+function normalizedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 export type ModerationReasonPolicy = 'retain' | 'clear';

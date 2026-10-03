@@ -26,6 +26,7 @@ import {
   resolveTransition,
 } from '../convex/businesses/helpers.ts';
 import {
+  changedCoreIdentityFields,
   findUnknownPatchFields,
   persistableSaveFields,
 } from '../convex/businesses/ownerSavePolicy.ts';
@@ -92,4 +93,147 @@ test('persistableSaveFields preserves order without mutating the input', () => {
   ]);
   assert.deepStrictEqual(provided, ['phone', 'name', 'hours']);
   assert.deepStrictEqual(persistableSaveFields('persistAll', classMap, []), []);
+});
+
+// A persisted approved listing used as the "no change" baseline. `address` omits
+// every optional part so the equality rules can be pinned against real omissions.
+const persistedBusiness = {
+  name: 'Acme Coffee',
+  categoryId: 'categories_1',
+  description: 'A neighborhood cafe',
+  address: {
+    addressLine1: '1 Main St',
+    city: 'Austin',
+    state: 'TX',
+    country: 'US',
+  },
+};
+
+test('changedCoreIdentityFields reports nothing when every supplied core field matches', () => {
+  const patch = {
+    name: 'Acme Coffee',
+    categoryId: 'categories_1',
+    description: 'A neighborhood cafe',
+    address: { addressLine1: '1 Main St', city: 'Austin', state: 'TX', country: 'US' },
+  };
+
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, patch, persistedBusiness), []);
+});
+
+test('changedCoreIdentityFields treats a whitespace-padded name as unchanged', () => {
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { name: '  Acme Coffee  ' }, persistedBusiness),
+    []
+  );
+
+  const legacyUntrimmed = { ...persistedBusiness, name: ' Acme Coffee ' };
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { name: 'Acme Coffee' }, legacyUntrimmed),
+    []
+  );
+});
+
+test('changedCoreIdentityFields detects changed name, description and categoryId', () => {
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { name: 'Acme Roasters' }, persistedBusiness),
+    ['name']
+  );
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { description: 'Now roasting' }, persistedBusiness),
+    ['description']
+  );
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { categoryId: 'categories_2' }, persistedBusiness),
+    ['categoryId']
+  );
+});
+
+test('changedCoreIdentityFields lists every supplied core field that differs', () => {
+  const patch = {
+    name: 'Acme Roasters',
+    categoryId: 'categories_1',
+    description: 'Now roasting',
+  };
+
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, patch, persistedBusiness).sort(), [
+    'description',
+    'name',
+  ]);
+});
+
+test('changedCoreIdentityFields ignores content fields', () => {
+  const patch = { phone: '555-0100', hours: {}, tags: ['coffee'] };
+
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, patch, persistedBusiness), []);
+});
+
+test('changedCoreIdentityFields treats omitted and empty optional address parts as equal', () => {
+  const omitted = {
+    address: { addressLine1: '1 Main St', city: 'Austin', state: 'TX', country: 'US' },
+  };
+  const emptied = {
+    address: {
+      addressLine1: '1 Main St',
+      addressLine2: '',
+      city: 'Austin',
+      state: 'TX',
+      postalCode: '',
+      country: 'US',
+    },
+  };
+
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, omitted, persistedBusiness), []);
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, emptied, persistedBusiness), []);
+});
+
+test('changedCoreIdentityFields trims required address parts before comparing', () => {
+  const patch = {
+    address: {
+      addressLine1: '  1 Main St ',
+      city: ' Austin',
+      state: 'TX ',
+      country: ' US',
+    },
+  };
+
+  assert.deepStrictEqual(changedCoreIdentityFields(classMap, patch, persistedBusiness), []);
+});
+
+test('changedCoreIdentityFields compares coordinates strictly when present', () => {
+  const geocodedBusiness = {
+    ...persistedBusiness,
+    address: { ...persistedBusiness.address, latitude: 30.27, longitude: -97.74 },
+  };
+
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(
+      classMap,
+      { address: { ...geocodedBusiness.address } },
+      geocodedBusiness
+    ),
+    []
+  );
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(
+      classMap,
+      { address: { ...geocodedBusiness.address, latitude: 30.28 } },
+      geocodedBusiness
+    ),
+    ['address']
+  );
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(
+      classMap,
+      { address: { ...persistedBusiness.address, latitude: 30.27, longitude: -97.74 } },
+      persistedBusiness
+    ),
+    ['address']
+  );
+});
+
+test('an unchanged-only core patch yields no changed fields (the rejection condition)', () => {
+  assert.deepStrictEqual(
+    changedCoreIdentityFields(classMap, { name: 'Acme Coffee' }, persistedBusiness),
+    []
+  );
 });

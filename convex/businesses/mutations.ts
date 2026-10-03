@@ -16,8 +16,11 @@ import {
 } from './helpers';
 import type { ListingStatus, TransitionAction, TransitionRole } from './helpers';
 import {
+  changedCoreIdentityFields,
   findUnknownPatchFields,
   hasCoreIdentityField,
+  isBlankPatchName,
+  normalizePatchName,
   ownerSaveMode,
   ownerSubmitClearsModeration,
   persistableSaveFields,
@@ -130,13 +133,15 @@ export const createDraft = mutation({
  * atomically with `approved -> pendingReview`.
  *
  * `searchText` is recomputed whenever the persisted `name`/`description` change.
- * `ownerId`/`status` are server-owned and never patchable.
+ * A supplied `name` is trimmed and must be non-blank (T4). `ownerId`/`status` are
+ * server-owned and never patchable.
  */
 export const saveDraft = mutation({
   args: { businessId: v.id('businesses'), patch: editablePatchValidator },
   handler: async (ctx, { businessId, patch }) => {
     const business = await requireBusinessOwner(ctx, businessId);
     assertPatchInAllowlist(patch);
+    assertValidPatchName(patch);
 
     const mode = ownerSaveMode(business.status);
 
@@ -148,17 +153,18 @@ export const saveDraft = mutation({
     const persistFields = persistableSaveFields(mode, EDITABLE_FIELD_CLASS, provided);
     const now = Date.now();
     const searchChanged = persistFields.includes('name') || persistFields.includes('description');
+    const normalizedPatch = withNormalizedName(patch);
 
     await ctx.db.patch(businessId, {
-      ...buildEditablePatch(patch, persistFields),
+      ...buildEditablePatch(normalizedPatch, persistFields),
       lastSavedAt: now,
       lastUpdatedAt: now,
       ...(searchChanged
         ? {
             searchText: buildSearchText(
-              patch.name ?? business.name,
+              normalizedPatch.name ?? business.name,
               business.keywords,
-              patch.description ?? business.description
+              normalizedPatch.description ?? business.description
             ),
           }
         : {}),
@@ -222,9 +228,11 @@ export const transition = mutation({
 /**
  * Atomic approved-identity re-review ("Submit" after editing a live listing).
  *
- * The patch must contain at least one core identity field; on an `approved`
- * listing the staged identity values are persisted together with the re-review
- * transition in ONE `ctx.db.patch`, so unreviewed identity is never public and no
+ * The patch must contain at least one core identity field whose value differs
+ * from the persisted document (T5) — re-sending an unchanged value must not
+ * delist an approved listing. On an `approved` listing the staged identity
+ * values are persisted together with the re-review transition in ONE
+ * `ctx.db.patch`, so unreviewed identity is never public and no
  * approved-baseline snapshot is needed (contract §4.2/§5). The target status is
  * derived from `STATUS_TRANSITIONS` via `approvedResubmitTarget` — this path
  * deliberately does NOT route through the generic `transition` mutation, whose
@@ -238,6 +246,7 @@ export const saveAndResubmit = mutation({
   handler: async (ctx, { businessId, patch }) => {
     const business = await requireBusinessOwner(ctx, businessId);
     assertPatchInAllowlist(patch);
+    assertValidPatchName(patch);
 
     const provided = providedEditableFields(EDITABLE_FIELD_CLASS, patch);
     if (!hasCoreIdentityField(EDITABLE_FIELD_CLASS, provided)) {
@@ -250,19 +259,26 @@ export const saveAndResubmit = mutation({
       throw new ConvexError('Only an approved listing can be resubmitted with identity changes');
     }
 
+    if (changedCoreIdentityFields(EDITABLE_FIELD_CLASS, patch, business).length === 0) {
+      throw new ConvexError(
+        'saveAndResubmit requires a change to at least one core identity field (name, categoryId, description, address)'
+      );
+    }
+
     const targetStatus = approvedResubmitTarget(business.status);
     if (targetStatus === undefined) {
       throw new Error(`No resubmit target for ${business.status}`);
     }
 
     const now = Date.now();
+    const normalizedPatch = withNormalizedName(patch);
 
     await ctx.db.patch(businessId, {
-      ...buildEditablePatch(patch, provided),
+      ...buildEditablePatch(normalizedPatch, provided),
       searchText: buildSearchText(
-        patch.name ?? business.name,
+        normalizedPatch.name ?? business.name,
         business.keywords,
-        patch.description ?? business.description
+        normalizedPatch.description ?? business.description
       ),
       status: targetStatus,
       submittedAt: now,
@@ -341,6 +357,27 @@ function assertPatchInAllowlist(patch: object) {
       `Business patch contains non-editable field(s): ${unknownFields.join(', ')}`
     );
   }
+}
+
+/**
+ * T4: `v.string()` accepts whitespace-only names and the client `validateForm`
+ * is bypassable by calling the mutation directly, so a supplied blank name is
+ * rejected server-side before anything is persisted. Omitted names pass — a
+ * partial save that does not touch `name` keeps the persisted value.
+ */
+function assertValidPatchName(patch: object) {
+  if (isBlankPatchName(patch)) {
+    throw new ConvexError('Business name is required');
+  }
+}
+
+/**
+ * T4: returns the patch with `name` replaced by its trimmed value (and omitted
+ * when absent), so both persistence and `searchText` use the normalized name.
+ */
+function withNormalizedName(patch: EditablePatch): EditablePatch {
+  const name = normalizePatchName(patch);
+  return name === undefined ? patch : { ...patch, name };
 }
 
 function readOnlySaveMessage(status: ListingStatus): string {

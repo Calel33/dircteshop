@@ -18,7 +18,9 @@ import {
   OWNER_MODERATION_REASON_POLICY,
   findUnknownPatchFields,
   hasCoreIdentityField,
+  isBlankPatchName,
   isEditableBusinessField,
+  normalizePatchName,
   ownerSaveMode,
   ownerSubmitClearsModeration,
   persistableSaveFields,
@@ -93,6 +95,22 @@ test('detects whether a patch carries a core identity field', () => {
   assert.equal(hasCoreIdentityField(classMap, [...contentFields]), false);
   assert.equal(hasCoreIdentityField(classMap, ['hours', 'name']), true);
   assert.equal(hasCoreIdentityField(classMap, []), false);
+});
+
+test('normalizePatchName trims supplied names and treats omission as undefined', () => {
+  assert.equal(normalizePatchName({}), undefined);
+  assert.equal(normalizePatchName({ name: undefined }), undefined);
+  assert.equal(normalizePatchName({ name: 'Acme' }), 'Acme');
+  assert.equal(normalizePatchName({ name: '  Acme  ' }), 'Acme');
+  assert.equal(normalizePatchName({ name: '   ' }), '');
+});
+
+test('isBlankPatchName flags only a supplied whitespace-only name', () => {
+  assert.equal(isBlankPatchName({}), false);
+  assert.equal(isBlankPatchName({ name: undefined }), false);
+  assert.equal(isBlankPatchName({ name: 'Acme' }), false);
+  assert.equal(isBlankPatchName({ name: '  ' }), true);
+  assert.equal(isBlankPatchName({ name: '\t\n ' }), true);
 });
 
 test('derives the approved re-review target from the state machine', () => {
