@@ -18,7 +18,7 @@ interface BusinessCardProps {
 
 /**
  * Presentational card for one owned listing. Links to the editor route
- * (`/owner/business/[id]`, owned by todo #8) which does not exist yet.
+ * (`/owner/business/[id]`), which this PR ships.
  */
 export function BusinessCard({ business, categoryName }: BusinessCardProps) {
   const updatedAt = business.lastSavedAt ?? business.lastUpdatedAt;

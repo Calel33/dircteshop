@@ -22,7 +22,9 @@ import {
   normalizeAddress,
   normalizeHours,
   normalizeStringList,
+  reconcileSavedFields,
   validateForm,
+  WEEKDAYS,
 } from './editor-form.ts';
 
 const SOURCE = {
@@ -197,4 +199,101 @@ test('normalisation helpers are stable on already-canonical values', () => {
     }),
     { addressLine1: '1 Main St', city: 'Springfield', state: 'IL', country: 'US' }
   );
+});
+
+test('canonicalise keeps EditorFormState shape for every field (no next-render crash)', () => {
+  const form = createEditorForm(SOURCE);
+
+  for (const field of EDITOR_FIELDS) {
+    const canonical = canonicalizeForm(form, [field]);
+    assert.doesNotThrow(() => dirtyFields(canonical, canonical));
+  }
+});
+
+test('canonicalise keeps all six address keys and all seven weekdays', () => {
+  const form = createEditorForm(SOURCE);
+  const canonical = canonicalizeForm(form, ['address', 'hours']);
+
+  assert.deepStrictEqual(Object.keys(canonical.address).sort(), [
+    'addressLine1',
+    'addressLine2',
+    'city',
+    'country',
+    'postalCode',
+    'state',
+  ]);
+  assert.deepStrictEqual(Object.keys(canonical.hours).sort(), [...WEEKDAYS].sort());
+  assert.deepStrictEqual(canonical.hours.tuesday, []);
+});
+
+test('canonicalise preserves coordinates and empties optional address parts', () => {
+  const form = createEditorForm({
+    ...SOURCE,
+    address: {
+      addressLine1: '1 Main St',
+      addressLine2: '  ',
+      city: 'Springfield',
+      state: 'IL',
+      postalCode: ' ',
+      country: 'US',
+      latitude: 39.8,
+      longitude: -89.6,
+    },
+  });
+  const canonical = canonicalizeForm(form, ['address']);
+
+  assert.equal(canonical.address.addressLine2, '');
+  assert.equal(canonical.address.postalCode, '');
+  assert.equal(canonical.address.latitude, 39.8);
+  assert.equal(canonical.address.longitude, -89.6);
+});
+
+test('canonicalising a multi-field edit keeps the next render stable and clean', () => {
+  const form = createEditorForm(SOURCE);
+  const edited = {
+    ...form,
+    address: { ...form.address, city: 'Shelbyville' },
+    hours: { ...form.hours, tuesday: [{ opensAt: '10:00', closesAt: '14:00' }] },
+  };
+  const dirty = dirtyFields(edited, form);
+  const canonical = canonicalizeForm(edited, dirty);
+  const baseline = mergeSavedFields(form, canonical, dirty);
+
+  assert.deepStrictEqual(dirty, ['address', 'hours']);
+  assert.doesNotThrow(() => dirtyFields(canonical, baseline));
+  assert.deepStrictEqual(dirtyFields(canonical, baseline), []);
+});
+
+test('reconcileSavedFields takes canonical values when no mid-save edit occurred', () => {
+  const form = createEditorForm(SOURCE);
+  const snapshot = { ...form, name: '  Acme  ' };
+  const canonical = canonicalizeForm(snapshot, ['name']);
+  const reconciled = reconcileSavedFields(snapshot, snapshot, canonical, ['name']);
+  const baseline = mergeSavedFields(snapshot, canonical, ['name']);
+
+  assert.equal(reconciled.name, 'Acme');
+  assert.deepStrictEqual(dirtyFields(reconciled, baseline), []);
+});
+
+test('reconcileSavedFields keeps a newer mid-save edit to a saved field', () => {
+  const form = createEditorForm(SOURCE);
+  const snapshot = { ...form, name: '  Acme  ' };
+  const canonical = canonicalizeForm(snapshot, ['name']);
+  const current = { ...form, name: 'Acme Roasters' };
+  const reconciled = reconcileSavedFields(current, snapshot, canonical, ['name']);
+  const baseline = mergeSavedFields(snapshot, canonical, ['name']);
+
+  assert.equal(reconciled.name, 'Acme Roasters');
+  assert.deepStrictEqual(dirtyFields(reconciled, baseline), ['name']);
+});
+
+test('reconcileSavedFields leaves edits to unsaved fields untouched', () => {
+  const form = createEditorForm(SOURCE);
+  const snapshot = { ...form, name: '  Acme  ' };
+  const canonical = canonicalizeForm(snapshot, ['name']);
+  const current = { ...snapshot, phone: '555-9999' };
+  const reconciled = reconcileSavedFields(current, snapshot, canonical, ['name']);
+
+  assert.equal(reconciled.name, 'Acme');
+  assert.equal(reconciled.phone, '555-9999');
 });

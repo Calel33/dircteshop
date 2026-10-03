@@ -234,6 +234,30 @@ export function normalizeStringList(values: readonly string[]): string[] {
   return result;
 }
 
+/**
+ * Form-shaped canonical address: keeps all six string keys (empty optional parts
+ * become `''`) and preserves latitude/longitude when set. Distinct from
+ * `normalizeAddress`, which produces the server patch shape (optional parts
+ * omitted) and must stay that way.
+ */
+function canonicalAddress(address: AddressForm): AddressForm {
+  return {
+    addressLine1: address.addressLine1.trim(),
+    addressLine2: address.addressLine2.trim(),
+    city: address.city.trim(),
+    state: address.state.trim(),
+    postalCode: address.postalCode.trim(),
+    country: address.country.trim(),
+    ...(address.latitude === undefined ? {} : { latitude: address.latitude }),
+    ...(address.longitude === undefined ? {} : { longitude: address.longitude }),
+  };
+}
+
+/** Form-shaped canonical hours: all seven weekdays present, closed days as `[]`. */
+function canonicalHours(hours: HoursForm): HoursForm {
+  return toHoursForm(hours);
+}
+
 /** Canonical server value for one editable field, used by patch and canonicalise. */
 const FIELD_PATCH_VALUES = {
   name: (form: EditorFormState) => form.name.trim(),
@@ -261,6 +285,25 @@ const FIELD_SIGNATURES = {
   tags: (form: EditorFormState) => JSON.stringify(normalizeStringList(form.tags)),
   amenities: (form: EditorFormState) => JSON.stringify(normalizeStringList(form.amenities)),
 } satisfies Record<EditableBusinessField, (form: EditorFormState) => string>;
+
+/**
+ * Form-shaped canonical value per field, used by `canonicalizeForm`. Unlike
+ * `FIELD_PATCH_VALUES` (server patch shape), the address keeps all six string
+ * keys and hours keeps all seven weekdays, so the result is a genuine
+ * `EditorFormState` and the next `dirtyFields` render cannot throw.
+ */
+const CANONICAL_FIELD_VALUES = {
+  name: (form: EditorFormState) => form.name.trim(),
+  categoryId: (form: EditorFormState) => form.categoryId,
+  description: (form: EditorFormState) => form.description,
+  address: (form: EditorFormState) => canonicalAddress(form.address),
+  hours: (form: EditorFormState) => canonicalHours(form.hours),
+  phone: (form: EditorFormState) => form.phone.trim(),
+  email: (form: EditorFormState) => form.email.trim(),
+  website: (form: EditorFormState) => form.website.trim(),
+  tags: (form: EditorFormState) => normalizeStringList(form.tags),
+  amenities: (form: EditorFormState) => normalizeStringList(form.amenities),
+} satisfies Record<EditableBusinessField, (form: EditorFormState) => unknown>;
 
 /** Editable fields whose current value differs from the saved baseline. */
 export function dirtyFields(
@@ -299,19 +342,22 @@ export function buildEditablePatch(
 /**
  * Returns a copy of `form` with `fields` replaced by their canonical values.
  * Called after a successful save so the saved fields stop reading as dirty while
- * approved core identity edits (ignored by the server) stay staged.
+ * approved core identity edits (ignored by the server) stay staged. The result is
+ * a genuine `EditorFormState`: address keeps all six string keys and hours keeps
+ * all seven weekdays, so the shell's next `dirtyFields` render cannot throw.
  */
 export function canonicalizeForm(
   form: EditorFormState,
   fields: readonly EditableBusinessField[]
 ): EditorFormState {
-  const next: Record<string, unknown> = { ...form };
+  const next: EditorFormState = { ...form };
+  const draft: Record<EditableBusinessField, unknown> = next;
 
   for (const field of fields) {
-    next[field] = FIELD_PATCH_VALUES[field](form);
+    draft[field] = CANONICAL_FIELD_VALUES[field](form);
   }
 
-  return next as unknown as EditorFormState;
+  return next;
 }
 
 /**
@@ -330,6 +376,33 @@ export function mergeSavedFields(
   }
 
   return next as unknown as EditorFormState;
+}
+
+/**
+ * Reconciles form state after a save resolves. The mutation was sent from a
+ * pre-await `snapshot`, but the section inputs stay editable while it is in
+ * flight: when `current` has a newer value for a saved field (its signature
+ * differs from `snapshot`), keep the user's edit; otherwise take the canonical
+ * value so the field stops reading as dirty. Fields outside `fields` are left
+ * exactly as the user left them.
+ */
+export function reconcileSavedFields(
+  current: EditorFormState,
+  snapshot: EditorFormState,
+  canonical: EditorFormState,
+  fields: readonly EditableBusinessField[]
+): EditorFormState {
+  const next: EditorFormState = { ...current };
+  const draft: Record<EditableBusinessField, unknown> = next;
+
+  for (const field of fields) {
+    if (FIELD_SIGNATURES[field](current) !== FIELD_SIGNATURES[field](snapshot)) {
+      continue;
+    }
+    draft[field] = canonical[field];
+  }
+
+  return next;
 }
 
 /** Minimal pre-save validation: a listing must keep a non-empty name. */

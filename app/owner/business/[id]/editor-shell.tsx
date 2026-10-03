@@ -40,6 +40,7 @@ import {
   dirtyFields,
   EDITOR_FIELD_CLASS,
   mergeSavedFields,
+  reconcileSavedFields,
   validateForm,
   type EditorFormState,
 } from './editor-form';
@@ -146,7 +147,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   const isBusy = isSaving || isSubmitting;
   // Validate only what will be persisted. Approved core identity (e.g. a staged
   // name) is not part of a content-only save, so it must not block that save;
-  // Submit persists the dirty fields and Resubmit persists every dirty field.
+  // Submit persists `savable` and Resubmit persists every dirty field.
   const { canSave, canRunPrimary } = getSaveAvailability({
     readOnly,
     busy: isBusy,
@@ -188,9 +189,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       await saveDraft({ businessId: business._id, patch });
 
       // Saved fields stop being dirty; approved core identity edits were ignored
-      // by the server and stay staged for `saveAndResubmit`.
+      // by the server and stay staged for `saveAndResubmit`. Reconcile against the
+      // latest form so edits typed while the mutation was in flight are kept.
       const canonical = canonicalizeForm(form, savable);
-      setForm(canonical);
+      setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
       setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
     } catch (saveError) {
       setError(messageFromError(saveError, 'Could not save the listing.'));
@@ -209,7 +211,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       if (savable.length > 0) {
         await saveDraft({ businessId: business._id, patch: buildEditablePatch(form, savable) });
         const canonical = canonicalizeForm(form, savable);
-        setForm(canonical);
+        setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
         setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
       }
       await transition({ businessId: business._id, action: 'submitForReview' });
@@ -226,8 +228,13 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
 
     try {
       // Atomic: the staged core identity fields and any content dirt are written
-      // together with `approved -> pendingReview`.
+      // together with `approved -> pendingReview`. On success the persisted fields
+      // are reconciled so they stop reading as dirty.
       await saveAndResubmit({ businessId: business._id, patch: buildEditablePatch(form, dirty) });
+
+      const canonical = canonicalizeForm(form, dirty);
+      setForm((previous) => reconcileSavedFields(previous, form, canonical, dirty));
+      setBaseline((previous) => mergeSavedFields(previous, canonical, dirty));
     } catch (resubmitError) {
       setError(messageFromError(resubmitError, 'Could not resubmit the listing.'));
     } finally {

@@ -160,18 +160,18 @@ function ContactSection({ section, form, onChange, readOnly }: SectionEditorProp
 }
 
 const ADDRESS_FIELDS = [
-  { key: 'addressLine1', label: 'Address line 1' },
-  { key: 'addressLine2', label: 'Address line 2 (optional)' },
-  { key: 'city', label: 'City' },
-  { key: 'state', label: 'State / region' },
-  { key: 'postalCode', label: 'Postal code (optional)' },
-  { key: 'country', label: 'Country' },
+  { key: 'addressLine1', label: 'Address line 1', autoComplete: 'address-line1' },
+  { key: 'addressLine2', label: 'Address line 2 (optional)', autoComplete: 'address-line2' },
+  { key: 'city', label: 'City', autoComplete: 'address-level2' },
+  { key: 'state', label: 'State / region', autoComplete: 'address-level1' },
+  { key: 'postalCode', label: 'Postal code (optional)', autoComplete: 'postal-code' },
+  { key: 'country', label: 'Country', autoComplete: 'country' },
 ] as const;
 
 function LocationSection({ section, form, onChange, readOnly }: SectionEditorProps) {
   return (
     <SectionCard section={section}>
-      {ADDRESS_FIELDS.map(({ key, label }) => (
+      {ADDRESS_FIELDS.map(({ key, label, autoComplete }) => (
         <Field
           key={key}
           id={`editor-address-${key}`}
@@ -186,7 +186,7 @@ function LocationSection({ section, form, onChange, readOnly }: SectionEditorPro
             onChange={(event) =>
               onChange('address', { ...form.address, [key]: event.target.value })
             }
-            autoComplete="address-line1"
+            autoComplete={autoComplete}
           />
         </Field>
       ))}

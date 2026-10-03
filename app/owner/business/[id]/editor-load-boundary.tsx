@@ -2,7 +2,7 @@
 
 import { Component, type ReactNode } from 'react';
 
-import { EditorNotFound } from './editor-states';
+import { EditorErrorState } from './editor-states';
 
 interface EditorLoadBoundaryProps {
   children: ReactNode;
@@ -13,10 +13,11 @@ interface EditorLoadBoundaryState {
 }
 
 /**
- * Catches a `getMine` argument-validation failure and renders the same
- * not-found state as a missing or foreign-owned listing. `useQuery` throws
- * during render when a Convex function returns an error, so a React error
- * boundary is the mechanism for catching it.
+ * Catches render-time failures in the editor subtree — most notably a `getMine`
+ * argument-validation failure, since `useQuery` throws during render when a
+ * Convex function returns an error. Renders `EditorErrorState`, which is
+ * distinct from the not-found/no-access copy and lets the user retry, so a bug
+ * is not misreported as a missing or foreign-owned listing.
  *
  * The client id guard (`looksLikeConvexId`) rejects most malformed params
  * before the query runs; this boundary covers the residual case of a
@@ -29,9 +30,13 @@ export class EditorLoadBoundary extends Component<EditorLoadBoundaryProps, Edito
     return { hasError: true };
   }
 
+  reset = () => {
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
-      return <EditorNotFound />;
+      return <EditorErrorState onRetry={this.reset} />;
     }
 
     return this.props.children;

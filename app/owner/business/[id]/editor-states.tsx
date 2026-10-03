@@ -68,3 +68,34 @@ export function EditorNotFound() {
     </Card>
   );
 }
+
+/**
+ * Render-error fallback for `/owner/business/[id]`. Distinct from
+ * `EditorNotFound`: reaching this state means the editor failed unexpectedly,
+ * not that the listing is missing or foreign-owned. `onRetry` resets the
+ * boundary so a transient failure can recover without a full reload.
+ */
+export function EditorErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Card
+      role="alert"
+      className="mx-auto mt-section w-full max-w-md rounded-card py-card text-center"
+    >
+      <CardHeader>
+        <CardTitle className="font-display text-xl">Something went wrong</CardTitle>
+        <CardDescription>
+          We couldn&apos;t load this listing&apos;s editor. Try again, and if the problem
+          continues, head back to your businesses.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <Button type="button" onClick={onRetry}>
+          Try again
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/owner">Back to your businesses</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}

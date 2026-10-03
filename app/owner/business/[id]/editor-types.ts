@@ -7,7 +7,7 @@ export type OwnerEditorDocument = NonNullable<
   FunctionReturnType<typeof api.businesses.queries.getMine>
 >;
 
-/** A section of the owner editor, before its form content lands in todo #9. */
+/** A section of the owner editor, paired with its form content. */
 export interface EditorSection {
   id: string;
   label: string;
