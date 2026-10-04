@@ -1,7 +1,9 @@
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import { requireSuperAdmin } from '../authz';
 import { getCurrentUser } from '../users';
+import { toPendingApprovalCard } from './moderationProjections';
 import { toOwnerEditorDocument, toOwnerSummary } from './ownerProjections';
 
 // Public discovery reads. Every public query in this module is client-callable,
@@ -169,5 +171,52 @@ export const getMine = query({
     }
 
     return toOwnerEditorDocument(business);
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Super Admin approval queue (B3b, issue #13 / todo #2).
+//
+// Super Admin only: identity comes from the Convex auth context via
+// `requireSuperAdmin` (which also enforces the live env whitelist) — never a
+// client-supplied actor or owner id. Returns a narrow card projection, not raw
+// docs. Public visibility is unchanged: `getPublic`/`searchPublic` stay
+// approved-only.
+// Contract: tasks/issue-13-plan.md Task 2; SPEC §3/§5/§10.
+// Docs: https://docs.convex.dev/auth/functions-auth · https://docs.convex.dev/database/reading-data/indexes
+// ---------------------------------------------------------------------------
+
+/**
+ * Pending approvals queue: every `pendingReview` business, oldest submission
+ * first, projected to the card fields the `/admin/approvals` route renders.
+ *
+ * Ordering is the `byStatusSubmittedAt` composite index (`status`, then
+ * `submittedAt`; Convex appends `_creationTime` as the final tiebreak), so the
+ * oldest submission is always reviewed first. The queue is intentionally
+ * unpaginated — B3c owns filters/bulk/pagination.
+ *
+ * Category and owner joins use `db.get`; a missing join yields `null` labels
+ * rather than failing the whole queue (a dangling reference must not hide the
+ * rest of the backlog). Both joins per card run in parallel.
+ */
+export const listPendingApprovals = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperAdmin(ctx);
+
+    const pending = await ctx.db
+      .query('businesses')
+      .withIndex('byStatusSubmittedAt', (q) => q.eq('status', 'pendingReview'))
+      .collect();
+
+    return await Promise.all(
+      pending.map(async (business) => {
+        const [category, owner] = await Promise.all([
+          ctx.db.get('categories', business.categoryId),
+          ctx.db.get('users', business.ownerId),
+        ]);
+        return toPendingApprovalCard({ business, category, owner });
+      }),
+    );
   },
 });

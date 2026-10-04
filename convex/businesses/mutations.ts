@@ -16,6 +16,11 @@ import {
 } from './helpers';
 import type { ListingStatus, TransitionAction, TransitionRole } from './helpers';
 import {
+  assertModerationReason,
+  buildModerationAuditLog,
+  normalizeModerationReason,
+} from './moderationPolicy';
+import {
   changedCoreIdentityFields,
   findUnknownPatchFields,
   hasCoreIdentityField,
@@ -31,16 +36,13 @@ import {
 // never a client-supplied status (SPEC §5); the target status is resolved
 // server-side and checked against the STATUS_TRANSITIONS allow-list.
 
-// The action allow-list is enforced by the validator. The *conditional* reason
-// requirement (requestChanges / reject) cannot be expressed in a flat args
-// object — Convex 1.46 rejects a top-level union validator as args ("Args
-// validator must be an object or any") — so it fails fast at the top of the
-// handler via assertReasonProvided.
+// The action allow-list is enforced by the validator. Moderation decisions
+// (approve / requestChanges / reject) are deliberately excluded here: they must
+// go through `moderateListing`, which writes the required audit row in the same
+// transaction (issue #13). Transition handles only the remaining lifecycle
+// actions.
 const actionValidator = v.union(
   v.literal('submitForReview'),
-  v.literal('approve'),
-  v.literal('requestChanges'),
-  v.literal('reject'),
   v.literal('suspend'),
   v.literal('restore'),
   v.literal('reopenAsDraft')
@@ -89,7 +91,7 @@ export const createDraft = mutation({
 
     const owner = await getCurrentUserOrThrow(ctx);
 
-    const category = await ctx.db.get(categoryId);
+    const category = await ctx.db.get('categories', categoryId);
     if (category === null) {
       throw new Error('Unknown category');
     }
@@ -189,7 +191,7 @@ export const transition = mutation({
   handler: async (ctx, args) => {
     assertReasonProvided(args.action, args.reason);
 
-    const business = await ctx.db.get(args.businessId);
+    const business = await ctx.db.get('businesses', args.businessId);
     if (business === null) {
       throw new Error('Business not found');
     }
@@ -199,7 +201,7 @@ export const transition = mutation({
       throw new Error(`Invalid transition from ${business.status} for ${args.action}`);
     }
 
-    const actor = await authorizeAction(ctx, args.businessId, resolution.requiredRole);
+    await authorizeAction(ctx, args.businessId, resolution.requiredRole);
     assertTransitionAllowed(business.status, args.action, resolution.targetStatus);
 
     const now = Date.now();
@@ -212,16 +214,86 @@ export const transition = mutation({
       // approvals queue reads it for "submitted age" (SPEC §10, B6).
       ...(args.action === 'submitForReview' ? { submittedAt: now } : {}),
       // Admin moderation stamps. Passing `undefined` removes a stale
-      // moderationReason on approve / restore.
+      // moderationReason on suspend / restore.
       ...(resolution.requiredRole === 'superAdmin'
         ? { moderatedAt: now, moderationReason: args.reason }
         : {}),
-      // SPEC §5: an approval stamps verification. `restore` also lands on
-      // `approved` but is not an approval, so it must not re-stamp verification.
-      ...(args.action === 'approve' && actor !== null
-        ? { verification: { isVerified: true, verifiedAt: now, verifiedBy: actor._id } }
+    });
+  },
+});
+
+/**
+ * B3b per-card moderation decision (issue #13, Task 3): the narrow Super Admin
+ * action set for a `pendingReview` listing. Deliberately separate from
+ * `transition` so owner submit/reopen behavior and the out-of-scope
+ * suspend/restore flows are untouched, and only this decision writes its atomic
+ * audit row.
+ *
+ * Frozen check order: reason -> authorize -> load -> resolve + pendingReview
+ * guard -> atomic patch + audit insert. The target status is resolved
+ * server-side (`resolveTransition`) and the acting Super Admin is derived from
+ * `requireSuperAdmin`; a client never supplies a status, actor id, or
+ * verification stamp.
+ *
+ * The explicit `pendingReview` guard is required because the state machine
+ * resolves a `suspended -> approved` `approve` (helpers.ts), so a stale card
+ * could otherwise re-approve a listing that already left review.
+ */
+const moderationActionValidator = v.union(
+  v.literal('approve'),
+  v.literal('requestChanges'),
+  v.literal('reject')
+);
+
+export const moderateListing = mutation({
+  args: {
+    businessId: v.id('businesses'),
+    action: moderationActionValidator,
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    assertModerationReason(args.action, args.reason);
+
+    const admin = await requireSuperAdmin(ctx);
+
+    const business = await ctx.db.get('businesses', args.businessId);
+    if (business === null) {
+      throw new ConvexError('Business not found');
+    }
+
+    const resolution = resolveTransition(business.status, args.action);
+    if (resolution === undefined) {
+      throw new ConvexError(`Invalid transition from ${business.status} for ${args.action}`);
+    }
+
+    if (business.status !== 'pendingReview') {
+      throw new ConvexError('Listing is no longer pending review; refresh the queue.');
+    }
+
+    const now = Date.now();
+    const normalizedReason = normalizeModerationReason(args.action, args.reason);
+
+    await ctx.db.patch(args.businessId, {
+      status: resolution.targetStatus,
+      lastUpdatedAt: now,
+      moderatedAt: now,
+      moderationReason: normalizedReason,
+      ...(args.action === 'approve'
+        ? { verification: { isVerified: true, verifiedAt: now, verifiedBy: admin._id } }
         : {}),
     });
+
+    await ctx.db.insert(
+      'auditLogs',
+      buildModerationAuditLog({
+        actorUserId: admin._id,
+        action: args.action,
+        targetId: args.businessId,
+        toStatus: resolution.targetStatus,
+        reason: normalizedReason,
+        createdAt: now,
+      })
+    );
   },
 });
 
