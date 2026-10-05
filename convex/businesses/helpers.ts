@@ -86,6 +86,17 @@ export function resolveTransition(
     return undefined;
   }
 
+  // The authoritative actor table defines `restore` only as
+  // `suspended -> approved`. Its target `approved` is also reachable from
+  // `pendingReview`, so without this guard `restore` would resolve there and let
+  // the generic `transition` mutation approve a pending listing with no
+  // verification stamp and no `auditLogs` row — bypassing the audited
+  // `moderateListing` path (issue #13). Reject the cross-match; the valid
+  // `suspended + restore` path is preserved.
+  if (action === 'restore' && currentStatus !== 'suspended') {
+    return undefined;
+  }
+
   const override = TRANSITION_ROLE_OVERRIDES.find(
     (candidate) => candidate.from === currentStatus && candidate.to === targetStatus
   );
