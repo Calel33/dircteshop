@@ -70,6 +70,7 @@ export default defineSchema({
     lastSavedAt: v.optional(v.number()),
   })
     .index('byStatus', ['status'])
+    .index('byStatusSubmittedAt', ['status', 'submittedAt'])
     .index('byCategoryId', ['categoryId'])
     .index('byOwnerId', ['ownerId'])
     .searchIndex('searchText', {

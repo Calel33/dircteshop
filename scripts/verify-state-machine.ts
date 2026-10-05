@@ -80,6 +80,12 @@ function assertIllegalTransitionsRejected(): void {
   assert.equal(stateMachine.resolveTransition('draft', 'approve'), undefined);
   assert.equal(stateMachine.resolveTransition('suspended', 'submitForReview'), undefined);
   assert.equal(stateMachine.resolveTransition('suspended', 'reopenAsDraft'), undefined);
+  // Regression (issue #13, IC2 High): `restore` may only resolve from
+  // `suspended`. Its target `approved` is also reachable from `pendingReview`,
+  // so without this rule the generic `transition` mutation could approve a
+  // pending listing with no verification stamp and no `auditLogs` row. The
+  // valid `suspended + restore` path stays pinned by `assertActorTable`.
+  assert.equal(stateMachine.resolveTransition('pendingReview', 'restore'), undefined);
 }
 
 /**
