@@ -25,6 +25,18 @@ export const EDITOR_SECTIONS = [
 export type EditorFormSectionId = (typeof EDITOR_SECTIONS)[number]['id'];
 
 /**
+ * Nav-only Photos & Media placeholder (issue #14 / B3c Task 8; SPEC §9). Photo
+ * upload/storage lands in a later slice (B7), so this is a navigation entry with
+ * no upload controls and no form fields.
+ */
+export const PHOTOS_SECTION = {
+  id: 'photos-media',
+  label: 'Photos & Media',
+  description: 'v1 placeholder — photo uploads arrive in a later slice. No upload controls yet.',
+  stub: true,
+} as const satisfies EditorSection;
+
+/**
  * Nav-only Analytics placeholder (issue #12 / prototype L369). v1 reads counts
  * from existing tables — no revenue card, no data fetch wired here yet.
  */
@@ -55,17 +67,25 @@ export const SETTINGS_SECTION = {
 
 export type EditorSectionId =
   | EditorFormSectionId
+  | typeof PHOTOS_SECTION.id
   | typeof ANALYTICS_SECTION.id
   | typeof HISTORY_SECTION.id
   | typeof SETTINGS_SECTION.id;
 
-/** Every section shown in the nav, in order (prototype L369-L371). */
-export const EDITOR_NAV_SECTIONS = [
-  ...EDITOR_SECTIONS,
+/**
+ * Every section shown in the nav, in prototype order (owner-workspace.html
+ * L358-372): Listing Details (Basic Info, Hours, Photos & Media, Contact),
+ * Advanced (Location, Categories & Tags, Features & Amenities), Management
+ * (Analytics, Change History, Settings).
+ */
+export const EDITOR_NAV_SECTIONS: readonly (EditorSection & { id: EditorSectionId })[] = [
+  ...EDITOR_SECTIONS.slice(0, 2),
+  PHOTOS_SECTION,
+  ...EDITOR_SECTIONS.slice(2),
   ANALYTICS_SECTION,
   HISTORY_SECTION,
   SETTINGS_SECTION,
-] as const satisfies readonly EditorSection[];
+];
 
 interface EditorSectionNavProps {
   activeId: EditorSectionId;
@@ -83,18 +103,25 @@ export function EditorSectionNav({ activeId, onSelect }: EditorSectionNavProps) 
       <p className="text-muted-foreground px-2 font-label text-xs tracking-wide uppercase">
         Sections
       </p>
-      <ul className="flex flex-col gap-1" role="list">
+      {/*
+        Compact (mobile) collapses the vertical sidebar into a horizontal,
+        non-wrapping scroll strip; at `lg` it returns to the desktop column.
+      */}
+      <ul
+        className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0"
+        role="list"
+      >
         {EDITOR_NAV_SECTIONS.map((section) => {
           const isActive = section.id === activeId;
 
           return (
-            <li key={section.id}>
+            <li key={section.id} className="shrink-0 lg:shrink">
               <button
                 type="button"
                 onClick={() => onSelect(section.id)}
                 aria-current={isActive ? 'true' : undefined}
                 className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-control px-3 py-2 text-left text-sm transition-colors',
+                  'flex w-full items-center justify-between gap-2 rounded-control px-3 py-2 text-left text-sm whitespace-nowrap transition-colors',
                   isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
                 )}
               >
