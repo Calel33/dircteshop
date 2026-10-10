@@ -16,7 +16,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Doc, Id } from '../convex/_generated/dataModel.ts';
-import { toPendingApprovalCard } from '../convex/businesses/moderationProjections.ts';
+import {
+  toPendingApprovalCard,
+  toPendingApprovalDetails,
+} from '../convex/businesses/moderationProjections.ts';
 
 /** A schema-shaped pending business, including the fields a card must not receive. */
 function businessFixture(): Doc<'businesses'> {
@@ -192,4 +195,121 @@ test('pending card withholds auth identifiers, search, and moderation internals'
   assert.equal('moderatedAt' in card, false);
   assert.equal('verification' in card, false);
   assert.equal('categoryId' in card, false);
+});
+
+// ---------------------------------------------------------------------------
+// B3c / issue #14 Task 1 — full-details projection.
+// ---------------------------------------------------------------------------
+
+test('details carry exactly the confirmed profile, owner and submission fields', () => {
+  const details = toPendingApprovalDetails({
+    business: businessFixture(),
+    category: categoryFixture(),
+    owner: ownerFixture(),
+  });
+
+  assert.deepStrictEqual(Object.keys(details).sort(), [
+    '_id',
+    'address',
+    'amenities',
+    'categoryName',
+    'credentials',
+    'description',
+    'email',
+    'hours',
+    'keywords',
+    'lastSavedAt',
+    'lastUpdatedAt',
+    'name',
+    'ownerLabel',
+    'phone',
+    'photoCount',
+    'photos',
+    'services',
+    'status',
+    'submittedAt',
+    'tags',
+    'website',
+  ]);
+});
+
+test('details values reflect the joined business, category and owner', () => {
+  const details = toPendingApprovalDetails({
+    business: businessFixture(),
+    category: categoryFixture(),
+    owner: ownerFixture(),
+  });
+
+  assert.equal(details._id, 'businesses_1');
+  assert.equal(details.status, 'pendingReview');
+  assert.equal(details.name, 'Acme Coffee');
+  assert.equal(details.categoryName, 'Cafes');
+  assert.equal(details.ownerLabel, 'Owner Name');
+  assert.equal(details.description, 'A cafe');
+  assert.equal(details.website, 'https://acme.test');
+  assert.equal(details.submittedAt, 1_700_000_000_003);
+  assert.deepStrictEqual(details.hours, { monday: [{ opensAt: '09:00', closesAt: '17:00' }] });
+  assert.deepStrictEqual(details.keywords, ['coffee']);
+  assert.deepStrictEqual(details.services, []);
+  assert.deepStrictEqual(details.credentials, []);
+});
+
+test('details normalize missing optional tags/amenities to empty arrays', () => {
+  const details = toPendingApprovalDetails({
+    business: { ...businessFixture(), tags: undefined, amenities: undefined },
+    category: categoryFixture(),
+    owner: ownerFixture(),
+  });
+
+  assert.deepStrictEqual(details.tags, []);
+  assert.deepStrictEqual(details.amenities, []);
+});
+
+test('details exclude photo storage refs and expose alt text + ordering + count', () => {
+  const details = toPendingApprovalDetails({
+    business: {
+      ...businessFixture(),
+      photos: [
+        { storageId: 'storage_1' as Id<'_storage'>, altText: 'Storefront', ordering: 0 },
+        { storageId: 'storage_2' as Id<'_storage'>, ordering: 1 },
+      ],
+    },
+    category: categoryFixture(),
+    owner: ownerFixture(),
+  });
+
+  assert.equal(details.photoCount, 2);
+  assert.deepStrictEqual(details.photos, [
+    { altText: 'Storefront', ordering: 0 },
+    { altText: undefined, ordering: 1 },
+  ]);
+  assert.equal('storageId' in (details.photos[0] as Record<string, unknown>), false);
+});
+
+test('details withholds auth identifiers, search, moderation and admin internals', () => {
+  const details = toPendingApprovalDetails({
+    business: businessFixture(),
+    category: categoryFixture(),
+    owner: ownerFixture(),
+  }) as unknown as Record<string, unknown>;
+
+  assert.equal('ownerId' in details, false);
+  assert.equal('searchText' in details, false);
+  assert.equal('categoryId' in details, false);
+  assert.equal('moderationReason' in details, false);
+  assert.equal('moderatedAt' in details, false);
+  assert.equal('verification' in details, false);
+  assert.equal('isFeatured' in details, false);
+  assert.equal('_creationTime' in details, false);
+});
+
+test('details with a missing category/owner join still yield safe null labels', () => {
+  const details = toPendingApprovalDetails({
+    business: businessFixture(),
+    category: null,
+    owner: null,
+  });
+
+  assert.equal(details.categoryName, null);
+  assert.equal(details.ownerLabel, null);
 });

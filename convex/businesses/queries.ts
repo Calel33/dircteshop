@@ -1,9 +1,17 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
+import type { QueryCtx } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
 import { requireSuperAdmin } from '../authz';
 import { getCurrentUser } from '../users';
-import { toPendingApprovalCard } from './moderationProjections';
+import {
+  isSubmittedAtRangeEmpty,
+  resolveSubmittedAtRange,
+  toPendingApprovalCard,
+  toPendingApprovalDetails,
+} from './moderationProjections';
 import { toOwnerEditorDocument, toOwnerSummary } from './ownerProjections';
 
 // Public discovery reads. Every public query in this module is client-callable,
@@ -186,37 +194,119 @@ export const getMine = query({
 // Docs: https://docs.convex.dev/auth/functions-auth · https://docs.convex.dev/database/reading-data/indexes
 // ---------------------------------------------------------------------------
 
+const queueTimeFilterValidator = v.union(
+  v.literal('all'),
+  v.literal('24h'),
+  v.literal('7d'),
+  v.literal('30d')
+);
+const queuePriorityFilterValidator = v.union(v.literal('all'), v.literal('high'), v.literal('normal'));
+
 /**
- * Pending approvals queue: every `pendingReview` business, oldest submission
- * first, projected to the card fields the `/admin/approvals` route renders.
- *
- * Ordering is the `byStatusSubmittedAt` composite index (`status`, then
- * `submittedAt`; Convex appends `_creationTime` as the final tiebreak), so the
- * oldest submission is always reviewed first. The queue is intentionally
- * unpaginated — B3c owns filters/bulk/pagination.
- *
+ * Maps a raw page of `pendingReview` businesses to the narrow card projection.
  * Category and owner joins use `db.get`; a missing join yields `null` labels
  * rather than failing the whole queue (a dangling reference must not hide the
  * rest of the backlog). Both joins per card run in parallel.
  */
+async function projectPendingCards(ctx: QueryCtx, page: Doc<'businesses'>[]) {
+  return await Promise.all(
+    page.map(async (business) => {
+      const [category, owner] = await Promise.all([
+        ctx.db.get('categories', business.categoryId),
+        ctx.db.get('users', business.ownerId),
+      ]);
+      return toPendingApprovalCard({ business, category, owner });
+    }),
+  );
+}
+
+/**
+ * Pending approvals queue (B3b + B3c): a bounded, cursor-paginated page of
+ * `pendingReview` businesses, oldest submission first, projected to the card
+ * fields the `/admin/approvals` route renders.
+ *
+ * Ordering uses the `byStatusSubmittedAt` index for the all-category path and
+ * `byStatusCategorySubmittedAt` when a category is supplied — both step fields
+ * in index order so a filtered page bounds its `submittedAt` range BEFORE
+ * `.paginate` (never a post-pagination code filter that would undershoot the
+ * page). Every filter dependency — category, priority, time, and the stable
+ * `now` cutoff — is an explicit query argument, so a long-lived cursor is not
+ * invalidated by a moving clock (convex-backend#505). `now` defaults to the
+ * server clock only when the caller omits it.
+ *
+ * Categories/priority/time narrow the read; the 25-item page is bounded by
+ * `paginationOpts`. Convex may pin page endpoints and vary the rendered page
+ * length, so callers drive select-all and bulk counts off the returned page.
+ * Docs: https://docs.convex.dev/database/pagination
+ */
 export const listPendingApprovals = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    paginationOpts: paginationOptsValidator,
+    categoryId: v.optional(v.id('categories')),
+    priority: v.optional(queuePriorityFilterValidator),
+    time: v.optional(queueTimeFilterValidator),
+    now: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     await requireSuperAdmin(ctx);
 
-    const pending = await ctx.db
-      .query('businesses')
-      .withIndex('byStatusSubmittedAt', (q) => q.eq('status', 'pendingReview'))
-      .collect();
+    const range = resolveSubmittedAtRange({
+      timeFilter: args.time ?? 'all',
+      priority: args.priority ?? 'all',
+      now: args.now ?? Date.now(),
+    });
 
-    return await Promise.all(
-      pending.map(async (business) => {
-        const [category, owner] = await Promise.all([
-          ctx.db.get('categories', business.categoryId),
-          ctx.db.get('users', business.ownerId),
-        ]);
-        return toPendingApprovalCard({ business, category, owner });
-      }),
-    );
+    if (isSubmittedAtRangeEmpty(range)) {
+      return { page: [], isDone: true, continueCursor: '' };
+    }
+
+    const categoryId = args.categoryId;
+    const page = await ctx.db
+      .query('businesses')
+      .withIndex(
+        categoryId === undefined ? 'byStatusSubmittedAt' : 'byStatusCategorySubmittedAt',
+        (q) => {
+          const byStatus = q.eq('status', 'pendingReview');
+          const scoped = categoryId === undefined ? byStatus : byStatus.eq('categoryId', categoryId);
+          if (range.lowerInclusive === undefined) {
+            return range.upperInclusive === undefined
+              ? scoped
+              : scoped.lte('submittedAt', range.upperInclusive);
+          }
+          return range.upperInclusive === undefined
+            ? scoped.gte('submittedAt', range.lowerInclusive)
+            : scoped.gte('submittedAt', range.lowerInclusive).lte('submittedAt', range.upperInclusive);
+        }
+      )
+      .order('asc')
+      .paginate(args.paginationOpts);
+
+    return { ...page, page: await projectPendingCards(ctx, page.page) };
+  },
+});
+
+/**
+ * Full-details read for one still-pending submission ("View Full Details",
+ * SPEC §10). Super Admin only; returns `null` unless the listing is still
+ * `pendingReview`, so an already-decided row cannot be re-opened as pending.
+ * Returns the confirmed owner-submitted profile projection only — no auth ids,
+ * storage refs, or moderation internals (`toPendingApprovalDetails`).
+ */
+export const getPendingApprovalDetails = query({
+  args: { businessId: v.id('businesses') },
+  handler: async (ctx, { businessId }) => {
+    await requireSuperAdmin(ctx);
+
+    const business = await ctx.db.get(businessId);
+    if (business === null || business.status !== 'pendingReview') {
+      return null;
+    }
+
+    const [category, owner] = await Promise.all([
+      ctx.db.get('categories', business.categoryId),
+      ctx.db.get('users', business.ownerId),
+    ]);
+
+    return toPendingApprovalDetails({ business, category, owner });
   },
 });

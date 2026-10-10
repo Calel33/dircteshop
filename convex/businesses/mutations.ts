@@ -16,8 +16,10 @@ import {
 } from './helpers';
 import type { ListingStatus, TransitionAction, TransitionRole } from './helpers';
 import {
+  assertAllPendingReview,
   assertModerationReason,
   buildModerationAuditLog,
+  normalizeBulkApproveIds,
   normalizeModerationReason,
 } from './moderationPolicy';
 import {
@@ -294,6 +296,71 @@ export const moderateListing = mutation({
         createdAt: now,
       })
     );
+  },
+});
+
+/**
+ * B3c bulk approve (issue #14, Task 2): approves a deduplicated set of 1–25
+ * current-page listings in ONE atomic transaction, all-or-none.
+ *
+ * Approve-only by design (SPEC §10: "bulk approve only"). The selection is
+ * validated as a whole before any write, so a single stale/decided id rejects
+ * the entire batch and leaves every business and audit row unchanged — the
+ * admin refreshes and reselects rather than getting a partial success. Each
+ * approved listing receives exactly the single-`moderateListing` approve side
+ * effects (status, `lastUpdatedAt`, `moderatedAt`, stale `moderationReason`
+ * cleared, verification stamp) and exactly one audit row. The acting Super
+ * Admin is derived server-side; a client never supplies an actor, status, or
+ * verification stamp. The action is fixed to `approve`, so no client action is
+ * accepted.
+ */
+export const approveSelected = mutation({
+  args: { businessIds: v.array(v.id('businesses')) },
+  handler: async (ctx, { businessIds }) => {
+    const ids = normalizeBulkApproveIds(businessIds);
+    const admin = await requireSuperAdmin(ctx);
+
+    const listings = await Promise.all(ids.map((listingId) => ctx.db.get(listingId)));
+    const statuses: ListingStatus[] = [];
+    for (const listing of listings) {
+      if (listing === null) {
+        throw new ConvexError('One or more listings no longer exist; refresh the queue.');
+      }
+      statuses.push(listing.status);
+    }
+    assertAllPendingReview(statuses);
+
+    const resolution = resolveTransition('pendingReview', 'approve');
+    if (resolution === undefined) {
+      throw new Error('approve is not a legal transition from pendingReview');
+    }
+
+    const now = Date.now();
+    const normalizedReason = normalizeModerationReason('approve', undefined);
+
+    for (const id of ids) {
+      await ctx.db.patch(id, {
+        status: resolution.targetStatus,
+        lastUpdatedAt: now,
+        moderatedAt: now,
+        moderationReason: normalizedReason,
+        verification: { isVerified: true, verifiedAt: now, verifiedBy: admin._id },
+      });
+
+      await ctx.db.insert(
+        'auditLogs',
+        buildModerationAuditLog({
+          actorUserId: admin._id,
+          action: 'approve',
+          targetId: id,
+          toStatus: resolution.targetStatus,
+          reason: normalizedReason,
+          createdAt: now,
+        })
+      );
+    }
+
+    return { approvedCount: ids.length };
   },
 });
 
