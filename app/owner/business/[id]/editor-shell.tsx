@@ -12,7 +12,7 @@ import type { BusinessProfileData } from '@/components/profile/profile-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { EditorHeader } from './editor-header';
-import { EditorPreview } from './editor-preview';
+import { EditorPreview, EditorPreviewOverlay } from './editor-preview';
 import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
 import { EditorHistory } from './editor-history';
@@ -21,6 +21,7 @@ import {
   EDITOR_NAV_SECTIONS,
   EDITOR_SECTIONS,
   HISTORY_SECTION,
+  PHOTOS_SECTION,
   SETTINGS_SECTION,
   EditorSectionNav,
   type EditorSectionId,
@@ -49,6 +50,18 @@ import {
   type EditorFormState,
 } from './editor-form';
 import { toPreviewBusiness } from './preview-adapter';
+import {
+  canRedo,
+  canUndo,
+  createHistory,
+  pushHistory,
+  redoHistory,
+  resetHistory,
+  restoreFieldsFromBaseline,
+  sectionResetFields,
+  undoHistory,
+  type HistoryState,
+} from './editor-session-history';
 
 type CategoryDoc = Doc<'categories'>;
 
@@ -127,10 +140,16 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   const transition = useMutation(api.businesses.mutations.transition);
   const saveAndResubmit = useMutation(api.businesses.mutations.saveAndResubmit);
 
-  const [form, setForm] = useState<EditorFormState>(() => createEditorForm(business));
+  // Client-only session history (Task 7): `present` is the live form state and
+  // `past`/`future` back Undo/Redo. Nothing here is persisted.
+  const [history, setHistory] = useState<HistoryState>(() =>
+    createHistory(createEditorForm(business))
+  );
   const [baseline, setBaseline] = useState<EditorFormState>(() => createEditorForm(business));
+  const form = history.present;
   const [activeId, setActiveId] = useState<EditorSectionId>(EDITOR_SECTIONS[0].id);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewOverlayOpen, setIsPreviewOverlayOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +172,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     submittedAt: business.submittedAt,
     coreStaged,
   });
-  const history = deriveHistoryEntries(business);
+  const historyEntries = deriveHistoryEntries(business);
 
   const isBusy = isSaving || isSubmitting;
   // Validate only what will be persisted. Approved core identity (e.g. a staged
@@ -183,7 +202,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     field: K,
     value: EditorFormState[K]
   ) {
-    setForm((previous) => ({ ...previous, [field]: value }));
+    setHistory((state) => pushHistory(state, { ...state.present, [field]: value }));
     setError(null);
   }
 
@@ -200,7 +219,11 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     await saveDraft({ businessId: business._id, patch });
 
     const canonical = canonicalizeForm(form, savable);
-    setForm((previous) => reconcileSavedFields(previous, form, canonical, savable));
+    // Success re-baselines the session: keep the reconciled present, drop the
+    // undo/redo frames so `present` matches the just-saved Convex state.
+    setHistory((state) =>
+      resetHistory(reconcileSavedFields(state.present, form, canonical, savable))
+    );
     setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
   }
 
@@ -250,7 +273,9 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       await saveAndResubmit({ businessId: business._id, patch: buildEditablePatch(form, dirty) });
 
       const canonical = canonicalizeForm(form, dirty);
-      setForm((previous) => reconcileSavedFields(previous, form, canonical, dirty));
+      setHistory((state) =>
+        resetHistory(reconcileSavedFields(state.present, form, canonical, dirty))
+      );
       setBaseline((previous) => mergeSavedFields(previous, canonical, dirty));
     } catch (resubmitError) {
       setError(messageFromError(resubmitError, 'Could not resubmit the listing.'));
@@ -297,6 +322,28 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     }
   }
 
+  function handleUndo() {
+    setHistory((state) => undoHistory(state));
+    setError(null);
+  }
+
+  function handleRedo() {
+    setHistory((state) => redoHistory(state));
+    setError(null);
+  }
+
+  /** Restores the active section's fields from the last-saved Convex baseline. */
+  function handleResetSection() {
+    const fields = sectionResetFields(activeId);
+    if (fields.length === 0) {
+      return;
+    }
+    setHistory((state) => pushHistory(state, restoreFieldsFromBaseline(state.present, baseline, fields)));
+    setError(null);
+  }
+
+  const canResetSection = !readOnly && !isBusy && sectionResetFields(activeId).length > 0;
+
   return (
     <div className="flex flex-col gap-gap">
       <EditorHeader business={business} />
@@ -310,8 +357,16 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         error={error}
         coreStaged={coreStaged}
         isPreviewOpen={isPreviewOpen}
+        canUndo={canUndo(history)}
+        canRedo={canRedo(history)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canResetSection={canResetSection}
+        resetSectionLabel={activeSection.label}
+        onResetSection={handleResetSection}
         onSave={handleSave}
         onTogglePreview={() => setIsPreviewOpen((open) => !open)}
+        onOpenFullPreview={() => setIsPreviewOverlayOpen(true)}
         primaryAction={primaryAction}
         canRunPrimary={canRunPrimary}
         isSubmitting={isSubmitting}
@@ -320,8 +375,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       <div className="grid grid-cols-1 gap-gap lg:grid-cols-[1fr_3fr]">
         <EditorSectionNav activeId={activeId} onSelect={setActiveId} />
         {activeId === HISTORY_SECTION.id ? (
-          <EditorHistory entries={history} />
-        ) : activeId === ANALYTICS_SECTION.id || activeId === SETTINGS_SECTION.id ? (
+          <EditorHistory entries={historyEntries} />
+        ) : activeId === PHOTOS_SECTION.id ||
+          activeId === ANALYTICS_SECTION.id ||
+          activeId === SETTINGS_SECTION.id ? (
           <Card className="rounded-card py-card">
             <CardHeader>
               <CardTitle className="font-display text-lg">{activeSection.label}</CardTitle>
@@ -342,6 +399,13 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         )}
       </div>
       {isPreviewOpen ? <EditorPreview data={previewData} isDirty={dirty.length > 0} /> : null}
+      {isPreviewOverlayOpen ? (
+        <EditorPreviewOverlay
+          data={previewData}
+          isDirty={dirty.length > 0}
+          onClose={() => setIsPreviewOverlayOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

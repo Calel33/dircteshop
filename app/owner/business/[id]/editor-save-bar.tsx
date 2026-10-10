@@ -16,8 +16,19 @@ interface EditorSaveBarProps {
   /** True when approved core identity edits are staged for a future resubmit. */
   coreStaged: boolean;
   isPreviewOpen: boolean;
+  /** Client-only session tools (Task 7): undo/redo and per-section reset. */
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  canResetSection: boolean;
+  /** Label of the active section, used in the Reset Section button. */
+  resetSectionLabel: string;
+  onResetSection: () => void;
   onSave: () => void;
   onTogglePreview: () => void;
+  /** Opens the full-screen preview overlay (Task 8). */
+  onOpenFullPreview: () => void;
   /** Submit / resubmit / revise, or `null` when the status offers none. */
   primaryAction: EditorActionKind | null;
   canRunPrimary: boolean;
@@ -46,8 +57,16 @@ export function EditorSaveBar({
   error,
   coreStaged,
   isPreviewOpen,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  canResetSection,
+  resetSectionLabel,
+  onResetSection,
   onSave,
   onTogglePreview,
+  onOpenFullPreview,
   primaryAction,
   canRunPrimary,
   isSubmitting,
@@ -72,6 +91,24 @@ export function EditorSaveBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onUndo} disabled={!canUndo}>
+          Undo
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onRedo} disabled={!canRedo}>
+          Redo
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onResetSection}
+          disabled={!canResetSection}
+        >
+          {`Reset ${resetSectionLabel}`}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onOpenFullPreview}>
+          Full preview
+        </Button>
         <Button type="button" variant="outline" onClick={onTogglePreview}>
           {isPreviewOpen ? 'Hide preview' : 'Preview live'}
         </Button>
