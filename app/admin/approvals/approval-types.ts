@@ -113,6 +113,11 @@ export interface ApprovalQueuePaginationProps {
   hasPrevious: boolean;
   hasNext: boolean;
   pageStatus?: 'SplitRecommended' | 'SplitRequired' | null;
+  /**
+   * True when a `SplitRequired` page could not be narrowed and a smaller-page
+   * retry is in flight — the queue surfaces this instead of a silent dead end.
+   */
+  isStalled?: boolean;
   onPrevious: () => void;
   onNext: () => void;
 }

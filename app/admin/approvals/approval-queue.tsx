@@ -272,6 +272,7 @@ function QueuePagination({
   hasPrevious,
   hasNext,
   pageStatus,
+  isStalled,
   onPrevious,
   onNext,
 }: ApprovalQueueProps['pagination']) {
@@ -279,7 +280,9 @@ function QueuePagination({
     <div className="flex flex-col gap-2 pt-2">
       {pageStatus === 'SplitRequired' ? (
         <p role="status" className="text-muted-foreground text-sm">
-          This page is large. Splitting it into smaller pages so no submissions are skipped.
+          {isStalled
+            ? 'This page is too large to split automatically. Retrying with a smaller page so no submissions are skipped.'
+            : 'This page is large. Splitting it into smaller pages so no submissions are skipped.'}
         </p>
       ) : null}
       <div className="flex items-center justify-end gap-2">

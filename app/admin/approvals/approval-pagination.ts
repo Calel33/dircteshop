@@ -46,6 +46,13 @@ export interface QueuePagePlan {
   current: QueuePageRef;
   /** Range Next advances to, or `null` when Next must not advance. */
   next: QueuePageRef | null;
+  /**
+   * True when a `SplitRequired` page could not be re-scoped — no `splitCursor`,
+   * or a `splitCursor` that does not move the bound. The range is unchanged and
+   * Next is withheld, so this is a dead end unless the caller recovers (e.g. by
+   * retrying a smaller page) rather than sitting on the stalled page.
+   */
+  stalled: boolean;
 }
 
 /** The first page's range (empty `cursor` starts at the beginning). */
@@ -53,7 +60,7 @@ export const FIRST_QUEUE_PAGE: QueuePageRef = { cursor: null, endCursor: null };
 
 export function planQueuePage(ref: QueuePageRef, result?: QueuePageResult): QueuePagePlan {
   if (result === undefined) {
-    return { current: ref, next: null };
+    return { current: ref, next: null, stalled: false };
   }
 
   const splitRequired = result.pageStatus === 'SplitRequired';
@@ -83,5 +90,9 @@ export function planQueuePage(ref: QueuePageRef, result?: QueuePageResult): Queu
         : { cursor: ref.endCursor, endCursor: null }
       : { cursor: result.continueCursor, endCursor: null };
 
-  return { current, next };
+  // A SplitRequired page that cannot be narrowed leaves the range untouched and
+  // Next withheld — a dead end unless the caller retries with a smaller page.
+  const stalled = splitRequired && !canSplit;
+
+  return { current, next, stalled };
 }

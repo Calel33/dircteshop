@@ -21,6 +21,7 @@ test('a page with no result yet keeps its range and offers no Next', () => {
   const plan = planQueuePage(ref, undefined);
   assert.strictEqual(plan.current, ref);
   assert.equal(plan.next, null);
+  assert.equal(plan.stalled, false);
 });
 
 test('a complete page advances Next to its continueCursor', () => {
@@ -99,6 +100,31 @@ test('re-scoping is idempotent — no loop while splitCursor is unchanged', () =
   });
   assert.strictEqual(plan.current, ref);
   assert.equal(plan.next, null);
+  assert.equal(plan.stalled, true);
+});
+
+test('SplitRequired without a split cursor is a stall, not a silent dead end', () => {
+  const ref: QueuePageRef = { cursor: 'C0', endCursor: null };
+  const plan = planQueuePage(ref, {
+    continueCursor: 'C1',
+    isDone: false,
+    splitCursor: null,
+    pageStatus: 'SplitRequired',
+  });
+  assert.strictEqual(plan.current, ref);
+  assert.equal(plan.next, null);
+  assert.equal(plan.stalled, true);
+});
+
+test('a SplitRequired page that can still be re-scoped is not stalled', () => {
+  const ref: QueuePageRef = { cursor: 'C0', endCursor: null };
+  const plan = planQueuePage(ref, {
+    continueCursor: 'C1',
+    isDone: false,
+    splitCursor: 'S',
+    pageStatus: 'SplitRequired',
+  });
+  assert.equal(plan.stalled, false);
 });
 
 test('a deeper split re-scopes again to the nearer split point', () => {

@@ -83,11 +83,13 @@ function ConnectedApprovalQueue({ now }: { now: number }) {
   const [pageRef, setPageRef] = useState<QueuePageRef>(FIRST_QUEUE_PAGE);
   const [cursorStack, setCursorStack] = useState<QueuePageRef[]>([]);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  // Current page size; halved when a SplitRequired page cannot be narrowed.
+  const [pageSize, setPageSize] = useState(APPROVAL_PAGE_SIZE);
 
   const categories = useQuery(api.categories.listOrdered);
   const result = useQuery(api.businesses.queries.listPendingApprovals, {
     paginationOpts: {
-      numItems: APPROVAL_PAGE_SIZE,
+      numItems: pageSize,
       cursor: pageRef.cursor,
       endCursor: pageRef.endCursor,
     },
@@ -138,8 +140,20 @@ function ConnectedApprovalQueue({ now }: { now: number }) {
     setSelectedIds(new Set());
   }, [plan, pageRef]);
 
+  useEffect(() => {
+    if (!plan.stalled || pageSize <= 1) {
+      return;
+    }
+    // An un-splittable SplitRequired page (no usable splitCursor) is a dead end;
+    // retry the same start cursor with a smaller page so the read fits instead of
+    // stranding the remainder. Stop at one row — the queue surfaces any residual
+    // stall via `isStalled`.
+    setPageSize((size) => Math.max(1, Math.floor(size / 2)));
+  }, [plan.stalled, pageSize]);
+
   function changeFilters(next: ApprovalFilters) {
     setFilters(next);
+    setPageSize(APPROVAL_PAGE_SIZE);
     setPageRef(FIRST_QUEUE_PAGE);
     setCursorStack([]);
     setSelectedIds(new Set());
@@ -284,6 +298,7 @@ function ConnectedApprovalQueue({ now }: { now: number }) {
           hasPrevious: cursorStack.length > 0,
           hasNext: plan.next !== null,
           pageStatus: result?.pageStatus ?? null,
+          isStalled: plan.stalled,
           onPrevious: goPrevious,
           onNext: goNext,
         }}
