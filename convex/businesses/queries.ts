@@ -237,6 +237,9 @@ async function projectPendingCards(ctx: QueryCtx, page: Doc<'businesses'>[]) {
  * Categories/priority/time narrow the read; the 25-item page is bounded by
  * `paginationOpts`. Convex may pin page endpoints and vary the rendered page
  * length, so callers drive select-all and bulk counts off the returned page.
+ * A listing with no `submittedAt` is Normal in the badge and, because a single
+ * index range cannot express the undated prefix plus the dated Normal suffix,
+ * appears under "All priorities" only — the High band excludes it.
  * Docs: https://docs.convex.dev/database/pagination
  */
 export const listPendingApprovals = query({
@@ -268,14 +271,22 @@ export const listPendingApprovals = query({
         (q) => {
           const byStatus = q.eq('status', 'pendingReview');
           const scoped = categoryId === undefined ? byStatus : byStatus.eq('categoryId', categoryId);
-          if (range.lowerInclusive === undefined) {
-            return range.upperInclusive === undefined
-              ? scoped
-              : scoped.lte('submittedAt', range.upperInclusive);
-          }
+
+          // Step `submittedAt` with at most one lower and one upper bound. A
+          // numeric lower bound already excludes undated rows; otherwise the
+          // High band's `requireDated` floor is the documented "has the field"
+          // bound (https://docs.convex.dev/database/types#working-with-undefined)
+          // so its lone upper bound cannot admit the undated prefix.
+          const bounded =
+            range.lowerInclusive !== undefined
+              ? scoped.gte('submittedAt', range.lowerInclusive)
+              : range.requireDated
+                ? scoped.gt('submittedAt', undefined)
+                : scoped;
+
           return range.upperInclusive === undefined
-            ? scoped.gte('submittedAt', range.lowerInclusive)
-            : scoped.gte('submittedAt', range.lowerInclusive).lte('submittedAt', range.upperInclusive);
+            ? bounded
+            : bounded.lte('submittedAt', range.upperInclusive);
         }
       )
       .order('asc')

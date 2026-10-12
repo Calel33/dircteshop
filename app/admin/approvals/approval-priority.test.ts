@@ -43,6 +43,14 @@ test('is normal priority when submittedAt is undefined', () => {
   assert.equal(deriveAgePriority(undefined, NOW), 'normal');
 });
 
+test('a missing submission date is Normal regardless of the clock', () => {
+  // Pins the badge side of the undated policy the queue filter follows: a listing
+  // with no `submittedAt` is never High, so the High priority filter must exclude
+  // it. The matching range assertion lives in scripts/moderation-queue.test.ts.
+  assert.equal(deriveAgePriority(undefined, NOW), 'normal');
+  assert.equal(deriveAgePriority(undefined, NOW + 365 * 24 * HOUR_MS), 'normal');
+});
+
 test('never reports high priority for a future timestamp', () => {
   assert.equal(deriveAgePriority(NOW + 10 * HOUR_MS, NOW), 'normal');
 });

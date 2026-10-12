@@ -58,9 +58,10 @@ test('each time window sets an inclusive lower bound of now minus the window', (
   });
 });
 
-test('high priority sets an inclusive upper bound at the 48h cutoff', () => {
+test('high priority sets an inclusive upper bound at the 48h cutoff and requires a date', () => {
   assert.deepStrictEqual(resolveSubmittedAtRange({ timeFilter: 'all', priority: 'high', now: NOW }), {
     upperInclusive: NOW - 48 * HOUR_MS,
+    requireDated: true,
   });
 });
 
@@ -70,10 +71,27 @@ test('normal priority sets a strict lower bound just past the 48h cutoff', () =>
   });
 });
 
+test('high priority excludes undated listings so the band matches the badge', () => {
+  // `submittedAt` is optional and Convex orders `undefined` below every number,
+  // so the High upper bound alone would admit undated rows; `requireDated` is
+  // the "has the field" floor that keeps them out. The badge calls them Normal.
+  const high = resolveSubmittedAtRange({ timeFilter: 'all', priority: 'high', now: NOW });
+  assert.equal(high.requireDated, true);
+  assert.equal(deriveAgePriority(undefined, NOW), 'normal');
+});
+
+test('only the High band requires a dated submission', () => {
+  // Normal's dated lower bound sits above the undated prefix, and `all` is
+  // unbounded, so neither needs the extra floor.
+  assert.equal(resolveSubmittedAtRange({ timeFilter: 'all', priority: 'normal', now: NOW }).requireDated, undefined);
+  assert.equal(resolveSubmittedAtRange({ timeFilter: 'all', priority: 'all', now: NOW }).requireDated, undefined);
+});
+
 test('combined filters intersect: lower is the greater floor, upper is kept', () => {
   assert.deepStrictEqual(resolveSubmittedAtRange({ timeFilter: '7d', priority: 'high', now: NOW }), {
     lowerInclusive: NOW - 7 * 24 * HOUR_MS,
     upperInclusive: NOW - 48 * HOUR_MS,
+    requireDated: true,
   });
   // 30d + normal: the 48h floor is tighter than the 30d floor.
   assert.deepStrictEqual(resolveSubmittedAtRange({ timeFilter: '30d', priority: 'normal', now: NOW }), {
