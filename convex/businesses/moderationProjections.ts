@@ -95,7 +95,7 @@ export interface SubmittedAtRange {
    * `submittedAt` is optional and Convex orders a missing value (`undefined`)
    * below every number (docs: https://docs.convex.dev/database/types#working-with-undefined),
    * so the High band's lone upper bound would otherwise admit the undated prefix
-   * — which `deriveAgePriority` classifies as Normal, not High. Applied as
+   * — which `deriveAgePriority` classifies separately from High. Applied as
    * `q.gt('submittedAt', undefined)`, the documented "has the field" bound.
    * Omitted when a numeric lower bound already excludes undated rows.
    */
@@ -110,11 +110,11 @@ export interface SubmittedAtRange {
  * - priority `normal`: the complement → `submittedAt >= now - 48h + 1` (ms are
  *   integers, so `+1` expresses the strict lower bound the index needs).
  *
- * Mirrors `deriveAgePriority` for the dated case. Undated listings (no
- * `submittedAt`) are Normal in the badge; a single `withIndex` range cannot
- * express their union with the dated Normal suffix (the undated prefix and the
- * dated suffix are non-contiguous), so they surface under "All priorities"
- * only. The High band sets `requireDated` so it never admits them.
+ * Mirrors `deriveAgePriority` for dated listings. Undated listings have a
+ * distinct badge classification; a single `withIndex` range cannot express
+ * their union with the dated Normal suffix (the undated prefix and the dated
+ * suffix are non-contiguous), so they surface under "All priorities" only. The
+ * High band sets `requireDated` so it never admits them.
  */
 export function resolveSubmittedAtRange(input: {
   timeFilter: QueueTimeFilter;
@@ -136,7 +136,7 @@ export function resolveSubmittedAtRange(input: {
   if (priorityUpper !== undefined) {
     range.upperInclusive = priorityUpper;
     // High requires a date: `submittedAt <= cutoff` alone would admit the
-    // undated prefix, which `deriveAgePriority` treats as Normal.
+    // undated prefix, which has its own badge classification.
     range.requireDated = true;
   }
   return range;

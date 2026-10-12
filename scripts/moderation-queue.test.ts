@@ -74,15 +74,17 @@ test('normal priority sets a strict lower bound just past the 48h cutoff', () =>
 test('high priority excludes undated listings so the band matches the badge', () => {
   // `submittedAt` is optional and Convex orders `undefined` below every number,
   // so the High upper bound alone would admit undated rows; `requireDated` is
-  // the "has the field" floor that keeps them out. The badge calls them Normal.
+  // the "has the field" floor that keeps them out. The badge identifies them as
+  // Undated rather than implying they match the Normal filter.
   const high = resolveSubmittedAtRange({ timeFilter: 'all', priority: 'high', now: NOW });
   assert.equal(high.requireDated, true);
-  assert.equal(deriveAgePriority(undefined, NOW), 'normal');
+  assert.equal(deriveAgePriority(undefined, NOW), 'undated');
 });
 
 test('only the High band requires a dated submission', () => {
-  // Normal's dated lower bound sits above the undated prefix, and `all` is
-  // unbounded, so neither needs the extra floor.
+  // Normal's dated lower bound sits above the undated prefix. Because a single
+  // index range cannot include both that prefix and the dated Normal suffix,
+  // undated listings are shown only under All priorities.
   assert.equal(resolveSubmittedAtRange({ timeFilter: 'all', priority: 'normal', now: NOW }).requireDated, undefined);
   assert.equal(resolveSubmittedAtRange({ timeFilter: 'all', priority: 'all', now: NOW }).requireDated, undefined);
 });

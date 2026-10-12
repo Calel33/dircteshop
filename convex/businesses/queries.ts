@@ -237,9 +237,9 @@ async function projectPendingCards(ctx: QueryCtx, page: Doc<'businesses'>[]) {
  * Categories/priority/time narrow the read; the 25-item page is bounded by
  * `paginationOpts`. Convex may pin page endpoints and vary the rendered page
  * length, so callers drive select-all and bulk counts off the returned page.
- * A listing with no `submittedAt` is Normal in the badge and, because a single
+ * A listing with no `submittedAt` has an Undated badge and, because a single
  * index range cannot express the undated prefix plus the dated Normal suffix,
- * appears under "All priorities" only — the High band excludes it.
+ * appears under "All priorities" only — the High and Normal bands exclude it.
  * Docs: https://docs.convex.dev/database/pagination
  */
 export const listPendingApprovals = query({

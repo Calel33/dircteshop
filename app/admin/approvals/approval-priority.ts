@@ -13,20 +13,20 @@ export const PRIORITY_HIGH_AFTER_HOURS = 48;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
-/** Presentation-only urgency band derived from submission age. */
-export type ApprovalPriority = 'high' | 'normal';
+/** Presentation-only submission classification derived from the date and age. */
+export type ApprovalPriority = 'high' | 'normal' | 'undated';
 
 /**
- * Derives the age priority band. Presentation-only and not persisted: a
- * missing `submittedAt` is normal, and a future timestamp (negative age) never
- * reports high.
+ * Derives the age priority classification. Presentation-only and not persisted:
+ * a missing `submittedAt` is undated, and a future timestamp (negative age)
+ * never reports high.
  */
 export function deriveAgePriority(
   submittedAt: number | undefined,
   now: number,
 ): ApprovalPriority {
   if (submittedAt === undefined) {
-    return 'normal';
+    return 'undated';
   }
 
   return now - submittedAt >= PRIORITY_HIGH_AFTER_HOURS * HOUR_MS ? 'high' : 'normal';
