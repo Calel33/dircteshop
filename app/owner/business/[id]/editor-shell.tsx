@@ -44,6 +44,7 @@ import {
   createEditorForm,
   dirtyFields,
   EDITOR_FIELD_CLASS,
+  FIELD_SIGNATURES,
   mergeSavedFields,
   reconcileSavedFields,
   validateForm,
@@ -341,11 +342,20 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     if (fields.length === 0) {
       return;
     }
-    setHistory((state) => pushHistory(state, restoreFieldsFromBaseline(state.present, baseline, fields)));
+    setHistory((state) => {
+      const restored = restoreFieldsFromBaseline(state.present, baseline, fields);
+      const changed = fields.some(
+        (field) => FIELD_SIGNATURES[field](restored) !== FIELD_SIGNATURES[field](state.present)
+      );
+      // A section with no differences from the baseline has nothing to reset;
+      // pushing would only burn a no-op undo frame.
+      return changed ? pushHistory(state, restored) : state;
+    });
     setError(null);
   }
 
-  const canResetSection = !readOnly && !isBusy && sectionResetFields(activeId).length > 0;
+  const canResetSection =
+    !readOnly && !isBusy && sectionResetFields(activeId).some((field) => dirty.includes(field));
 
   return (
     <div className="flex flex-col gap-gap">
