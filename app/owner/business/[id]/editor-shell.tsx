@@ -9,24 +9,18 @@ import type { EditableBusinessField } from '@/convex/businessTypes';
 import { ownerSaveMode, persistableSaveFields } from '@/convex/businesses/ownerSavePolicy';
 import { getVerticalConfig } from '@/lib/verticals';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 import { EditorHeader } from './editor-header';
 import { EditorPreview, EditorPreviewOverlay } from './editor-preview';
 import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
-import { EditorHistory } from './editor-history';
+import { EditorSectionBody } from './editor-section-body';
 import {
-  ANALYTICS_SECTION,
   EDITOR_NAV_SECTIONS,
   EDITOR_SECTIONS,
-  HISTORY_SECTION,
-  PHOTOS_SECTION,
-  SETTINGS_SECTION,
   EditorSectionNav,
   type EditorSectionId,
 } from './editor-sections';
-import { EditorSectionView, type CategoryOption } from './section-editors';
+import type { CategoryOption } from './section-editors';
 import type { OwnerEditorDocument } from './editor-types';
 import {
   deriveHistoryEntries,
@@ -387,29 +381,15 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       />
       <div className="grid grid-cols-1 gap-gap lg:grid-cols-[1fr_3fr]">
         <EditorSectionNav activeId={activeId} onSelect={setActiveId} />
-        {activeId === HISTORY_SECTION.id ? (
-          <EditorHistory entries={historyEntries} />
-        ) : activeId === PHOTOS_SECTION.id ||
-          activeId === ANALYTICS_SECTION.id ||
-          activeId === SETTINGS_SECTION.id ? (
-          <Card className="rounded-card py-card">
-            <CardHeader>
-              <CardTitle className="font-display text-lg">{activeSection.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm">{activeSection.description}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <EditorSectionView
-            sectionId={activeId}
-            section={activeSection}
-            form={form}
-            onChange={handleFieldChange}
-            readOnly={readOnly}
-            categories={toCategoryOptions(categories)}
-          />
-        )}
+        <EditorSectionBody
+          activeId={activeId}
+          activeSection={activeSection}
+          form={form}
+          onChange={handleFieldChange}
+          readOnly={readOnly}
+          categories={toCategoryOptions(categories)}
+          historyEntries={historyEntries}
+        />
       </div>
       {isPreviewOpen ? <EditorPreview data={previewData} isDirty={dirty.length > 0} /> : null}
       {isPreviewOverlayOpen ? (
