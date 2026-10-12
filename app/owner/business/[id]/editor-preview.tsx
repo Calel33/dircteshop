@@ -1,5 +1,7 @@
 'use client';
 
+import type { RefObject } from 'react';
+
 import { BusinessProfile } from '@/components/profile/BusinessProfile';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
 import {
@@ -44,16 +46,20 @@ export function EditorPreview({ data, isDirty }: EditorPreviewProps) {
  * Full preview overlay (issue #14 / B3c Task 8): the same shared `BusinessProfile`
  * rendered from the current UNSAVED form data, in a full-width scrollable modal.
  * Reuses the single profile renderer (no second renderer, no drift) and states
- * that the preview is unsaved.
+ * that the preview is unsaved. `triggerRef` points at the button that opens the
+ * overlay; because there is no Radix trigger under this root, the overlay
+ * restores focus there itself on every close path.
  */
 export function EditorPreviewOverlay({
   data,
   isDirty,
   onClose,
+  triggerRef,
 }: {
   data: BusinessProfileData | null;
   isDirty: boolean;
   onClose: () => void;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <Dialog
@@ -64,7 +70,13 @@ export function EditorPreviewOverlay({
         }
       }}
     >
-      <DialogContent className="flex max-h-[90vh] w-full flex-col gap-gap overflow-y-auto sm:max-w-4xl">
+      <DialogContent
+        className="flex max-h-[90vh] w-full flex-col gap-gap overflow-y-auto sm:max-w-4xl"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Full preview</DialogTitle>
           <DialogDescription>

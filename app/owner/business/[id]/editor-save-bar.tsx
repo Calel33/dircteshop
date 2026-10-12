@@ -1,5 +1,7 @@
 'use client';
 
+import type { RefObject } from 'react';
+
 import { Button } from '@/components/ui/button';
 
 import { getPrimaryActionLabel, type EditorActionKind } from './editor-status';
@@ -32,6 +34,8 @@ interface EditorSaveBarProps {
   onTogglePreview: () => void;
   /** Opens the full-screen preview overlay (Task 8). */
   onOpenFullPreview: () => void;
+  /** Ref to the Full preview button, so the overlay can restore focus on close. */
+  fullPreviewTriggerRef: RefObject<HTMLButtonElement | null>;
   /** Submit / resubmit / revise, or `null` when the status offers none. */
   primaryAction: EditorActionKind | null;
   canRunPrimary: boolean;
@@ -71,6 +75,7 @@ export function EditorSaveBar({
   onSave,
   onTogglePreview,
   onOpenFullPreview,
+  fullPreviewTriggerRef,
   primaryAction,
   canRunPrimary,
   isSubmitting,
@@ -112,7 +117,13 @@ export function EditorSaveBar({
             {`Reset ${resetSectionLabel}`}
           </Button>
         ) : null}
-        <Button type="button" variant="outline" size="sm" onClick={onOpenFullPreview}>
+        <Button
+          ref={fullPreviewTriggerRef}
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onOpenFullPreview}
+        >
           Full preview
         </Button>
         <Button type="button" variant="outline" onClick={onTogglePreview}>

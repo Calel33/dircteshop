@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
@@ -147,6 +147,9 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ref to the "Full preview" button: the overlay has no Radix trigger under its
+  // root, so it restores focus here on close (see EditorPreviewOverlay).
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
 
   const readOnly = !isEditableStatus(business.status);
   const mode = ownerSaveMode(business.status);
@@ -377,6 +380,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         onSave={handleSave}
         onTogglePreview={() => setIsPreviewOpen((open) => !open)}
         onOpenFullPreview={() => setIsPreviewOverlayOpen(true)}
+        fullPreviewTriggerRef={previewTriggerRef}
         primaryAction={primaryAction}
         canRunPrimary={canRunPrimary}
         isSubmitting={isSubmitting}
@@ -400,6 +404,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
           data={previewData}
           isDirty={dirty.length > 0}
           onClose={() => setIsPreviewOverlayOpen(false)}
+          triggerRef={previewTriggerRef}
         />
       ) : null}
     </div>
