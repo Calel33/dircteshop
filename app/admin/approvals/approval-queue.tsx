@@ -46,10 +46,12 @@ function QueueFilterBar({
   filters,
   categories,
   onChange,
+  onRefresh,
 }: {
   filters: ApprovalFilters;
   categories: readonly ApprovalCategoryOption[];
   onChange: (next: ApprovalFilters) => void;
+  onRefresh?: () => void;
 }) {
   const categoryId = useId();
   const priorityId = useId();
@@ -119,6 +121,12 @@ function QueueFilterBar({
           </SelectContent>
         </Select>
       </div>
+
+      {onRefresh ? (
+        <Button type="button" variant="outline" onClick={onRefresh}>
+          Refresh times
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -320,6 +328,7 @@ export function ApprovalQueue({
   selection,
   bulkActions,
   pagination,
+  onRefreshCutoff,
   now,
 }: ApprovalQueueProps) {
   const pageIds = cards.map((card) => card._id);
@@ -337,7 +346,12 @@ export function ApprovalQueue({
         </p>
       </header>
 
-      <QueueFilterBar filters={filters} categories={categories} onChange={onFiltersChange} />
+      <QueueFilterBar
+        filters={filters}
+        categories={categories}
+        onChange={onFiltersChange}
+        onRefresh={onRefreshCutoff}
+      />
 
       {state === 'ready' && cards.length > 0 ? (
         <QueueSelectionHeader

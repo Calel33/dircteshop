@@ -58,6 +58,23 @@ export interface QueuePagePlan {
 /** The first page's range (empty `cursor` starts at the beginning). */
 export const FIRST_QUEUE_PAGE: QueuePageRef = { cursor: null, endCursor: null };
 
+/** The route-owned traversal state a filter or cutoff change resets. */
+export interface QueueTraversal {
+  pageRef: QueuePageRef;
+  cursorStack: QueuePageRef[];
+  selectedIds: Set<string>;
+}
+
+/**
+ * The traversal to return to whenever the filter or cutoff changes (B3c review):
+ * the first page, no cursor history, nothing selected. The cutoff (the caller's
+ * reference clock) moves only on an explicit refresh or a filter change, which
+ * this reset accompanies — so a stored cursor is never invalidated mid-traversal.
+ */
+export function resetQueueTraversal(): QueueTraversal {
+  return { pageRef: FIRST_QUEUE_PAGE, cursorStack: [], selectedIds: new Set<string>() };
+}
+
 export function planQueuePage(ref: QueuePageRef, result?: QueuePageResult): QueuePagePlan {
   if (result === undefined) {
     return { current: ref, next: null, stalled: false };

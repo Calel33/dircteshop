@@ -154,6 +154,12 @@ export interface ApprovalQueueProps {
   /** Cursor navigation (Task 3). */
   pagination: ApprovalQueuePaginationProps;
   /**
+   * Refreshes the relative time/priority cutoff (B3c review). The route moves the
+   * reference clock and resets the cursor stack and selection; presentational
+   * only. Omitted in inert states (e.g. the error shell), which hides the control.
+   */
+  onRefreshCutoff?: () => void;
+  /**
    * Reference clock for age and priority. Supplied by the caller so the server
    * render and the client render derive the same values.
    */

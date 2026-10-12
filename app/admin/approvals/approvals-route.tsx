@@ -11,7 +11,7 @@ import { ApprovalActionDialog } from './approval-action-dialog';
 import { ApprovalBulkBar, ApprovalBulkDialog } from './approval-bulk-dialog';
 import { ApprovalDetailsPanel } from './approval-details-panel';
 import { normalizeReason, type ApprovalAction } from './approval-actions-policy';
-import { FIRST_QUEUE_PAGE, planQueuePage, type QueuePageRef } from './approval-pagination';
+import { FIRST_QUEUE_PAGE, planQueuePage, resetQueueTraversal, type QueuePageRef } from './approval-pagination';
 import { ApprovalQueue } from './approval-queue';
 import {
   selectedIdsOnPage,
@@ -59,9 +59,9 @@ function queueStateFor(cards: readonly ApprovalCard[] | undefined): ApprovalQueu
  * B3c / #14 Tasks 3–5). It owns the presentational queue state, the live Convex
  * queue/mutation wiring, the per-card confirmation/reason modal, the
  * category/priority/time filters, the cursor page stack and the page-scoped
- * selection. The clock is captured once per mount so age, priority and the
- * filter cutoff stay stable across renders and match on server and client —
- * keeping the paginated query's cursor valid.
+ * selection. The reference clock is captured once per mount so the cursor's
+ * range stays stable across renders (server and client agree); an explicit
+ * "Refresh times" action moves it and resets the traversal.
  *
  * `listPendingApprovals` is the guarded cursor query (Task 1);
  * `moderateListing` is the atomic single decision + audit mutation (B3b).
@@ -69,16 +69,22 @@ function queueStateFor(cards: readonly ApprovalCard[] | undefined): ApprovalQueu
  * so a decision is never reflected as success before the server commits.
  */
 export function ApprovalsRoute() {
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   return (
     <ApprovalsLoadBoundary now={now}>
-      <ConnectedApprovalQueue now={now} />
+      <ConnectedApprovalQueue now={now} onRefreshNow={() => setNow(Date.now())} />
     </ApprovalsLoadBoundary>
   );
 }
 
-function ConnectedApprovalQueue({ now }: { now: number }) {
+function ConnectedApprovalQueue({
+  now,
+  onRefreshNow,
+}: {
+  now: number;
+  onRefreshNow: () => void;
+}) {
   const [filters, setFilters] = useState<ApprovalFilters>(DEFAULT_APPROVAL_FILTERS);
   const [pageRef, setPageRef] = useState<QueuePageRef>(FIRST_QUEUE_PAGE);
   const [cursorStack, setCursorStack] = useState<QueuePageRef[]>([]);
@@ -151,12 +157,25 @@ function ConnectedApprovalQueue({ now }: { now: number }) {
     setPageSize((size) => Math.max(1, Math.floor(size / 2)));
   }, [plan.stalled, pageSize]);
 
+  function resetTraversal() {
+    const reset = resetQueueTraversal();
+    setPageRef(reset.pageRef);
+    setCursorStack(reset.cursorStack);
+    setSelectedIds(reset.selectedIds);
+  }
+
   function changeFilters(next: ApprovalFilters) {
     setFilters(next);
+    refreshCutoff();
+  }
+
+  function refreshCutoff() {
+    // Move the relative time/priority cutoff to "now" and start a fresh
+    // traversal. The new clock is a new query argument, so the old cursor stack
+    // is meaningless; page size and selection reset with it.
     setPageSize(APPROVAL_PAGE_SIZE);
-    setPageRef(FIRST_QUEUE_PAGE);
-    setCursorStack([]);
-    setSelectedIds(new Set());
+    onRefreshNow();
+    resetTraversal();
   }
 
   function goNext() {
@@ -277,6 +296,7 @@ function ConnectedApprovalQueue({ now }: { now: number }) {
         filters={filters}
         categories={categoryOptions}
         onFiltersChange={changeFilters}
+        onRefreshCutoff={refreshCutoff}
         selection={{
           selectedIds,
           state,

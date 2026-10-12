@@ -14,7 +14,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { FIRST_QUEUE_PAGE, planQueuePage, type QueuePageRef } from './approval-pagination.ts';
+import {
+  FIRST_QUEUE_PAGE,
+  planQueuePage,
+  resetQueueTraversal,
+  type QueuePageRef,
+} from './approval-pagination.ts';
 
 test('a page with no result yet keeps its range and offers no Next', () => {
   const ref: QueuePageRef = { cursor: 'C0', endCursor: null };
@@ -141,4 +146,14 @@ test('a deeper split re-scopes again to the nearer split point', () => {
 
 test('the first page range starts empty at both ends', () => {
   assert.deepStrictEqual(FIRST_QUEUE_PAGE, { cursor: null, endCursor: null });
+});
+
+test('a cutoff/filter reset returns to the first page with nothing selected', () => {
+  // The route applies this when the relative cutoff moves (explicit refresh or a
+  // filter change), so the re-read starts a fresh traversal with no stale cursor.
+  const reset = resetQueueTraversal();
+  assert.deepStrictEqual(reset.pageRef, { cursor: null, endCursor: null });
+  assert.strictEqual(reset.pageRef, FIRST_QUEUE_PAGE);
+  assert.deepStrictEqual(reset.cursorStack, []);
+  assert.equal(reset.selectedIds.size, 0);
 });
