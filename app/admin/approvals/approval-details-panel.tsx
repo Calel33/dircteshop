@@ -86,16 +86,15 @@ function DetailsBody({ details }: { details: PendingApprovalDetails }) {
       </DetailGroup>
 
       <DetailGroup title="Operating hours">
-        <div className="sm:col-span-2">
-          <dl className="flex flex-col gap-1">
-            {HOURS_DAYS.map((day) => (
-              <div key={day.key} className="flex items-baseline justify-between gap-gap">
-                <dt className="text-muted-foreground text-sm">{day.label}</dt>
-                <dd className="text-sm">{formatPeriods(details.hours[day.key])}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        {HOURS_DAYS.map((day) => (
+          <div
+            key={day.key}
+            className="flex items-baseline justify-between gap-gap sm:col-span-2"
+          >
+            <dt className="text-muted-foreground text-sm">{day.label}</dt>
+            <dd className="text-sm">{formatPeriods(details.hours[day.key])}</dd>
+          </div>
+        ))}
       </DetailGroup>
 
       <DetailGroup title="Categories & features">
