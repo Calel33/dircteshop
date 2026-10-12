@@ -78,6 +78,94 @@ export function ApprovalsRoute() {
   );
 }
 
+/**
+ * Bulk-approve state and its two controls (issue #14 / B3c Task 5; extracted in
+ * the B3c review follow-up). Owns the open/submitting/error state and returns the
+ * action bar and confirmation dialog as elements, so `ConnectedApprovalQueue`
+ * stays pure wiring and its render complexity stays within the repo's limit.
+ */
+function useBulkApproval({
+  selectedIds,
+  pageIds,
+  onApproved,
+}: {
+  selectedIds: ReadonlySet<string>;
+  pageIds: readonly string[];
+  onApproved: () => void;
+}) {
+  const approveSelected = useMutation(api.businesses.mutations.approveSelected);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const count = selectedIdsOnPage(selectedIds, pageIds).length;
+
+  function open() {
+    if (count === 0) {
+      return;
+    }
+    setError(null);
+    setIsOpen(true);
+  }
+
+  function close() {
+    if (isSubmitting) {
+      return;
+    }
+    setIsOpen(false);
+    setError(null);
+  }
+
+  async function confirm() {
+    if (isSubmitting) {
+      return;
+    }
+
+    const ids = selectedIdsOnPage(selectedIds, pageIds);
+    if (ids.length === 0) {
+      setIsOpen(false);
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await approveSelected({ businessIds: ids as Id<'businesses'>[] });
+      // Success: the reactive query removes the rows; clear selection after commit.
+      setIsOpen(false);
+      onApproved();
+    } catch (submitError) {
+      // All-or-nothing: preserve the selection so the admin can refresh and retry.
+      setError(
+        messageFromError(
+          submitError,
+          'Could not approve the selected listings. Refresh the queue and try again.'
+        )
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const bar =
+    count > 0 ? (
+      <ApprovalBulkBar count={count} disabled={isSubmitting} onApprove={open} />
+    ) : null;
+
+  const dialog = (
+    <ApprovalBulkDialog
+      open={isOpen && count > 0}
+      count={count}
+      isSubmitting={isSubmitting}
+      error={error}
+      onCancel={close}
+      onConfirm={confirm}
+    />
+  );
+
+  return { bar, dialog };
+}
+
 function ConnectedApprovalQueue({
   now,
   onRefreshNow,
@@ -105,7 +193,6 @@ function ConnectedApprovalQueue({
     now,
   });
   const moderateListing = useMutation(api.businesses.mutations.moderateListing);
-  const approveSelected = useMutation(api.businesses.mutations.approveSelected);
 
   const [detailsTarget, setDetailsTarget] = useState<ApprovalCard | null>(null);
   const details = useQuery(
@@ -119,14 +206,14 @@ function ConnectedApprovalQueue({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-
   const cards = result?.page ?? [];
   const pageIds = cards.map((card) => card._id);
   const state = selectionState(selectedIds, pageIds);
-  const selectedOnPageCount = selectedIdsOnPage(selectedIds, pageIds).length;
+  const bulk = useBulkApproval({
+    selectedIds,
+    pageIds,
+    onApproved: () => setSelectedIds(new Set()),
+  });
   const categoryOptions = (categories ?? []).map((category) => ({
     _id: category._id,
     name: category.name,
@@ -237,54 +324,6 @@ function ConnectedApprovalQueue({
     }
   }
 
-  function openBulk() {
-    if (selectedOnPageCount === 0) {
-      return;
-    }
-    setBulkError(null);
-    setIsBulkOpen(true);
-  }
-
-  function closeBulk() {
-    if (isBulkSubmitting) {
-      return;
-    }
-    setIsBulkOpen(false);
-    setBulkError(null);
-  }
-
-  async function confirmBulkApprove() {
-    if (isBulkSubmitting) {
-      return;
-    }
-
-    const ids = selectedIdsOnPage(selectedIds, pageIds);
-    if (ids.length === 0) {
-      setIsBulkOpen(false);
-      return;
-    }
-
-    setBulkError(null);
-    setIsBulkSubmitting(true);
-
-    try {
-      await approveSelected({ businessIds: ids as Id<'businesses'>[] });
-      // Success: the reactive query removes the rows; clear selection after commit.
-      setIsBulkOpen(false);
-      setSelectedIds(new Set());
-    } catch (submitError) {
-      // All-or-nothing: preserve the selection so the admin can refresh and retry.
-      setBulkError(
-        messageFromError(
-          submitError,
-          'Could not approve the selected listings. Refresh the queue and try again.'
-        )
-      );
-    } finally {
-      setIsBulkSubmitting(false);
-    }
-  }
-
   return (
     <>
       <ApprovalQueue
@@ -305,15 +344,7 @@ function ConnectedApprovalQueue({
           onToggleOne: (id, checked) =>
             setSelectedIds((current) => toggleSelected(current, id, checked)),
         }}
-        bulkActions={
-          selectedOnPageCount > 0 ? (
-            <ApprovalBulkBar
-              count={selectedOnPageCount}
-              disabled={isBulkSubmitting}
-              onApprove={openBulk}
-            />
-          ) : null
-        }
+        bulkActions={bulk.bar}
         pagination={{
           hasPrevious: cursorStack.length > 0,
           hasNext: plan.next !== null,
@@ -339,14 +370,7 @@ function ConnectedApprovalQueue({
         details={details}
         onClose={() => setDetailsTarget(null)}
       />
-      <ApprovalBulkDialog
-        open={isBulkOpen && selectedOnPageCount > 0}
-        count={selectedOnPageCount}
-        isSubmitting={isBulkSubmitting}
-        error={bulkError}
-        onCancel={closeBulk}
-        onConfirm={confirmBulkApprove}
-      />
+      {bulk.dialog}
     </>
   );
 }
