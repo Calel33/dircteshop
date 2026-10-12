@@ -69,8 +69,19 @@ export function planQueuePage(ref: QueuePageRef, result?: QueuePageResult): Queu
   // continueCursor now is the skip this guards against. After the re-scope the
   // page returns complete and Next continues from its end cursor — the split
   // point — so the second half is visited with no gap.
-  const next =
-    result.isDone || splitRequired ? null : { cursor: result.continueCursor, endCursor: null };
+  //
+  // `isDone` is terminal only for an unbounded page. A bounded page (a re-scoped
+  // first half) reports `isDone` once it reaches its `endCursor`; treating that
+  // as global completion would strand the second half, so Next advances from
+  // `ref.endCursor` with the bound cleared. Docs:
+  // https://docs.convex.dev/api/interfaces/server.PaginationOptions
+  const next = splitRequired
+    ? null
+    : result.isDone
+      ? ref.endCursor === null
+        ? null
+        : { cursor: ref.endCursor, endCursor: null }
+      : { cursor: result.continueCursor, endCursor: null };
 
   return { current, next };
 }

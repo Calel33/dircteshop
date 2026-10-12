@@ -79,6 +79,16 @@ test('after the re-scope the second half is reachable from the split point', () 
   assert.deepStrictEqual(plan.next, { cursor: 'S', endCursor: null });
 });
 
+test('a completed bounded page advances from its end cursor, not global completion', () => {
+  // A bounded page (the re-scoped first half) can report `isDone` once it reaches
+  // its `endCursor`. That is the split point, so Next must resume there rather
+  // than strand the second half behind a null Next.
+  const ref: QueuePageRef = { cursor: 'C0', endCursor: 'S' };
+  const plan = planQueuePage(ref, { continueCursor: 'S', isDone: true, pageStatus: null });
+  assert.deepStrictEqual(plan.current, ref);
+  assert.deepStrictEqual(plan.next, { cursor: 'S', endCursor: null });
+});
+
 test('re-scoping is idempotent — no loop while splitCursor is unchanged', () => {
   const ref: QueuePageRef = { cursor: 'C0', endCursor: 'S' };
   const plan = planQueuePage(ref, {
