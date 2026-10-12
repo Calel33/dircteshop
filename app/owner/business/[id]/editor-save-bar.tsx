@@ -21,6 +21,9 @@ interface EditorSaveBarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** True when the active section has reset fields; stub and history sections
+   * hide the Reset control rather than rendering it permanently disabled. */
+  showResetSection: boolean;
   canResetSection: boolean;
   /** Label of the active section, used in the Reset Section button. */
   resetSectionLabel: string;
@@ -61,6 +64,7 @@ export function EditorSaveBar({
   canRedo,
   onUndo,
   onRedo,
+  showResetSection,
   canResetSection,
   resetSectionLabel,
   onResetSection,
@@ -97,15 +101,17 @@ export function EditorSaveBar({
         <Button type="button" variant="ghost" size="sm" onClick={onRedo} disabled={!canRedo}>
           Redo
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onResetSection}
-          disabled={!canResetSection}
-        >
-          {`Reset ${resetSectionLabel}`}
-        </Button>
+        {showResetSection ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onResetSection}
+            disabled={!canResetSection}
+          >
+            {`Reset ${resetSectionLabel}`}
+          </Button>
+        ) : null}
         <Button type="button" variant="outline" size="sm" onClick={onOpenFullPreview}>
           Full preview
         </Button>

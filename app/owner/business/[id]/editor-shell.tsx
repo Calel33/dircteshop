@@ -348,8 +348,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     setError(null);
   }
 
+  const sectionFields = sectionResetFields(activeId);
+  const showResetSection = sectionFields.length > 0;
   const canResetSection =
-    !readOnly && !isBusy && sectionResetFields(activeId).some((field) => dirty.includes(field));
+    !readOnly && !isBusy && sectionFields.some((field) => dirty.includes(field));
 
   return (
     <div className="flex flex-col gap-gap">
@@ -368,6 +370,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         canRedo={canRedo(history)}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        showResetSection={showResetSection}
         canResetSection={canResetSection}
         resetSectionLabel={activeSection.label}
         onResetSection={handleResetSection}
