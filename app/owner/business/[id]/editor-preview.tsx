@@ -12,17 +12,42 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+/**
+ * The preview has three distinct states: the categories needed to resolve the
+ * vertical config are still loading; the selected category cannot be resolved
+ * (renamed, re-pointed, or filtered out), which needs an actionable hint rather
+ * than a forever-loading message; or the profile data is ready (PR #46 M4).
+ */
+export type PreviewState =
+  | { status: 'loading' }
+  | { status: 'unresolved' }
+  | { status: 'ready'; data: BusinessProfileData };
+
 interface EditorPreviewProps {
-  data: BusinessProfileData | null;
+  state: PreviewState;
   isDirty: boolean;
+}
+
+const UNRESOLVED_MESSAGE = 'Choose a category in Basic Info to preview.';
+
+/** Renders the preview body for whichever state it is in. */
+function PreviewContent({ state, className }: { state: PreviewState; className?: string }) {
+  if (state.status === 'ready') {
+    return <BusinessProfile data={state.data} />;
+  }
+
+  return (
+    <p className={className ?? 'text-muted-foreground text-sm'}>
+      {state.status === 'loading' ? 'Loading preview…' : UNRESOLVED_MESSAGE}
+    </p>
+  );
 }
 
 /**
  * WYSIWYS Preview Live: renders the shared profile foundation from UNSAVED form
- * state through the preview adapter. `data` is `null` until the category needed
- * to resolve the vertical config has loaded.
+ * state through the preview adapter.
  */
-export function EditorPreview({ data, isDirty }: EditorPreviewProps) {
+export function EditorPreview({ state, isDirty }: EditorPreviewProps) {
   return (
     <section aria-label="Preview live" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -32,11 +57,7 @@ export function EditorPreview({ data, isDirty }: EditorPreviewProps) {
         </span>
       </div>
       <div className="border-border overflow-hidden rounded-card border">
-        {data === null ? (
-          <p className="text-muted-foreground p-card text-sm">Loading preview…</p>
-        ) : (
-          <BusinessProfile data={data} />
-        )}
+        <PreviewContent state={state} className="text-muted-foreground p-card text-sm" />
       </div>
     </section>
   );
@@ -51,12 +72,12 @@ export function EditorPreview({ data, isDirty }: EditorPreviewProps) {
  * restores focus there itself on every close path.
  */
 export function EditorPreviewOverlay({
-  data,
+  state,
   isDirty,
   onClose,
   triggerRef,
 }: {
-  data: BusinessProfileData | null;
+  state: PreviewState;
   isDirty: boolean;
   onClose: () => void;
   triggerRef: RefObject<HTMLButtonElement | null>;
@@ -85,11 +106,7 @@ export function EditorPreviewOverlay({
               : 'Showing the saved profile.'}
           </DialogDescription>
         </DialogHeader>
-        {data === null ? (
-          <p className="text-muted-foreground text-sm">Loading preview…</p>
-        ) : (
-          <BusinessProfile data={data} />
-        )}
+        <PreviewContent state={state} />
       </DialogContent>
     </Dialog>
   );

@@ -8,9 +8,9 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import type { EditableBusinessField } from '@/convex/businessTypes';
 import { ownerSaveMode, persistableSaveFields } from '@/convex/businesses/ownerSavePolicy';
 import { getVerticalConfig } from '@/lib/verticals';
-import type { BusinessProfileData } from '@/components/profile/profile-types';
+
 import { EditorHeader } from './editor-header';
-import { EditorPreview, EditorPreviewOverlay } from './editor-preview';
+import { EditorPreview, EditorPreviewOverlay, type PreviewState } from './editor-preview';
 import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
 import { EditorSectionBody } from './editor-section-body';
@@ -70,19 +70,27 @@ function findSelectedCategory(
   return (categories ?? []).find((category) => category._id === categoryId);
 }
 
-function buildPreviewData(
+function buildPreviewState(
   business: OwnerEditorDocument,
   form: EditorFormState,
-  category: CategoryDoc | undefined
-): BusinessProfileData | null {
+  categories: readonly CategoryDoc[] | undefined
+): PreviewState {
+  if (categories === undefined) {
+    return { status: 'loading' };
+  }
+
+  const category = findSelectedCategory(categories, form.categoryId);
   if (category === undefined) {
-    return null;
+    return { status: 'unresolved' };
   }
 
   return {
-    business: toPreviewBusiness(business, form),
-    category,
-    vertical: getVerticalConfig(category.slug),
+    status: 'ready',
+    data: {
+      business: toPreviewBusiness(business, form),
+      category,
+      vertical: getVerticalConfig(category.slug),
+    },
   };
 }
 
@@ -189,11 +197,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
 
   const activeSection =
     EDITOR_NAV_SECTIONS.find((section) => section.id === activeId) ?? EDITOR_NAV_SECTIONS[0];
-  const previewData = buildPreviewData(
-    business,
-    form,
-    findSelectedCategory(categories, form.categoryId)
-  );
+  const previewState = buildPreviewState(business, form, categories);
 
   function handleFieldChange<K extends keyof EditorFormState>(
     field: K,
@@ -398,10 +402,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
           historyEntries={historyEntries}
         />
       </div>
-      {isPreviewOpen ? <EditorPreview data={previewData} isDirty={dirty.length > 0} /> : null}
+      {isPreviewOpen ? <EditorPreview state={previewState} isDirty={dirty.length > 0} /> : null}
       {isPreviewOverlayOpen ? (
         <EditorPreviewOverlay
-          data={previewData}
+          state={previewState}
           isDirty={dirty.length > 0}
           onClose={() => setIsPreviewOverlayOpen(false)}
           triggerRef={previewTriggerRef}
