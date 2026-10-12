@@ -13,7 +13,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { EditorFormState } from './editor-form.ts';
+import {
+  canonicalizeForm,
+  dirtyFields,
+  mergeSavedFields,
+  reconcileSavedFields,
+  type EditorFormState,
+} from './editor-form.ts';
 import {
   canRedo,
   canUndo,
@@ -141,6 +147,48 @@ test('reset drops every frame and re-baselines on the present', () => {
   assert.equal(state.present.name, 'Saved');
   assert.deepStrictEqual(state.past, []);
   assert.deepStrictEqual(state.future, []);
+});
+
+test('history survives a save: undo after a saved-baseline advance re-dirties the field', () => {
+  const initial = form({ name: 'Saved' });
+  let history = pushHistory(createHistory(initial), form({ name: 'Edited' }));
+
+  // The save path advances the baseline and reconciles the present in place —
+  // it does not reset history, so the pre-save frames stay undoable.
+  const canonical = canonicalizeForm(history.present, ['name']);
+  const baseline = mergeSavedFields(initial, canonical, ['name']);
+  history = {
+    ...history,
+    present: reconcileSavedFields(history.present, history.present, canonical, ['name']),
+  };
+
+  assert.equal(canUndo(history), true);
+
+  const undone = undoHistory(history);
+  assert.equal(undone.present.name, 'Saved');
+  // Undoing back past the save point re-dirties the field against the advanced
+  // baseline, so a follow-up save is possible.
+  assert.deepStrictEqual(dirtyFields(undone.present, baseline), ['name']);
+});
+
+test('an edit typed during an in-flight save stays undoable', () => {
+  const initial = form({ name: 'Saved' });
+  const snapshot = form({ name: 'First' });
+  let history = pushHistory(createHistory(initial), snapshot);
+  // The owner keeps typing while the save mutation is in flight.
+  history = pushHistory(history, form({ name: 'Second' }));
+
+  // The save resolves against the pre-await snapshot and preserves the newer
+  // in-flight edit; its undo frame must not have been dropped.
+  const canonical = canonicalizeForm(snapshot, ['name']);
+  const reconciled = reconcileSavedFields(history.present, snapshot, canonical, ['name']);
+  assert.equal(reconciled.name, 'Second');
+
+  history = { ...history, present: reconciled };
+  assert.equal(canUndo(history), true);
+
+  const undone = undoHistory(history);
+  assert.equal(undone.present.name, 'First');
 });
 
 test('only the six editable sections have reset fields', () => {

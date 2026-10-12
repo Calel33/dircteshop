@@ -12,9 +12,10 @@ import type { EditorFormState } from './editor-form';
  * session-only and never mutate Convex. Framework-free (type-only imports) so it
  * is `node --test`-able.
  *
- * `resetHistory` is the "new baseline" semantic: after a successful save the
- * editor resets history to the reconciled present, so `present` equals the
- * last-saved baseline and the listing no longer reads as dirty.
+ * Saving does NOT reset history: a successful save advances `baseline` and
+ * reconciles `present` in place, so the frames survive and undo can step back
+ * past a save point. `resetHistory` (drop every frame) is the full session
+ * reset if one is ever needed.
  */
 
 /** The maximum retained undo frames; older frames are evicted first. */
@@ -83,7 +84,7 @@ export function canRedo(state: HistoryState): boolean {
   return state.future.length > 0;
 }
 
-/** Drops every undo/redo frame and re-baselines on `present` (post-save reset). */
+/** Drops every undo/redo frame and re-baselines on `present` (full session reset). */
 export function resetHistory(present: EditorFormState): HistoryState {
   return createHistory(present);
 }

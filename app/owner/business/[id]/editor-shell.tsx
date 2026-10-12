@@ -56,7 +56,6 @@ import {
   createHistory,
   pushHistory,
   redoHistory,
-  resetHistory,
   restoreFieldsFromBaseline,
   sectionResetFields,
   undoHistory,
@@ -219,11 +218,14 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     await saveDraft({ businessId: business._id, patch });
 
     const canonical = canonicalizeForm(form, savable);
-    // Success re-baselines the session: keep the reconciled present, drop the
-    // undo/redo frames so `present` matches the just-saved Convex state.
-    setHistory((state) =>
-      resetHistory(reconcileSavedFields(state.present, form, canonical, savable))
-    );
+    // Success advances the saved baseline (which alone stops saved fields
+    // reading as dirty) while keeping the undo/redo frames, so an edit typed
+    // during the in-flight save stays undoable and undo can step back past the
+    // save point.
+    setHistory((state) => ({
+      ...state,
+      present: reconcileSavedFields(state.present, form, canonical, savable),
+    }));
     setBaseline((previous) => mergeSavedFields(previous, canonical, savable));
   }
 
@@ -273,9 +275,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       await saveAndResubmit({ businessId: business._id, patch: buildEditablePatch(form, dirty) });
 
       const canonical = canonicalizeForm(form, dirty);
-      setHistory((state) =>
-        resetHistory(reconcileSavedFields(state.present, form, canonical, dirty))
-      );
+      setHistory((state) => ({
+        ...state,
+        present: reconcileSavedFields(state.present, form, canonical, dirty),
+      }));
       setBaseline((previous) => mergeSavedFields(previous, canonical, dirty));
     } catch (resubmitError) {
       setError(messageFromError(resubmitError, 'Could not resubmit the listing.'));
