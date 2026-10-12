@@ -152,7 +152,6 @@ function QueueSelectionHeader({
         id={selectAllId}
         checked={selectAllCheckedValue(state)}
         onCheckedChange={(checked) => onToggleAll(checked === true)}
-        aria-label="Select all listings on this page"
       />
       <Label htmlFor={selectAllId} className="text-sm">
         Select all on this page
