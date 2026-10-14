@@ -3,6 +3,28 @@
 import { Component, Fragment, type ReactNode } from 'react';
 
 import { ApprovalQueue } from './approval-queue';
+import {
+  DEFAULT_APPROVAL_FILTERS,
+  type ApprovalQueuePaginationProps,
+  type ApprovalQueueSelectionProps,
+} from './approval-types';
+
+// The error fallback renders the queue heading + retry only; the filter,
+// selection and pagination controls are inert because no page loaded.
+const INERT_SELECTION: ApprovalQueueSelectionProps = {
+  selectedIds: new Set<string>(),
+  state: 'none',
+  onToggleAll: () => {},
+  onToggleOne: () => {},
+};
+
+const INERT_PAGINATION: ApprovalQueuePaginationProps = {
+  hasPrevious: false,
+  hasNext: false,
+  pageStatus: null,
+  onPrevious: () => {},
+  onNext: () => {},
+};
 
 interface ApprovalsLoadBoundaryProps {
   /** Reference clock forwarded to the error state's queue shell. */
@@ -41,7 +63,19 @@ export class ApprovalsLoadBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
-      return <ApprovalQueue state="error" cards={[]} now={this.props.now} onRetry={this.reset} />;
+      return (
+        <ApprovalQueue
+          state="error"
+          cards={[]}
+          now={this.props.now}
+          onRetry={this.reset}
+          filters={DEFAULT_APPROVAL_FILTERS}
+          categories={[]}
+          onFiltersChange={() => {}}
+          selection={INERT_SELECTION}
+          pagination={INERT_PAGINATION}
+        />
+      );
     }
 
     return <Fragment key={this.state.resetKey}>{this.props.children}</Fragment>;

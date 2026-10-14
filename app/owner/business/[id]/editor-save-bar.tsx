@@ -1,5 +1,7 @@
 'use client';
 
+import type { RefObject } from 'react';
+
 import { Button } from '@/components/ui/button';
 
 import { getPrimaryActionLabel, type EditorActionKind } from './editor-status';
@@ -16,8 +18,24 @@ interface EditorSaveBarProps {
   /** True when approved core identity edits are staged for a future resubmit. */
   coreStaged: boolean;
   isPreviewOpen: boolean;
+  /** Client-only session tools (Task 7): undo/redo and per-section reset. */
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  /** True when the active section has reset fields; stub and history sections
+   * hide the Reset control rather than rendering it permanently disabled. */
+  showResetSection: boolean;
+  canResetSection: boolean;
+  /** Label of the active section, used in the Reset Section button. */
+  resetSectionLabel: string;
+  onResetSection: () => void;
   onSave: () => void;
   onTogglePreview: () => void;
+  /** Opens the full-screen preview overlay (Task 8). */
+  onOpenFullPreview: () => void;
+  /** Ref to the Full preview button, so the overlay can restore focus on close. */
+  fullPreviewTriggerRef: RefObject<HTMLButtonElement | null>;
   /** Submit / resubmit / revise, or `null` when the status offers none. */
   primaryAction: EditorActionKind | null;
   canRunPrimary: boolean;
@@ -46,8 +64,18 @@ export function EditorSaveBar({
   error,
   coreStaged,
   isPreviewOpen,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  showResetSection,
+  canResetSection,
+  resetSectionLabel,
+  onResetSection,
   onSave,
   onTogglePreview,
+  onOpenFullPreview,
+  fullPreviewTriggerRef,
   primaryAction,
   canRunPrimary,
   isSubmitting,
@@ -72,6 +100,32 @@ export function EditorSaveBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onUndo} disabled={!canUndo}>
+          Undo
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onRedo} disabled={!canRedo}>
+          Redo
+        </Button>
+        {showResetSection ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onResetSection}
+            disabled={!canResetSection}
+          >
+            {`Reset ${resetSectionLabel}`}
+          </Button>
+        ) : null}
+        <Button
+          ref={fullPreviewTriggerRef}
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onOpenFullPreview}
+        >
+          Full preview
+        </Button>
         <Button type="button" variant="outline" onClick={onTogglePreview}>
           {isPreviewOpen ? 'Hide preview' : 'Preview live'}
         </Button>

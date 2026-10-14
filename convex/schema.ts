@@ -71,6 +71,11 @@ export default defineSchema({
   })
     .index('byStatus', ['status'])
     .index('byStatusSubmittedAt', ['status', 'submittedAt'])
+    // Category-filtered queue reads (B3c): step status -> categoryId -> submittedAt
+    // in index order so a category page bounds its submittedAt range without
+    // scanning unrelated categories. Retains `byStatusSubmittedAt` for the
+    // all-category path. Docs: https://docs.convex.dev/database/reading-data/indexes
+    .index('byStatusCategorySubmittedAt', ['status', 'categoryId', 'submittedAt'])
     .index('byCategoryId', ['categoryId'])
     .index('byOwnerId', ['ownerId'])
     .searchIndex('searchText', {

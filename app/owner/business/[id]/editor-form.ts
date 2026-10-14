@@ -273,7 +273,7 @@ const FIELD_PATCH_VALUES = {
 } satisfies Record<EditableBusinessField, (form: EditorFormState) => unknown>;
 
 /** Stable per-field signature for change detection (trimmed/structural). */
-const FIELD_SIGNATURES = {
+export const FIELD_SIGNATURES = {
   name: (form: EditorFormState) => form.name.trim(),
   categoryId: (form: EditorFormState) => form.categoryId,
   description: (form: EditorFormState) => form.description,

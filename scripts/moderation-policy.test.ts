@@ -17,9 +17,13 @@ import { test } from 'node:test';
 
 import type { Id } from '../convex/_generated/dataModel';
 import {
+  BULK_APPROVE_MAX,
+  BULK_APPROVE_MIN,
   MODERATION_ACTIONS,
+  assertAllPendingReview,
   assertModerationReason,
   buildModerationAuditLog,
+  normalizeBulkApproveIds,
   normalizeModerationReason,
 } from '../convex/businesses/moderationPolicy.ts';
 
@@ -118,4 +122,62 @@ test('reject audit payload targets the rejected status', () => {
   assert.equal(payload.toStatus, 'rejected');
   assert.equal(payload.reason, 'Duplicate listing');
   assert.equal(payload.createdAt, 42);
+});
+
+// ---------------------------------------------------------------------------
+// B3c / issue #14 Task 2 — bulk approve bounds and all-or-nothing precondition.
+// ---------------------------------------------------------------------------
+
+const id = (n: number) => `businesses_${n}` as Id<'businesses'>;
+
+test('bulk approve is bounded to 1–25 listings', () => {
+  assert.equal(BULK_APPROVE_MIN, 1);
+  assert.equal(BULK_APPROVE_MAX, 25);
+});
+
+test('normalizeBulkApproveIds preserves order and removes duplicates', () => {
+  assert.deepStrictEqual(normalizeBulkApproveIds([id(3), id(1), id(3), id(2), id(1)]), [
+    id(3),
+    id(1),
+    id(2),
+  ]);
+});
+
+test('normalizeBulkApproveIds passes through a unique selection unchanged', () => {
+  const unique = [id(1), id(2), id(3)];
+  assert.deepStrictEqual(normalizeBulkApproveIds(unique), unique);
+});
+
+test('normalizeBulkApproveIds rejects an empty selection', () => {
+  assert.throws(() => normalizeBulkApproveIds([]), /Select at least one listing/);
+});
+
+test('normalizeBulkApproveIds accepts exactly the maximum', () => {
+  const atMax = Array.from({ length: BULK_APPROVE_MAX }, (_, i) => id(i + 1));
+  assert.equal(normalizeBulkApproveIds(atMax).length, BULK_APPROVE_MAX);
+});
+
+test('normalizeBulkApproveIds rejects an oversized selection before any read', () => {
+  const oversized = Array.from({ length: BULK_APPROVE_MAX + 1 }, (_, i) => id(i + 1));
+  assert.throws(() => normalizeBulkApproveIds(oversized), /Approve at most 25 listings/);
+});
+
+test('normalizeBulkApproveIds bounds by unique ids, not raw length', () => {
+  const duplicated = Array.from({ length: 60 }, () => id(1));
+  assert.deepStrictEqual(normalizeBulkApproveIds(duplicated), [id(1)]);
+});
+
+test('assertAllPendingReview accepts an all-pending selection', () => {
+  assert.doesNotThrow(() =>
+    assertAllPendingReview(['pendingReview', 'pendingReview', 'pendingReview'])
+  );
+});
+
+test('assertAllPendingReview rejects any already-decided listing (all-or-nothing)', () => {
+  for (const stale of ['approved', 'changesRequested', 'rejected', 'draft', 'suspended'] as const) {
+    assert.throws(
+      () => assertAllPendingReview(['pendingReview', stale]),
+      /no longer pending review/
+    );
+  }
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { createElement, type ComponentType, type ReactNode } from 'react';
+import { createElement, useId, type ComponentType, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ import {
   type OpeningPeriodForm,
   type Weekday,
 } from './editor-form';
+import { applyHoursPreset, HOURS_PRESET_OPTIONS, type HoursPresetId } from './editor-hours-presets';
 import { Field, FieldClassTag, StringListEditor } from './field-controls';
 
 const DEFAULT_PERIOD: OpeningPeriodForm = { opensAt: '09:00', closesAt: '17:00' };
@@ -353,13 +354,68 @@ function DayHoursRow({
   );
 }
 
+/**
+ * Hours quick-fill controls (issue #14 / Task 6): preset buttons plus a
+ * "Copy from template" selector. Both stamp ordinary editable values through the
+ * normal hours change handler — nothing is persisted and there is no template
+ * CRUD. Hidden entirely on a read-only listing.
+ */
+function HoursPresetControls({ onApply }: { onApply: (preset: HoursPresetId) => void }) {
+  const templateId = useId();
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-muted-foreground text-xs">Quick fill</span>
+        {HOURS_PRESET_OPTIONS.map((preset) => (
+          <Button
+            key={preset.id}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onApply(preset.id)}
+          >
+            {preset.label}
+          </Button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor={templateId} className="text-xs">
+          Copy from template
+        </Label>
+        <Select value="" onValueChange={(value) => onApply(value as HoursPresetId)}>
+          <SelectTrigger id={templateId} className="w-48" size="sm">
+            <SelectValue placeholder="Choose a template" />
+          </SelectTrigger>
+          <SelectContent>
+            {HOURS_PRESET_OPTIONS.map((preset) => (
+              <SelectItem key={preset.id} value={preset.id}>
+                {preset.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Presets are quick-fills only — they stamp ordinary editable values into the form; nothing is
+        stored as a template. Edit any value afterwards.
+      </p>
+    </div>
+  );
+}
+
 function HoursSection({ section, form, onChange, readOnly }: SectionEditorProps) {
+  function applyPreset(preset: HoursPresetId) {
+    onChange('hours', applyHoursPreset(preset));
+  }
+
   return (
     <SectionCard section={section}>
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">Weekly hours</span>
         <FieldClassTag fieldClass="content" />
       </div>
+      {readOnly ? null : <HoursPresetControls onApply={applyPreset} />}
       <div className="flex flex-col gap-4">
         {WEEKDAYS.map((day) => (
           <DayHoursRow

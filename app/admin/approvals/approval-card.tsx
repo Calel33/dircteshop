@@ -13,6 +13,7 @@ import type { ApprovalCard } from './approval-types';
 const PRIORITY_LABELS = {
   high: 'High priority',
   normal: 'Normal priority',
+  undated: 'Undated',
 } as const;
 
 /** Joins the schema address parts into one readable line, skipping blanks. */

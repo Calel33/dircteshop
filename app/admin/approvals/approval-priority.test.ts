@@ -39,8 +39,13 @@ test('is normal priority for a recent submission', () => {
   assert.equal(deriveAgePriority(NOW - 2 * HOUR_MS, NOW), 'normal');
 });
 
-test('is normal priority when submittedAt is undefined', () => {
-  assert.equal(deriveAgePriority(undefined, NOW), 'normal');
+test('is undated priority when submittedAt is undefined', () => {
+  assert.equal(deriveAgePriority(undefined, NOW), 'undated');
+});
+
+test('a missing submission date remains undated regardless of the clock', () => {
+  // Undated listings have their own badge and appear only with All priorities.
+  assert.equal(deriveAgePriority(undefined, NOW + 365 * 24 * HOUR_MS), 'undated');
 });
 
 test('never reports high priority for a future timestamp', () => {
