@@ -3,14 +3,14 @@ version: "neuform-top-creators-featured"
 name: "Ecosystem Visualization"
 description: "Ecosystem Visualization Feature Section is designed for highlighting product capabilities and value points. Key features include reusable structure, responsive behavior, and production-ready presentation. It is suitable for component libraries and responsive product interfaces."
 colors:
-  primary: "#E48B59"
-  secondary: "#ED7B46"
-  accent: "#ED7B46"
-  background: "#FFFFFF"
+  primary: "#2563eb"
+  secondary: "#dbeafe"
+  accent: "#f59e0b"
+  background: "#f8fafc"
   surface: "#53617A"
-  text-primary: "#111827"
+  text-primary: "#0f172a"
   text-secondary: "#4B5563"
-  border: "#D8DADF"
+  border: "#e2e8f0"
 typography:
   display-lg:
     fontFamily: "Inter"
@@ -47,6 +47,7 @@ components:
 ---
 # Ecosystem Visualization
 Source: Neuform Featured templates from top creators. Author: Vanh DesignCode (@vanh). Views: 600; favorites: 75; remixes: 22.
+LocalConnect sync: palette remapped to the accepted public-discovery prototype (Variant B, issue #18) — brand blue #2563eb, soft #dbeafe, ink #0f172a, bg #f8fafc, accent #f59e0b. The dark `surface` slate #53617A is retained for panels and the persistent search header.
 Tags: feature, section, animated, bento, charts.
 ## Overview
 Ecosystem Visualization Feature Section is designed for highlighting product capabilities and value points. Key features include reusable structure, responsive behavior, and production-ready presentation. It is suitable for component libraries and responsive product interfaces.
@@ -56,7 +57,7 @@ System Metriqs Real-time mapping of data streams and architectural consolidation
 Use the attached HTML reference as the source of truth. Preserve the visible hierarchy, first-screen composition, section rhythm, density, and interaction tone before adapting copy or content.
 Key visible headings include: System Metriqs; Fodlecte; Heschins; ertads; Vosging.
 ## Colors
-Anchor the palette in primary #E48B59, secondary #ED7B46, accent #ED7B46, background #FFFFFF, surface #53617A, text-primary #111827. Keep background, surface, text, and border roles distinct so generated layouts retain the same contrast pattern as the source.
+Anchor the palette in primary #2563eb, secondary #dbeafe, accent #f59e0b, background #f8fafc, surface #53617A, text-primary #0f172a. Dark-mode surfaces use the prototype ink tokens (#0f172a bg, #1e293b card). Keep background, surface, text, and border roles distinct so generated layouts retain the same contrast pattern as the source. Every text/background role pair is pinned at WCAG AA (≥4.5:1) by scripts/card-muted-contrast.test.ts.
 ## Typography
 Use Inter for display moments and Inter for body copy unless the HTML clearly demands a compatible fallback. Labels and technical metadata should use JetBrains Mono or an equivalent mono face.
 ## Layout

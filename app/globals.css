@@ -4,44 +4,52 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Prototype source: screens/wayfinder/prototype/public-discovery.html :root
-     (Variant B accepted). Brand blue #2563eb, slate surfaces, amber accent. */
-  --radius: 0.75rem;
+  /* Palette source: prototype public-discovery.html (Variant B accepted) —
+     brand #2563eb, soft #dbeafe, ink #0f172a, bg #f8fafc, accent #f59e0b,
+     border #e2e8f0, text-secondary #4B5563.
+     `surface` keeps the design.md slate #53617A (dark panels, persistent
+     search header): dark in both modes, carries its own light foreground. */
+  --radius: 1rem;
   --background: #f8fafc;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
-  /* Muted text on card surfaces (light card): #64748b ≥4.5:1 vs #ffffff. */
-  --card-muted: #64748b;
+  /* Muted text on card surfaces (light card): #4b5563 = 7.5:1 vs #ffffff. */
+  --card-muted: #4b5563;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
   --primary: #2563eb;
+  /* White text on the blue primary: 5.2:1 (clears AA). */
   --primary-foreground: #ffffff;
   --secondary: #dbeafe;
   --secondary-foreground: #1e40af;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted: #f8fafc;
+  --muted-foreground: #4b5563;
   --accent: #f59e0b;
   --accent-foreground: #111827;
   --destructive: #dc2626;
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #2563eb;
+  /* design.md `surface`: dark slate panel role (persistent search header,
+     dark panels). Pair with --surface-foreground, never --foreground. */
+  --surface: #53617a;
+  --surface-foreground: #ffffff;
   --chart-1: #2563eb;
-  --chart-2: #16a34a;
+  --chart-2: #1e40af;
   --chart-3: #f59e0b;
-  --chart-4: #1e40af;
+  --chart-4: #16a34a;
   --chart-5: #64748b;
-  --sidebar: #0f172a;
-  --sidebar-foreground: #e2e8f0;
+  --sidebar: #111827;
+  --sidebar-foreground: #e5e7eb;
   --sidebar-primary: #2563eb;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: #334155;
+  --sidebar-accent: #1f2937;
+  --sidebar-accent-foreground: #e5e7eb;
+  --sidebar-border: #374151;
   --sidebar-ring: #2563eb;
 
-  --shadow-color: #0f172a;
+  --shadow-color: #111827;
   --shadow-2xs: 0 1px 3px 0px rgb(from var(--shadow-color) r g b / 0.05);
   --shadow-xs: 0 1px 3px 0px rgb(from var(--shadow-color) r g b / 0.05);
   --shadow-sm:
@@ -63,7 +71,9 @@
 }
 
 .dark {
-  /* Dark mode follows the prototype ink tokens (--ink-*). */
+  /* Dark mode keeps the ink neutrals (prototype --ink-*) and swaps brand,
+     ring, and sidebar accents to the prototype blue.
+     `surface` stays the design slate, already dark in both modes. */
   --background: #0f172a;
   --foreground: #e2e8f0;
   --card: #1e293b;
@@ -83,6 +93,8 @@
   --border: #334155;
   --input: #334155;
   --ring: #2563eb;
+  --surface: #53617a;
+  --surface-foreground: #ffffff;
   --chart-1: #2563eb;
   --chart-2: #16a34a;
   --chart-3: #f59e0b;
@@ -101,9 +113,8 @@
 }
 
 @theme inline {
-  /* Fonts — prototype: Inter for display/body (--font).
-     next/font exposes Inter as --font-sans and JetBrains Mono as --font-mono (app/layout.tsx);
-     mono retained for labels/technical metadata. */
+  /* Fonts — design.md: Inter for display/body, JetBrains Mono for labels.
+     next/font exposes Inter as --font-sans and JetBrains Mono as --font-mono (app/layout.tsx). */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
@@ -111,19 +122,29 @@
   --font-body: var(--font-sans);
   --font-label: var(--font-mono);
 
+  /* Type scale — design.md: display-lg 4rem, body-md 1rem, label-md 0.75rem (mono, 600). */
+  --text-display: 4rem;
+  --text-display--line-height: 1.04;
+  --text-display--font-weight: 500;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.2;
+  --text-label--font-weight: 600;
+
   --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 0.75rem;
-  /* Semantic radii — prototype: default 12px, control 8px, pill 62.5rem. */
-  --radius-card: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  /* Semantic radii — design.md: card 1rem, control 0.5rem, pill. */
+  --radius-card: 1rem;
   --radius-control: 0.5rem;
   --radius-pill: 62.5rem;
-  /* Spacing scale — prototype: s2 8px base, s4 16px gap, s6 24px card padding, s8 32px section padding. */
+  /* Spacing scale — design.md: base 8px, gap 16px, card padding 24px, section 80px. */
   --spacing-base: 0.5rem;
   --spacing-gap: 1rem;
   --spacing-card: 1.5rem;
-  --spacing-section: 2rem;
+  --spacing-section: 5rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
@@ -133,6 +154,8 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-card-muted: var(--card-muted);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-muted: var(--muted);
