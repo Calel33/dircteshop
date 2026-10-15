@@ -14,6 +14,7 @@ export default tseslint.config(
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
         ecmaVersion: 2020,
         sourceType: 'module',
         ecmaFeatures: {
@@ -37,7 +38,7 @@ export default tseslint.config(
         },
         {
           selector: 'variable',
-          format: ['camelCase', 'UPPER_CASE'],
+          format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
           leadingUnderscore: 'allow',
           trailingUnderscore: 'allow',
         },
@@ -62,7 +63,54 @@ export default tseslint.config(
           selector: 'import',
           format: ['camelCase', 'PascalCase'],
         },
+        {
+          // Object keys are often external identifiers: Convex validator field
+          // names (serialized format), webhook headers, CSS custom properties,
+          // and ESLint plugin/rule ids.
+          selector: 'objectLiteralProperty',
+          format: null,
+        },
       ],
+    },
+  },
+  {
+    // Starter-template demo surfaces (see screens/SPEC.md): kept close to the
+    // starter's upstream code and not maintained as product code.
+    files: [
+      'app/(landing)/**/*.{ts,tsx}',
+      'app/dashboard/**/*.{ts,tsx}',
+      'components/kokonutui/**/*.{ts,tsx}',
+      'components/ui/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'complexity': 'off',
+      'max-lines': 'off',
+    },
+  },
+  {
+    // React Bits components are vendored third-party code (upstream uses
+    // UPPER_CASE configuration presets and dense canvas loops).
+    files: ['components/react-bits/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/naming-convention': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      'complexity': 'off',
+      'max-lines': 'off',
+      'no-useless-assignment': 'off',
+      'prefer-const': 'off',
+    },
+  },
+  {
+    // Node-run scripts (executed directly with `node`).
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+      },
     },
   },
   {
@@ -72,6 +120,9 @@ export default tseslint.config(
       'dist/**',
       'build/**',
       'convex/_generated/**',
+      'dircteshop/**',
+      '.archon/**',
+      '.firecrawl/**',
     ],
   }
 );

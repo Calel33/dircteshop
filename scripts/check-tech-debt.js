@@ -11,9 +11,8 @@
  * - TODO: description (warnings only)
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
 
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -61,7 +60,7 @@ function scanDirectory(dir) {
         scanFile(fullPath, relativePath);
       }
     });
-  } catch (err) {
+  } catch {
     // Silently skip directories we can't read
   }
 }
@@ -104,7 +103,7 @@ function scanFile(filePath, relativePath) {
         });
       }
     });
-  } catch (err) {
+  } catch {
     // Silently skip files we can't read
   }
 }

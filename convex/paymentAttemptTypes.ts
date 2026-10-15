@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { v, Infer } from 'convex/values';
 
 // Reusable validators for payment attempt data
 export const paymentAttemptValidators = {
@@ -82,7 +82,7 @@ export const paymentAttemptSchemaValidator = v.object({
 });
 
 // Helper function to transform webhook data to our format
-export function transformWebhookData(data: any) {
+export function transformWebhookData(data: Infer<typeof paymentAttemptDataValidator>) {
   return {
     billing_date: data.billing_date,
     charge_type: data.charge_type,
@@ -105,7 +105,7 @@ export function transformWebhookData(data: any) {
       card_type: data.payment_source.card_type,
       last4: data.payment_source.last4,
     },
-    subscription_items: data.subscription_items.map((item: any) => ({
+    subscription_items: data.subscription_items.map((item) => ({
       amount: {
         amount: item.amount.amount,
         amount_formatted: item.amount.amount_formatted,

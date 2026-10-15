@@ -15,22 +15,27 @@ http.route({
     if (!event) {
       return new Response('Error occured', { status: 400 });
     }
-    switch ((event as any).type) {
+    switch (event.type) {
       case 'user.created': // intentional fallthrough
       case 'user.updated':
         await ctx.runMutation(internal.users.upsertFromClerk, {
-          data: event.data as any,
+          data: event.data,
         });
         break;
 
       case 'user.deleted': {
-        const clerkUserId = (event.data as any).id!;
+        const clerkUserId = event.data.id!;
         await ctx.runMutation(internal.users.deleteFromClerk, { clerkUserId });
         break;
       }
 
       case 'paymentAttempt.updated': {
-        const paymentAttemptData = transformWebhookData((event as any).data);
+        // Clerk's webhook payload type omits fields that are sent at runtime
+        // (e.g. invoice_id); the Convex validator enforces the real contract
+        // when the mutation runs.
+        const paymentAttemptData = transformWebhookData(
+          event.data as unknown as Parameters<typeof transformWebhookData>[0],
+        );
         await ctx.runMutation(internal.paymentAttempts.savePaymentAttempt, {
           paymentAttemptData,
         });
@@ -38,7 +43,7 @@ http.route({
       }
 
       default:
-        console.log('Ignored webhook event', (event as any).type);
+        console.log('Ignored webhook event', event.type);
     }
 
     return new Response(null, { status: 200 });
