@@ -133,7 +133,7 @@ const allowedTransitions = {
 
 - The **single** owner editing surface (compact Biz Listing UI style = its mobile view). Section nav: Basic Info, Operating Hours, Photos & Media, Contact, Location & Map (address fields only — no map embed), Categories & Tags, Features & Amenities, Analytics (stub), Change History (trail), Settings (stub).
 - **Save model:** edits in client form state; Save Draft persists (`draft`); **Preview Live renders the real profile foundation from unsaved state (WYSIWYS)**; Submit for Approval fires the transition. No autosave.
-- Hours presets (Standard/Coffee Shop/Weekend Only/Custom) = UI quick-fills, not persisted. Undo/Redo/Copy-from-Template/Reset Section = client-only session tools (Reset restores from last-saved Convex state).
+- Hours presets (Standard/Coffee Shop/Weekend Only/Clear; manual editing reads as Custom) = UI quick-fills, not persisted. Undo/Redo/Copy-from-Template/Reset Section = client-only session tools (Reset restores from last-saved Convex state).
 - **Post-submit:** pendingReview → read-only + status banner; changesRequested → `moderationReason` banner, editing enabled; rejected → reason banner + resubmit. Change History = simple lastSavedAt/status trail, no field diffs.
 - Prototype reference: [wayfinder/prototype/owner-workspace.html](wayfinder/prototype/owner-workspace.html).
 - Owner onboarding ("Add Your Business"): any signed-in user → create first draft (owner role derived). First-listing flow screens = the editor itself, starting from blank.
