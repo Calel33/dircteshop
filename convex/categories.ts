@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { internalMutation, query } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { countApprovedByCategory } from './businesses/publicProjections';
 
 // Category reads plus the idempotent SPEC §10 seed. Categories are the taxonomy
 // every business references; admin CRUD lands in B6, so the client surface here
@@ -38,6 +39,44 @@ export const bySlug = query({
       .query('categories')
       .withIndex('bySlug', (q) => q.eq('slug', slug))
       .unique();
+  },
+});
+
+/**
+ * Public category index for the B4 directory surfaces (SPEC §8): ordered
+ * categories with their approved business counts, plus the total approved
+ * count for the results sidebar's "All businesses" link.
+ *
+ * One approved scan (`byStatus`) feeds every count, so the read cost does not
+ * scale with the category count. Both reads are bounded by Convex's
+ * transaction limits and throw on breach — an inexact count is never returned
+ * (B4: fail visibly, never a false total).
+ */
+export const listWithCounts = query({
+  args: {},
+  handler: async (ctx) => {
+    const categories = await ctx.db
+      .query('categories')
+      .withIndex('byOrdering')
+      .take(MAX_CATEGORIES);
+
+    const approved = await ctx.db
+      .query('businesses')
+      .withIndex('byStatus', (q) => q.eq('status', 'approved'))
+      .collect();
+
+    const counts = countApprovedByCategory(approved);
+
+    return {
+      categories: categories.map((category) => ({
+        _id: category._id,
+        name: category.name,
+        slug: category.slug,
+        icon: category.icon,
+        approvedCount: counts.get(category._id) ?? 0,
+      })),
+      totalApproved: approved.length,
+    };
   },
 });
 

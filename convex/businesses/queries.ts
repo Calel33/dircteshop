@@ -3,9 +3,15 @@ import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { requireSuperAdmin } from '../authz';
 import { getCurrentUser } from '../users';
+import {
+  directoryMode,
+  directorySearchTerm,
+  matchesDirectoryFilters,
+  type DirectoryFilterState,
+} from './directoryQuery';
 import {
   isSubmittedAtRangeEmpty,
   resolveSubmittedAtRange,
@@ -13,17 +19,13 @@ import {
   toPendingApprovalDetails,
 } from './moderationProjections';
 import { toOwnerEditorDocument, toOwnerSummary } from './ownerProjections';
+import { createOpenNowEvaluator, type OpenStatus } from './publicHours';
+import { toPublicDirectoryCard, type PublicDirectoryResult } from './publicProjections';
 
 // Public discovery reads. Every public query in this module is client-callable,
 // so public visibility — `status === 'approved'` only (SPEC §5) — is enforced
 // here by construction, never by trusting a client-supplied status.
 // Docs: https://docs.convex.dev/text-search · https://docs.convex.dev/database/reading-data
-
-const SEARCH_RESULT_LIMIT = 20;
-
-// TODO(#4): narrow the public read shape — getPublic/searchPublic currently return
-// full business docs (ownerId, searchText, moderation fields). B4 defines the
-// public projection via the shared BusinessCard/BusinessResults contract.
 /**
  * Public profile read for `/business/[id]`: the business plus its category, or
  * `null` unless the listing is `approved`.
@@ -83,38 +85,302 @@ export const getPublic = query({
 });
 
 /**
- * Approved-only full-text search for `/search` and `/categories/[slug]`.
- *
- * The search filter chain is positional, so the optional category scope needs a
- * separate query branch — `.eq` cannot be conditionally skipped. Results are
- * post-filtered in JS as defense-in-depth: public visibility is a correctness
- * boundary, so it stays enforced in code even if the index filter regresses.
- * Docs: https://docs.convex.dev/text-search
+ * Directory page scan budget (B4), in `numItems`-sized chunks. Open Now and
+ * Highly Rated are computed predicates (hours and ratings cannot be
+ * search-index equality fields), so when either chip is active a single
+ * paginated query scans one window of `numItems * MAX_DIRECTORY_PAGE_CHUNKS`
+ * rows and the predicate filters in-function — a function execution may run at
+ * most one paginated query, so the budget cannot be spent across several
+ * `.paginate` calls (query_impl.ts). The cap bounds reads per request; the
+ * backend's `isDone`/`continueCursor` always describe the scanned window, so no
+ * record is ever skipped or duplicated, and a window with fewer than `numItems`
+ * matches simply returns a shorter page.
  */
-export const searchPublic = query({
-  args: { q: v.string(), categoryId: v.optional(v.id('categories')) },
-  handler: async (ctx, { q, categoryId }) => {
-    const term = q.trim();
-    if (term.length === 0) {
-      return [];
+const MAX_DIRECTORY_PAGE_CHUNKS = 5;
+
+type DirectoryQueryArgs = {
+  q: string;
+  categoryId?: Id<'categories'>;
+  openNow: boolean;
+  highlyRated: boolean;
+  now: number;
+};
+
+/**
+ * The shared branch behind both `listDirectory` and `countDirectory`, so the
+ * page and its exact total always read the same rows:
+ *
+ * - nonempty trimmed term → the B2 text search index (status + optional
+ *   category filter fields, Convex relevance order);
+ * - empty term → the approved indexed browse path, newest `submittedAt` first
+ *   (undated rows sort last under `.order('desc')`).
+ *
+ * The optional category scope is applied in the index/search filter chain,
+ * which is positional, so each path needs its own branch (`.eq` cannot be
+ * conditionally skipped). Docs: https://docs.convex.dev/text-search
+ *
+ * The returned query object is single-use: Convex consumes it on the first
+ * `.paginate` / `.collect`, and any reuse throws "A query can only be chained
+ * once and can't be chained after iteration begins." (query_impl.ts). Every
+ * read calls this helper again for its own object; none is ever held across
+ * reads.
+ */
+function directoryBaseQuery(ctx: QueryCtx, args: DirectoryQueryArgs, term: string) {
+  const categoryId = args.categoryId;
+
+  if (directoryMode(term) === 'search') {
+    return categoryId === undefined
+      ? ctx.db
+          .query('businesses')
+          .withSearchIndex('searchText', (s) =>
+            s.search('searchText', term).eq('status', 'approved')
+          )
+      : ctx.db
+          .query('businesses')
+          .withSearchIndex('searchText', (s) =>
+            s.search('searchText', term).eq('status', 'approved').eq('categoryId', categoryId)
+          );
+  }
+
+  return categoryId === undefined
+    ? ctx.db
+        .query('businesses')
+        .withIndex('byStatusSubmittedAt', (q) => q.eq('status', 'approved'))
+        .order('desc')
+    : ctx.db
+        .query('businesses')
+        .withIndex('byStatusCategorySubmittedAt', (q) =>
+          q.eq('status', 'approved').eq('categoryId', categoryId)
+        )
+        .order('desc');
+}
+
+/** Projects one scanned row to the public card plus its stable-`now` open status. */
+function toDirectoryResult(
+  business: Doc<'businesses'>,
+  openStatus: OpenStatus
+): PublicDirectoryResult {
+  return { ...toPublicDirectoryCard(business), openStatus };
+}
+
+/**
+ * Approved-only directory results for `/search?q=`, `/categories`, and
+ * `/categories/[slug]` (SPEC §8). Cursor-paginated via `usePaginatedQuery` on
+ * the client; every filter dependency — trimmed `q`, `categoryId`, both chip
+ * flags, and the stable `now` — is an explicit argument, so a long-lived
+ * cursor is never invalidated by a moving clock or a reactive filter change
+ * (convex-backend issue 505).
+ *
+ * With both chips off this is one `.paginate` of exactly `paginationOpts`.
+ * With a chip active it is still one `.paginate`: the runtime serves a
+ * paginated query with a single `1.0/queryPage` syscall and rejects a second
+ * one in the same invocation ("This query or mutation function ran multiple
+ * paginated queries", query_impl.ts), so the refill budget is one scan window
+ * of `numItems * MAX_DIRECTORY_PAGE_CHUNKS` rows and the shared predicate
+ * (`matchesDirectoryFilters`) filters the returned page in-function. The
+ * backend's `isDone`/`continueCursor` pass through unchanged, so a window with
+ * few matches returns a shorter, still-continuable page (page sizes may
+ * legitimately change — PaginationOptions docs) and no record is ever skipped
+ * or duplicated. The 1,024-document search scan limit is the hard bound for
+ * text searches.
+ * Docs: https://docs.convex.dev/database/pagination
+ */
+export const listDirectory = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    q: v.string(),
+    categoryId: v.optional(v.id('categories')),
+    openNow: v.boolean(),
+    highlyRated: v.boolean(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const term = directorySearchTerm(args.q);
+    const evaluator = createOpenNowEvaluator(args.now);
+    const filters: DirectoryFilterState = { openNow: args.openNow, highlyRated: args.highlyRated };
+
+    if (!args.openNow && !args.highlyRated) {
+      const page = await directoryBaseQuery(ctx, args, term).paginate(args.paginationOpts);
+      return {
+        page: page.page.map((business) =>
+          toDirectoryResult(business, evaluator.status(business.hours, business.timezone))
+        ),
+        isDone: page.isDone,
+        continueCursor: page.continueCursor,
+      };
     }
 
-    const results =
-      categoryId !== undefined
-        ? await ctx.db
-            .query('businesses')
-            .withSearchIndex('searchText', (s) =>
-              s.search('searchText', term).eq('status', 'approved').eq('categoryId', categoryId)
-            )
-            .take(SEARCH_RESULT_LIMIT)
-        : await ctx.db
-            .query('businesses')
-            .withSearchIndex('searchText', (s) =>
-              s.search('searchText', term).eq('status', 'approved')
-            )
-            .take(SEARCH_RESULT_LIMIT);
+    // One `.paginate` per invocation is the runtime's hard limit, so the whole
+    // refill budget is one window of `numItems * MAX_DIRECTORY_PAGE_CHUNKS`
+    // scanned rows; the chip predicate filters the returned page in-function.
+    const result = await directoryBaseQuery(ctx, args, term).paginate({
+      ...args.paginationOpts,
+      numItems: args.paginationOpts.numItems * MAX_DIRECTORY_PAGE_CHUNKS,
+    });
 
-    return results.filter((business) => business.status === 'approved');
+    const matched: { business: Doc<'businesses'>; openStatus: OpenStatus }[] = [];
+    for (const business of result.page) {
+      const openStatus = evaluator.status(business.hours, business.timezone);
+      if (matchesDirectoryFilters(business, filters, openStatus.isOpen)) {
+        matched.push({ business, openStatus });
+      }
+    }
+
+    return {
+      page: matched.map(({ business, openStatus }) => toDirectoryResult(business, openStatus)),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
+  },
+});
+
+/**
+ * Exact "Showing X of Y" total for the same criteria as `listDirectory`: the
+ * same branch (search index / approved browse), the same category scope, the
+ * same chip predicate, and the same stable `now` — so the total can never
+ * describe a different result set than the page.
+ *
+ * Convex has no public count API, so the total is a bounded `.collect().length`
+ * over exactly those constraints. Beyond the documented limits (32,000
+ * documents scanned / 16 MiB per transaction; a 1,024-document search result
+ * set for text searches) the read throws and the client renders the error
+ * state — the surface never falls back to a loaded count or a guessed number
+ * (B4: fail visibly). Revisit with an aggregate component before the
+ * directory approaches those limits.
+ * Docs: https://docs.convex.dev/production/state/limits
+ */
+export const countDirectory = query({
+  args: {
+    q: v.string(),
+    categoryId: v.optional(v.id('categories')),
+    openNow: v.boolean(),
+    highlyRated: v.boolean(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const term = directorySearchTerm(args.q);
+    const rows = await directoryBaseQuery(ctx, args, term).collect();
+
+    if (!args.openNow && !args.highlyRated) {
+      return { total: rows.length };
+    }
+
+    const evaluator = createOpenNowEvaluator(args.now);
+    const filters: DirectoryFilterState = { openNow: args.openNow, highlyRated: args.highlyRated };
+
+    return {
+      total: rows.filter((business) =>
+        matchesDirectoryFilters(business, filters, evaluator.isOpen(business.hours, business.timezone))
+      ).length,
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Landing feeds (B4 task 8, SPEC §8). Bounded approved-only arrays for
+// `/`: Trending This Week (featured by `lastUpdatedAt`), New to LocalConnect
+// (newest `submittedAt`), and Recently Verified (`verification.verifiedAt`).
+// Each feed takes the same chip arguments as the directory flow, so the
+// landing's in-place chips filter every section with the same predicate; a
+// feed that resolves empty lets its section hide entirely.
+// Docs: https://docs.convex.dev/database/reading-data/indexes
+// ---------------------------------------------------------------------------
+
+const LANDING_TRENDING_LIMIT = 6;
+const LANDING_NEWEST_LIMIT = 4;
+const LANDING_VERIFIED_LIMIT = 6;
+
+/**
+ * With a computed chip active the feed scans deeper than its slice, so the
+ * bounded array still fills when leading rows are filtered out. The scan is a
+ * single bounded `.take`; section hiding does not depend on it.
+ */
+const LANDING_FILTER_SCAN_LIMIT = 48;
+
+type LandingFeedArgs = {
+  openNow: boolean;
+  highlyRated: boolean;
+  now: number;
+};
+
+const landingFeedArgs = {
+  openNow: v.boolean(),
+  highlyRated: v.boolean(),
+  now: v.number(),
+};
+
+function landingScanLimit(args: LandingFeedArgs, limit: number): number {
+  return args.openNow || args.highlyRated ? LANDING_FILTER_SCAN_LIMIT : limit;
+}
+
+/** Applies the shared chip predicate and projects the first `limit` matches. */
+function projectLandingFeed(
+  rows: Doc<'businesses'>[],
+  args: LandingFeedArgs,
+  limit: number
+): PublicDirectoryResult[] {
+  const evaluator = createOpenNowEvaluator(args.now);
+  const filters: DirectoryFilterState = { openNow: args.openNow, highlyRated: args.highlyRated };
+  const projected: PublicDirectoryResult[] = [];
+
+  for (const business of rows) {
+    const openStatus = evaluator.status(business.hours, business.timezone);
+    if (!matchesDirectoryFilters(business, filters, openStatus.isOpen)) {
+      continue;
+    }
+
+    projected.push(toDirectoryResult(business, openStatus));
+    if (projected.length >= limit) {
+      break;
+    }
+  }
+
+  return projected;
+}
+
+/** Trending This Week: approved featured listings, most recently updated first. */
+export const featuredForLanding = query({
+  args: landingFeedArgs,
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('businesses')
+      .withIndex('byStatusFeaturedUpdatedAt', (q) =>
+        q.eq('status', 'approved').eq('isFeatured', true)
+      )
+      .order('desc')
+      .take(landingScanLimit(args, LANDING_TRENDING_LIMIT));
+
+    return projectLandingFeed(rows, args, LANDING_TRENDING_LIMIT);
+  },
+});
+
+/** New to LocalConnect: the newest approved submissions. */
+export const newestForLanding = query({
+  args: landingFeedArgs,
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('businesses')
+      .withIndex('byStatusSubmittedAt', (q) => q.eq('status', 'approved'))
+      .order('desc')
+      .take(landingScanLimit(args, LANDING_NEWEST_LIMIT));
+
+    return projectLandingFeed(rows, args, LANDING_NEWEST_LIMIT);
+  },
+});
+
+/** Recently Verified: approved verified listings, latest verification first. */
+export const verifiedForLanding = query({
+  args: landingFeedArgs,
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('businesses')
+      .withIndex('byStatusVerifiedVerifiedAt', (q) =>
+        q.eq('status', 'approved').eq('verification.isVerified', true)
+      )
+      .order('desc')
+      .take(landingScanLimit(args, LANDING_VERIFIED_LIMIT));
+
+    return projectLandingFeed(rows, args, LANDING_VERIFIED_LIMIT);
   },
 });
 
@@ -188,8 +454,8 @@ export const getMine = query({
 // Super Admin only: identity comes from the Convex auth context via
 // `requireSuperAdmin` (which also enforces the live env whitelist) — never a
 // client-supplied actor or owner id. Returns a narrow card projection, not raw
-// docs. Public visibility is unchanged: `getPublic`/`searchPublic` stay
-// approved-only.
+// docs. Public visibility is unchanged: `getPublic`/`listDirectory`/
+// `countDirectory` stay approved-only.
 // Contract: tasks/issue-13-plan.md Task 2; SPEC §3/§5/§10.
 // Docs: https://docs.convex.dev/auth/functions-auth · https://docs.convex.dev/database/reading-data/indexes
 // ---------------------------------------------------------------------------
