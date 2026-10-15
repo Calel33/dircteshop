@@ -44,8 +44,8 @@ test('editor field classification matches the frozen server allowlist', () => {
   assert.deepStrictEqual(EDITOR_FIELD_CLASS, EDITABLE_FIELD_CLASS);
 });
 
-test('exposes the ten editable fields exactly once', () => {
-  assert.equal(EDITOR_FIELDS.length, 10);
+test('exposes the eleven editable fields exactly once', () => {
+  assert.equal(EDITOR_FIELDS.length, 11);
   assert.equal(new Set(EDITOR_FIELDS).size, EDITOR_FIELDS.length);
 });
 

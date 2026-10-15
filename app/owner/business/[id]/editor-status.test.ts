@@ -90,7 +90,7 @@ test('offers a Publish changes primary only for approved content-only edits', ()
 });
 
 test('uses distinct, user-facing primary-action labels', () => {
-  assert.equal(getPrimaryActionLabel('submit'), 'Submit for approval');
+  assert.equal(getPrimaryActionLabel('submit'), 'Submit for Approval');
   assert.equal(getPrimaryActionLabel('resubmit'), 'Submit changes for review');
   assert.equal(getPrimaryActionLabel('revise'), 'Revise listing');
   assert.equal(getPrimaryActionLabel('publish'), 'Publish changes');
@@ -98,11 +98,11 @@ test('uses distinct, user-facing primary-action labels', () => {
 
 test('labels the save button by status — approved listings say "Save changes"', () => {
   assert.equal(getSaveActionLabel('approved'), 'Save changes');
-  assert.equal(getSaveActionLabel('draft'), 'Save draft');
-  assert.equal(getSaveActionLabel('changesRequested'), 'Save draft');
-  assert.equal(getSaveActionLabel('pendingReview'), 'Save draft');
-  assert.equal(getSaveActionLabel('rejected'), 'Save draft');
-  assert.equal(getSaveActionLabel('suspended'), 'Save draft');
+  assert.equal(getSaveActionLabel('draft'), 'Save Draft');
+  assert.equal(getSaveActionLabel('changesRequested'), 'Save Draft');
+  assert.equal(getSaveActionLabel('pendingReview'), 'Save Draft');
+  assert.equal(getSaveActionLabel('rejected'), 'Save Draft');
+  assert.equal(getSaveActionLabel('suspended'), 'Save Draft');
 });
 
 test('enables Publish changes exactly when savable content edits exist', () => {
@@ -233,7 +233,7 @@ test('maps each status to its banner tone, or none', () => {
 test('surfaces the submission date on the pending banner', () => {
   const pending = getStatusBanner({ status: 'pendingReview', submittedAt: 1_700_000_000_000 });
 
-  assert.equal(pending?.tone, 'info');
+  assert.equal(pending?.tone, 'brand');
   assert.equal(pending?.submittedAt, 1_700_000_000_000);
 });
 

@@ -22,6 +22,7 @@ export const EDITOR_FIELD_CLASS = {
   name: 'core',
   categoryId: 'core',
   description: 'core',
+  keywords: 'content',
   address: 'core',
   hours: 'content',
   phone: 'content',
@@ -80,6 +81,8 @@ export interface EditorFormState {
   name: string;
   categoryId: string;
   description: string;
+  /** Comma-separated text as typed; normalised to a list for the server. */
+  keywords: string;
   address: AddressForm;
   hours: HoursForm;
   phone: string;
@@ -97,6 +100,7 @@ export interface EditorSourceDocument {
   name: string;
   categoryId: string;
   description: string;
+  keywords?: string[];
   address: {
     addressLine1: string;
     addressLine2?: string;
@@ -134,6 +138,7 @@ export interface EditorPatch {
   name?: string;
   categoryId?: Id<'categories'>;
   description?: string;
+  keywords?: string[];
   address?: AddressPatch;
   hours?: HoursPatch;
   phone?: string;
@@ -156,24 +161,27 @@ function toHoursForm(hours: EditorSourceDocument['hours']): HoursForm {
   return result;
 }
 
+function toAddressForm(address: EditorSourceDocument['address']): AddressForm {
+  return {
+    addressLine1: address.addressLine1,
+    addressLine2: address.addressLine2 ?? '',
+    city: address.city,
+    state: address.state,
+    postalCode: address.postalCode ?? '',
+    country: address.country,
+    ...(address.latitude === undefined ? {} : { latitude: address.latitude }),
+    ...(address.longitude === undefined ? {} : { longitude: address.longitude }),
+  };
+}
+
 /** Initialises client form state from an owned editor document. */
 export function createEditorForm(document: EditorSourceDocument): EditorFormState {
   return {
     name: document.name,
     categoryId: document.categoryId,
     description: document.description,
-    address: {
-      addressLine1: document.address.addressLine1,
-      addressLine2: document.address.addressLine2 ?? '',
-      city: document.address.city,
-      state: document.address.state,
-      postalCode: document.address.postalCode ?? '',
-      country: document.address.country,
-      ...(document.address.latitude === undefined ? {} : { latitude: document.address.latitude }),
-      ...(document.address.longitude === undefined
-        ? {}
-        : { longitude: document.address.longitude }),
-    },
+    keywords: (document.keywords ?? []).join(', '),
+    address: toAddressForm(document.address),
     hours: toHoursForm(document.hours),
     phone: document.phone ?? '',
     email: document.email ?? '',
@@ -253,9 +261,16 @@ function canonicalAddress(address: AddressForm): AddressForm {
   };
 }
 
-/** Form-shaped canonical hours: all seven weekdays present, closed days as `[]`. */
+/**
+ * Form-shaped canonical hours: all seven weekdays present, closed days as `[]`.
+ */
 function canonicalHours(hours: HoursForm): HoursForm {
   return toHoursForm(hours);
+}
+
+/** Parses the comma-separated keywords input into the server's string list. */
+function normalizeKeywords(value: string): string[] {
+  return normalizeStringList(value.split(','));
 }
 
 /** Canonical server value for one editable field, used by patch and canonicalise. */
@@ -263,6 +278,7 @@ const FIELD_PATCH_VALUES = {
   name: (form: EditorFormState) => form.name.trim(),
   categoryId: (form: EditorFormState) => form.categoryId,
   description: (form: EditorFormState) => form.description,
+  keywords: (form: EditorFormState) => normalizeKeywords(form.keywords),
   address: (form: EditorFormState) => normalizeAddress(form.address),
   hours: (form: EditorFormState) => normalizeHours(form.hours),
   phone: (form: EditorFormState) => form.phone.trim(),
@@ -277,6 +293,7 @@ export const FIELD_SIGNATURES = {
   name: (form: EditorFormState) => form.name.trim(),
   categoryId: (form: EditorFormState) => form.categoryId,
   description: (form: EditorFormState) => form.description,
+  keywords: (form: EditorFormState) => JSON.stringify(normalizeKeywords(form.keywords)),
   address: (form: EditorFormState) => JSON.stringify(normalizeAddress(form.address)),
   hours: (form: EditorFormState) => JSON.stringify(normalizeHours(form.hours)),
   phone: (form: EditorFormState) => form.phone.trim(),
@@ -296,6 +313,7 @@ const CANONICAL_FIELD_VALUES = {
   name: (form: EditorFormState) => form.name.trim(),
   categoryId: (form: EditorFormState) => form.categoryId,
   description: (form: EditorFormState) => form.description,
+  keywords: (form: EditorFormState) => normalizeKeywords(form.keywords).join(', '),
   address: (form: EditorFormState) => canonicalAddress(form.address),
   hours: (form: EditorFormState) => canonicalHours(form.hours),
   phone: (form: EditorFormState) => form.phone.trim(),

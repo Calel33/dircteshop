@@ -2,8 +2,10 @@ import Link from 'next/link';
 import type { FunctionReturnType } from 'convex/server';
 
 import { api } from '@/convex/_generated/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
+import { getStatusChip } from './listing-status';
 import { StatusChip } from './status-chip';
 
 /** One owned-listing summary as returned by `businesses.queries.listMine`. */
@@ -17,29 +19,37 @@ interface BusinessCardProps {
 }
 
 /**
- * Presentational card for one owned listing. Links to the editor route
- * (`/owner/business/[id]`), which this PR ships.
+ * Presentational card for one owned listing (prototype `.biz-card`,
+ * owner-workspace.html L108-114/L825-838): thumbnail initial, name + status
+ * chip, a "category · Updated {date}" meta line, and a status-dependent action
+ * that opens the editor route (`/owner/business/[id]`).
  */
 export function BusinessCard({ business, categoryName }: BusinessCardProps) {
   const updatedAt = business.lastSavedAt ?? business.lastUpdatedAt;
+  const chip = getStatusChip(business.status);
 
   return (
-    <Link
-      href={`/owner/business/${business._id}`}
-      className="block h-full rounded-card focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <Card className="h-full gap-gap rounded-card py-card transition-colors hover:border-primary/60">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">{business.name}</CardTitle>
-          {categoryName ? <p className="text-muted-foreground text-sm">{categoryName}</p> : null}
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-2">
+    <Card className="rounded-card gap-gap p-gap flex-row items-start">
+      <div
+        aria-hidden="true"
+        className="bg-primary/15 text-foreground flex size-14 shrink-0 items-center justify-center rounded-control text-lg font-extrabold"
+      >
+        {(business.name || '?').charAt(0).toUpperCase()}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="truncate text-base font-semibold">{business.name || 'Untitled listing'}</h3>
           <StatusChip status={business.status} />
-          <span className="text-muted-foreground font-label text-xs">
-            Updated {updatedAtFormatter.format(updatedAt)}
-          </span>
-        </CardContent>
-      </Card>
-    </Link>
+        </div>
+        <p className="text-card-muted text-xs">
+          {categoryName ?? '—'} · Updated {updatedAtFormatter.format(updatedAt)}
+        </p>
+        <div className="mt-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/owner/business/${business._id}`}>{chip.actionLabel}</Link>
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }

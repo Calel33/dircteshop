@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { OwnerBusinesses } from './owner-businesses';
+import { OwnerBusinesses, OWNER_CARD_GRID } from './owner-businesses';
 
 /**
  * `/owner` hub shell. `/owner` is not middleware-protected, so the signed-out
@@ -55,7 +55,7 @@ function OwnerHomeSkeleton() {
   return (
     <div className="flex flex-col gap-gap" aria-busy="true" aria-label="Loading the owner workspace">
       <Skeleton className="h-8 w-64" />
-      <div className="grid grid-cols-1 gap-gap sm:grid-cols-2 lg:grid-cols-3">
+      <div className={OWNER_CARD_GRID}>
         {Array.from({ length: 3 }, (_, index) => (
           <Skeleton key={index} className="h-32 rounded-card" />
         ))}

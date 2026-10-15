@@ -59,7 +59,7 @@ export function BusinessSwitcher({ currentId }: BusinessSwitcherProps) {
               >
                 <span className="truncate">{business.name}</span>
                 {isCurrent ? (
-                  <span className="text-muted-foreground text-xs">Current</span>
+                  <span className="text-card-muted text-xs">Current</span>
                 ) : null}
               </DropdownMenuItem>
             );

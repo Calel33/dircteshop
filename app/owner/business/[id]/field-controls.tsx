@@ -39,6 +39,8 @@ interface FieldProps {
   readOnly: boolean;
   /** Text shown instead of the control when the listing is read-only. */
   displayValue: string;
+  /** Optional helper text under the control (prototype `.hint`). */
+  hint?: ReactNode;
   children: ReactNode;
 }
 
@@ -46,7 +48,15 @@ interface FieldProps {
  * Labelled editor field. Renders the control while editing and a plain value
  * when read-only, so a locked listing never exposes an editable control.
  */
-export function Field({ id, label, fieldClass, readOnly, displayValue, children }: FieldProps) {
+export function Field({
+  id,
+  label,
+  fieldClass,
+  readOnly,
+  displayValue,
+  hint,
+  children,
+}: FieldProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -54,12 +64,13 @@ export function Field({ id, label, fieldClass, readOnly, displayValue, children 
         <FieldClassTag fieldClass={fieldClass} />
       </div>
       {readOnly ? (
-        <p className="text-muted-foreground text-sm break-words">
+        <p className="text-card-muted text-sm break-words">
           {displayValue.length > 0 ? displayValue : '—'}
         </p>
       ) : (
         children
       )}
+      {hint === undefined ? null : <p className="text-card-muted text-xs">{hint}</p>}
     </div>
   );
 }
@@ -98,7 +109,7 @@ export function StringListEditor({
 
   if (readOnly) {
     return (
-      <p className="text-muted-foreground text-sm break-words">
+      <p className="text-card-muted text-sm break-words">
         {values.length > 0 ? values.join(', ') : '—'}
       </p>
     );
@@ -118,6 +129,7 @@ export function StringListEditor({
             }
           }}
           placeholder={placeholder}
+          className="text-card-foreground placeholder:text-card-muted!"
         />
         <Button type="button" variant="outline" onClick={addValue} disabled={draft.trim().length === 0}>
           Add

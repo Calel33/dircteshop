@@ -11,6 +11,8 @@
 import type * as authz from "../authz.js";
 import type * as businessTypes from "../businessTypes.js";
 import type * as businesses_helpers from "../businesses/helpers.js";
+import type * as businesses_moderationPolicy from "../businesses/moderationPolicy.js";
+import type * as businesses_moderationProjections from "../businesses/moderationProjections.js";
 import type * as businesses_mutations from "../businesses/mutations.js";
 import type * as businesses_ownerProjections from "../businesses/ownerProjections.js";
 import type * as businesses_ownerSavePolicy from "../businesses/ownerSavePolicy.js";
@@ -32,6 +34,8 @@ declare const fullApi: ApiFromModules<{
   authz: typeof authz;
   businessTypes: typeof businessTypes;
   "businesses/helpers": typeof businesses_helpers;
+  "businesses/moderationPolicy": typeof businesses_moderationPolicy;
+  "businesses/moderationProjections": typeof businesses_moderationProjections;
   "businesses/mutations": typeof businesses_mutations;
   "businesses/ownerProjections": typeof businesses_ownerProjections;
   "businesses/ownerSavePolicy": typeof businesses_ownerSavePolicy;

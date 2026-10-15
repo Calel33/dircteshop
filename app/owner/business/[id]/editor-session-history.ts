@@ -106,7 +106,7 @@ export type EditorFormSectionKey =
 
 // Hyphenated ids require computed keys (eslint naming-convention).
 const SECTION_RESET_FIELDS: Record<EditorFormSectionKey, readonly EditableBusinessField[]> = {
-  ['basic-info']: ['name', 'categoryId', 'description'],
+  ['basic-info']: ['name', 'categoryId', 'description', 'keywords'],
   hours: ['hours'],
   contact: ['phone', 'email', 'website'],
   location: ['address'],

@@ -18,7 +18,7 @@ export type HoursPresetId = (typeof HOURS_PRESETS)[number];
 /** UI metadata for the preset buttons and the "Copy from template" control. */
 export const HOURS_PRESET_OPTIONS: readonly { id: HoursPresetId; label: string }[] = [
   { id: 'standard', label: 'Standard 9–5' },
-  { id: 'coffee-shop', label: 'Coffee shop 7–6' },
+  { id: 'coffee-shop', label: 'Coffee Shop 7–6' },
   { id: 'weekend-only', label: 'Weekend only' },
   { id: 'clear', label: 'Clear' },
 ];

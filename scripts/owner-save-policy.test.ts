@@ -30,7 +30,7 @@ import {
 const classMap = EDITABLE_FIELD_CLASS;
 const allEditableFields = Object.keys(classMap) as (keyof typeof classMap)[];
 const coreFields = ['name', 'categoryId', 'description', 'address'] as const;
-const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities'] as const;
+const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities', 'keywords'] as const;
 
 test('read-only statuses cannot be saved by the owner', () => {
   for (const status of ['pendingReview', 'suspended', 'rejected'] as const) {

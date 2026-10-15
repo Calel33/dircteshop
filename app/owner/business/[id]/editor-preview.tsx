@@ -44,32 +44,47 @@ function PreviewContent({ state, className }: { state: PreviewState; className?:
 }
 
 /**
- * WYSIWYS Preview Live: renders the shared profile foundation from UNSAVED form
- * state through the preview adapter.
+ * WYSIWYS Live Preview (prototype `.preview-panel`, owner-workspace.html
+ * L461-468): the sticky third workspace column, rendering the shared profile
+ * foundation from UNSAVED form state through the preview adapter, with the
+ * amber "unsaved edits" note while the form is dirty.
  */
 export function EditorPreview({ state, isDirty }: EditorPreviewProps) {
   return (
-    <section aria-label="Preview live" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-semibold">Preview live</h2>
-        <span className="text-muted-foreground font-label text-xs">
-          {isDirty ? 'Previewing unsaved changes' : 'Showing saved state'}
-        </span>
+    <aside
+      aria-label="Live Preview"
+      className="bg-card text-card-foreground border-border rounded-card flex flex-col overflow-hidden border lg:sticky lg:top-4"
+    >
+      <div className="border-border bg-muted/40 border-b px-4 py-3">
+        <h2 className="text-foreground font-label text-xs tracking-wide uppercase">
+          Live Preview
+        </h2>
+        <p className="text-foreground mt-1 text-xs">
+          Rendered from <strong className="text-foreground">unsaved</strong> form state — what you
+          type is what you&apos;d see.
+        </p>
       </div>
-      <div className="border-border overflow-hidden rounded-card border">
-        <PreviewContent state={state} className="text-muted-foreground p-card text-sm" />
+      <div className="p-4">
+        <div className="border-border bg-background overflow-hidden rounded-card border">
+          <PreviewContent state={state} className="text-muted-foreground p-card text-sm" />
+        </div>
       </div>
-    </section>
+      {isDirty ? (
+        <p className="bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200 mx-4 mb-4 rounded-control px-3 py-2 text-center text-xs font-bold">
+          Previewing unsaved edits — not saved or submitted
+        </p>
+      ) : null}
+    </aside>
   );
 }
 
 /**
- * Full preview overlay (issue #14 / B3c Task 8): the same shared `BusinessProfile`
- * rendered from the current UNSAVED form data, in a full-width scrollable modal.
- * Reuses the single profile renderer (no second renderer, no drift) and states
- * that the preview is unsaved. `triggerRef` points at the button that opens the
- * overlay; because there is no Radix trigger under this root, the overlay
- * restores focus there itself on every close path.
+ * Full preview overlay (issue #14 / B3c Task 8; prototype L476-481): the same
+ * shared `BusinessProfile` rendered from the current UNSAVED form data, in a
+ * full-width scrollable modal. Reuses the single profile renderer (no second
+ * renderer, no drift) and states that the preview is unsaved. `triggerRef`
+ * points at the button that opens the overlay; because there is no Radix trigger
+ * under this root, the overlay restores focus there itself on every close path.
  */
 export function EditorPreviewOverlay({
   state,
@@ -99,14 +114,16 @@ export function EditorPreviewOverlay({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Full preview</DialogTitle>
+          <DialogTitle>Preview Live — public profile</DialogTitle>
           <DialogDescription>
             {isDirty
               ? 'Previewing unsaved edits — nothing is saved or submitted.'
               : 'Showing the saved profile.'}
           </DialogDescription>
         </DialogHeader>
-        <PreviewContent state={state} />
+        <div className="bg-background rounded-card">
+          <PreviewContent state={state} />
+        </div>
       </DialogContent>
     </Dialog>
   );

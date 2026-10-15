@@ -78,7 +78,14 @@ export const amenitiesValidator = v.optional(v.array(v.string()));
 export type CoreIdentityField = 'name' | 'categoryId' | 'description' | 'address';
 
 /** Owner-editable field whose edit on an approved listing publishes immediately. */
-export type ContentField = 'hours' | 'phone' | 'email' | 'website' | 'tags' | 'amenities';
+export type ContentField =
+  | 'hours'
+  | 'phone'
+  | 'email'
+  | 'website'
+  | 'tags'
+  | 'amenities'
+  | 'keywords';
 
 /** Every B3a owner-editable field. */
 export type EditableBusinessField = CoreIdentityField | ContentField;
@@ -100,4 +107,29 @@ export const EDITABLE_FIELD_CLASS = {
   website: 'content',
   tags: 'content',
   amenities: 'content',
+  keywords: 'content',
 } as const satisfies Record<EditableBusinessField, 'core' | 'content'>;
+
+/**
+ * The B3a owner-editable field surface (issue #12). Its keys must mirror
+ * `EDITABLE_FIELD_CLASS`; server-owned fields (`status`, `ownerId`, `searchText`,
+ * moderation, timestamps, vertical/photo fields) are deliberately absent. Convex
+ * object validation throws on undeclared keys before the handler runs, so a
+ * client can never patch them
+ * (https://docs.convex.dev/functions/validation.md). The save mutations call
+ * `.partial()` on this validator so every field is optional for partial saves.
+ * `scripts/field-policy.test.ts` pins the key parity.
+ */
+export const editableBusinessFieldsValidator = v.object({
+  name: v.string(),
+  categoryId: v.id('categories'),
+  description: v.string(),
+  address: addressValidator,
+  hours: hoursValidator,
+  phone: v.string(),
+  email: v.string(),
+  website: v.string(),
+  tags: v.array(v.string()),
+  amenities: v.array(v.string()),
+  keywords: v.array(v.string()),
+});

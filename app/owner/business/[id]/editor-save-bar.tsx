@@ -3,7 +3,9 @@
 import type { RefObject } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
+import { formatTimestamp } from './editor-datetime';
 import { getPrimaryActionLabel, type EditorActionKind } from './editor-status';
 
 interface EditorSaveBarProps {
@@ -11,36 +13,29 @@ interface EditorSaveBarProps {
   readOnly: boolean;
   isDirty: boolean;
   canSave: boolean;
-  /** Status-dependent save button copy ("Save draft" / "Save changes"). */
+  /** Status-dependent save button copy ("Save Draft" / "Save changes"). */
   saveLabel: string;
   isSaving: boolean;
   error: string | null;
   /** True when approved core identity edits are staged for a future resubmit. */
   coreStaged: boolean;
-  isPreviewOpen: boolean;
-  /** Client-only session tools (Task 7): undo/redo and per-section reset. */
+  /** Last persisted save timestamp; rendered as "· Last saved {date}". */
+  lastSavedAt?: number;
+  /** Client-only session tools (Task 7): undo/redo. */
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  /** True when the active section has reset fields; stub and history sections
-   * hide the Reset control rather than rendering it permanently disabled. */
-  showResetSection: boolean;
-  canResetSection: boolean;
-  /** Label of the active section, used in the Reset Section button. */
-  resetSectionLabel: string;
-  onResetSection: () => void;
-  onSave: () => void;
-  onTogglePreview: () => void;
-  /** Opens the full-screen preview overlay (Task 8). */
-  onOpenFullPreview: () => void;
-  /** Ref to the Full preview button, so the overlay can restore focus on close. */
-  fullPreviewTriggerRef: RefObject<HTMLButtonElement | null>;
+  /** Opens the Preview Live overlay (prototype `#btn-preview`). */
+  onOpenPreview: () => void;
+  /** Ref to the Preview Live button, so the overlay can restore focus on close. */
+  previewTriggerRef: RefObject<HTMLButtonElement | null>;
   /** Submit / resubmit / revise, or `null` when the status offers none. */
   primaryAction: EditorActionKind | null;
   canRunPrimary: boolean;
   isSubmitting: boolean;
   onPrimary: () => void;
+  onSave: () => void;
 }
 
 function saveStateLabel(readOnly: boolean, isDirty: boolean): string {
@@ -50,10 +45,19 @@ function saveStateLabel(readOnly: boolean, isDirty: boolean): string {
   return isDirty ? 'Unsaved changes' : 'All changes saved';
 }
 
+/** Coloured save-state dot (prototype `.save-dot`: green / amber / muted). */
+function saveDotClass(readOnly: boolean, isDirty: boolean): string {
+  if (readOnly) {
+    return 'bg-muted-foreground';
+  }
+  return isDirty ? 'bg-amber-500 dark:bg-amber-400' : 'bg-green-600 dark:bg-green-500';
+}
+
 /**
- * Explicit-save toolbar: dirty indicator, Save Draft, the status primary action
- * (submit / resubmit / revise), and the Preview Live toggle. There is no
- * autosave — edits live in client state until a save or primary action.
+ * Explicit-save toolbar (prototype `.savebar`, owner-workspace.html L120-125 /
+ * L326-339): save-state dot + label + last-saved timestamp, and Undo / Redo /
+ * Preview Live / Save Draft / Submit for Approval. There is no autosave — edits
+ * live in client state until a save or primary action.
  */
 export function EditorSaveBar({
   readOnly,
@@ -63,29 +67,33 @@ export function EditorSaveBar({
   isSaving,
   error,
   coreStaged,
-  isPreviewOpen,
+  lastSavedAt,
   canUndo,
   canRedo,
   onUndo,
   onRedo,
-  showResetSection,
-  canResetSection,
-  resetSectionLabel,
-  onResetSection,
-  onSave,
-  onTogglePreview,
-  onOpenFullPreview,
-  fullPreviewTriggerRef,
+  onOpenPreview,
+  previewTriggerRef,
   primaryAction,
   canRunPrimary,
   isSubmitting,
   onPrimary,
+  onSave,
 }: EditorSaveBarProps) {
   return (
-    <div className="border-border bg-card text-card-foreground flex flex-wrap items-center justify-between gap-3 rounded-card border px-card py-3">
+    <div className="border-border bg-card text-card-foreground rounded-card flex flex-wrap items-center justify-between gap-3 border px-card py-3">
       <div className="flex flex-col gap-1">
-        <p role="status" className="text-sm">
+        <p role="status" className="flex flex-wrap items-center gap-2 text-sm">
+          <span
+            aria-hidden="true"
+            className={cn('size-2 shrink-0 rounded-pill', saveDotClass(readOnly, isDirty))}
+          />
           {saveStateLabel(readOnly, isDirty)}
+          {lastSavedAt === undefined ? null : (
+            <span className="text-card-muted text-xs">
+              · Last saved {formatTimestamp(lastSavedAt)}
+            </span>
+          )}
         </p>
         {coreStaged ? (
           <p className="text-card-foreground/80 text-xs">
@@ -106,31 +114,16 @@ export function EditorSaveBar({
         <Button type="button" variant="ghost" size="sm" onClick={onRedo} disabled={!canRedo}>
           Redo
         </Button>
-        {showResetSection ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onResetSection}
-            disabled={!canResetSection}
-          >
-            {`Reset ${resetSectionLabel}`}
-          </Button>
-        ) : null}
         <Button
-          ref={fullPreviewTriggerRef}
+          ref={previewTriggerRef}
           type="button"
           variant="outline"
-          size="sm"
-          onClick={onOpenFullPreview}
+          onClick={onOpenPreview}
         >
-          Full preview
-        </Button>
-        <Button type="button" variant="outline" onClick={onTogglePreview}>
-          {isPreviewOpen ? 'Hide preview' : 'Preview live'}
+          Preview Live
         </Button>
         {readOnly ? null : (
-          <Button type="button" onClick={onSave} disabled={!canSave}>
+          <Button type="button" variant="outline" onClick={onSave} disabled={!canSave}>
             {isSaving ? 'Saving…' : saveLabel}
           </Button>
         )}

@@ -30,11 +30,21 @@ test('gives each status a distinct label', () => {
   assert.equal(new Set(labels).size, ALL_STATUSES.length);
 });
 
-test('uses the destructive tone for rejected and suspended', () => {
-  assert.equal(getStatusChip('rejected').variant, 'destructive');
-  assert.equal(getStatusChip('suspended').variant, 'destructive');
+test('paints changesRequested and rejected with the red (destructive) tone', () => {
+  assert.match(getStatusChip('changesRequested').className, /red/);
+  assert.match(getStatusChip('rejected').className, /red/);
 });
 
-test('uses the outline tone for a draft', () => {
-  assert.equal(getStatusChip('draft').variant, 'outline');
+test('paints draft and suspended with the muted tone', () => {
+  assert.match(getStatusChip('draft').className, /muted/);
+  assert.match(getStatusChip('suspended').className, /muted/);
+});
+
+test('gives every status a distinct, status-dependent card action label', () => {
+  assert.equal(getStatusChip('draft').actionLabel, 'Continue editing');
+  assert.equal(getStatusChip('pendingReview').actionLabel, 'View (read-only)');
+  assert.equal(getStatusChip('approved').actionLabel, 'Edit listing');
+  assert.equal(getStatusChip('changesRequested').actionLabel, 'Fix & resubmit');
+  assert.equal(getStatusChip('rejected').actionLabel, 'Revise & resubmit');
+  assert.equal(getStatusChip('suspended').actionLabel, 'View listing');
 });

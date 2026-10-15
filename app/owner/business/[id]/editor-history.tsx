@@ -19,7 +19,7 @@ export function EditorHistory({ entries }: { entries: HistoryEntry[] }) {
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No history yet.</p>
+          <p className="text-card-muted text-sm">No history yet.</p>
         ) : (
           <ul role="list" className="flex flex-col gap-3">
             {entries.map((entry) => (
@@ -30,7 +30,7 @@ export function EditorHistory({ entries }: { entries: HistoryEntry[] }) {
                 <span className="text-sm">{entry.label}</span>
                 <time
                   dateTime={new Date(entry.at).toISOString()}
-                  className="text-muted-foreground font-label text-xs"
+                  className="text-card-muted font-label text-xs"
                 >
                   {formatTimestamp(entry.at)}
                 </time>

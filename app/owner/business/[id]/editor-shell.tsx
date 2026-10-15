@@ -15,12 +15,13 @@ import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
 import { EditorSectionBody } from './editor-section-body';
 import {
+  deriveNavCompletion,
   EDITOR_NAV_SECTIONS,
   EDITOR_SECTIONS,
   EditorSectionNav,
   type EditorSectionId,
 } from './editor-sections';
-import type { CategoryOption } from './section-editors';
+import type { CategoryOption } from './section-card';
 import type { OwnerEditorDocument } from './editor-types';
 import {
   deriveHistoryEntries,
@@ -150,12 +151,11 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   const [baseline, setBaseline] = useState<EditorFormState>(() => createEditorForm(business));
   const form = history.present;
   const [activeId, setActiveId] = useState<EditorSectionId>(EDITOR_SECTIONS[0].id);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPreviewOverlayOpen, setIsPreviewOverlayOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Ref to the "Full preview" button: the overlay has no Radix trigger under its
+  // Ref to the "Preview Live" button: the overlay has no Radix trigger under its
   // root, so it restores focus here on close (see EditorPreviewOverlay).
   const previewTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -178,6 +178,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     coreStaged,
   });
   const historyEntries = deriveHistoryEntries(business);
+  const navCompletion = deriveNavCompletion(form, business.photos.length);
 
   const isBusy = isSaving || isSubmitting;
   // Validate only what will be persisted. Approved core identity (e.g. a staged
@@ -363,7 +364,9 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
   return (
     <div className="flex flex-col gap-gap">
       <EditorHeader business={business} />
-      {banner === null ? null : <EditorStatusBanner banner={banner} />}
+      {banner === null ? null : (
+        <EditorStatusBanner banner={banner} onRevise={handleRevise} canRevise={canRunPrimary} />
+      )}
       <EditorSaveBar
         readOnly={readOnly}
         isDirty={dirty.length > 0}
@@ -372,26 +375,21 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         isSaving={isSaving}
         error={error}
         coreStaged={coreStaged}
-        isPreviewOpen={isPreviewOpen}
+        lastSavedAt={business.lastSavedAt}
         canUndo={canUndo(history)}
         canRedo={canRedo(history)}
         onUndo={handleUndo}
         onRedo={handleRedo}
-        showResetSection={showResetSection}
-        canResetSection={canResetSection}
-        resetSectionLabel={activeSection.label}
-        onResetSection={handleResetSection}
         onSave={handleSave}
-        onTogglePreview={() => setIsPreviewOpen((open) => !open)}
-        onOpenFullPreview={() => setIsPreviewOverlayOpen(true)}
-        fullPreviewTriggerRef={previewTriggerRef}
+        onOpenPreview={() => setIsPreviewOverlayOpen(true)}
+        previewTriggerRef={previewTriggerRef}
         primaryAction={primaryAction}
         canRunPrimary={canRunPrimary}
         isSubmitting={isSubmitting}
         onPrimary={handlePrimary}
       />
-      <div className="grid grid-cols-1 gap-gap lg:grid-cols-[1fr_3fr]">
-        <EditorSectionNav activeId={activeId} onSelect={setActiveId} />
+      <div className="grid grid-cols-1 items-start gap-gap lg:grid-cols-[15rem_minmax(0,1fr)_22rem]">
+        <EditorSectionNav activeId={activeId} onSelect={setActiveId} completion={navCompletion} />
         <EditorSectionBody
           activeId={activeId}
           activeSection={activeSection}
@@ -400,9 +398,13 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
           readOnly={readOnly}
           categories={toCategoryOptions(categories)}
           historyEntries={historyEntries}
+          photoCount={business.photos.length}
+          showResetSection={showResetSection}
+          canResetSection={canResetSection}
+          onResetSection={handleResetSection}
         />
+        <EditorPreview state={previewState} isDirty={dirty.length > 0} />
       </div>
-      {isPreviewOpen ? <EditorPreview state={previewState} isDirty={dirty.length > 0} /> : null}
       {isPreviewOverlayOpen ? (
         <EditorPreviewOverlay
           state={previewState}

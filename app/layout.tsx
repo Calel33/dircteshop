@@ -1,3 +1,4 @@
+import { ReticleDev } from './reticle-dev';
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
@@ -28,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased overscroll-none`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased overscroll-none`}>{process.env.NODE_ENV === 'development' ? <ReticleDev /> : null}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

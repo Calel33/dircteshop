@@ -10,11 +10,8 @@ export function EditorHeader({ business }: { business: OwnerEditorDocument }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-gap">
       <div className="flex flex-col gap-2">
-        <Link
-          href="/owner"
-          className="text-muted-foreground font-label text-xs hover:text-foreground"
-        >
-          ← Your businesses
+        <Link href="/owner" className="text-primary font-label text-xs hover:underline">
+          ← My Businesses
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-2xl font-semibold">{business.name}</h1>

@@ -71,12 +71,12 @@ export function ApprovalQueueCard({
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CardTitle className="font-display text-lg">{card.name}</CardTitle>
-            <p className="text-muted-foreground text-sm">{card.categoryName ?? 'Uncategorized'}</p>
+            <p className="text-card-muted text-sm">{card.categoryName ?? 'Uncategorized'}</p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={priority === 'high' ? 'default' : 'secondary'}>
                 {PRIORITY_LABELS[priority]}
               </Badge>
-              <span className="text-muted-foreground font-label text-xs">
+              <span className="text-card-muted font-label text-xs">
                 {formatSubmittedAge(card.submittedAt, now)}
               </span>
             </div>
@@ -86,15 +86,15 @@ export function ApprovalQueueCard({
       <CardContent className="px-card">
         <dl className="grid grid-cols-1 gap-gap sm:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground font-label text-xs uppercase">Owner</dt>
+            <dt className="text-card-muted font-label text-xs uppercase">Owner</dt>
             <dd className="text-sm">{card.ownerLabel ?? 'Unknown owner'}</dd>
           </div>
           <div className="flex flex-col gap-1">
-            <dt className="text-muted-foreground font-label text-xs uppercase">Address</dt>
+            <dt className="text-card-muted font-label text-xs uppercase">Address</dt>
             <dd className="text-sm">{address || 'No address provided'}</dd>
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
-            <dt className="text-muted-foreground font-label text-xs uppercase">Contact</dt>
+            <dt className="text-card-muted font-label text-xs uppercase">Contact</dt>
             <dd className="text-sm">{contact || 'No contact details provided'}</dd>
           </div>
         </dl>

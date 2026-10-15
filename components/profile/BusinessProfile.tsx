@@ -38,13 +38,16 @@ function AboutCard({ description }: { description: string }) {
 /**
  * Public business-profile foundation (SPEC §6). Renders the shared slots —
  * breadcrumb, hero, identity bar, actions, then a two-column main + sidebar
- * layout that collapses to one column below the `lg` breakpoint.
+ * layout that collapses to one column below the container `md` width.
+ * Container queries (not viewport breakpoints) drive the collapse so the same
+ * renderer stacks correctly in narrow hosts such as the owner editor's
+ * 22rem Live Preview column on a wide desktop viewport.
  */
 export function BusinessProfile({ data, actions, mainContent, sidebar }: BusinessProfileProps) {
   const { business, category, vertical } = data;
 
   return (
-    <article className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <article className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 @container">
       <ProfileBreadcrumb
         items={[
           { label: 'Home', href: '/' },
@@ -58,7 +61,7 @@ export function BusinessProfile({ data, actions, mainContent, sidebar }: Busines
       <ProfileHero businessName={business.name} photos={business.photos} />
       <IdentityBar business={business} categoryName={category.name} />
       <ActionsBar actions={actions ?? vertical.defaultActions} business={business} />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 @md:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-6">
           {mainContent ?? <AboutCard description={business.description} />}
         </div>

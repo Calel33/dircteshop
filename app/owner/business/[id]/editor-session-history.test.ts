@@ -39,6 +39,7 @@ function form(overrides: Partial<EditorFormState> = {}): EditorFormState {
     name: 'Acme',
     categoryId: 'categories_1',
     description: 'A cafe',
+    keywords: '',
     address: {
       addressLine1: '1 Main St',
       addressLine2: '',
@@ -197,7 +198,12 @@ test('only the six editable sections have reset fields', () => {
   assert.equal(isEditableSectionKey('change-history'), false);
   assert.equal(sectionResetFields('analytics').length, 0);
   assert.deepStrictEqual(sectionResetFields('contact'), ['phone', 'email', 'website']);
-  assert.deepStrictEqual(sectionResetFields('basic-info'), ['name', 'categoryId', 'description']);
+  assert.deepStrictEqual(sectionResetFields('basic-info'), [
+    'name',
+    'categoryId',
+    'description',
+    'keywords',
+  ]);
 });
 
 test('restoreFieldsFromBaseline copies only the section fields, from a fresh object', () => {

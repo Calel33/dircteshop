@@ -59,7 +59,10 @@ async function validateRequest(req: Request): Promise<WebhookEvent | null> {
   };
   const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET!);
   try {
-    return wh.verify(payloadString, svixHeaders) as unknown as WebhookEvent;
+    // svix v2: verify() throws on failure and returns undefined on success
+    // (v1 returned the parsed payload), so parse the verified body ourselves.
+    wh.verify(payloadString, svixHeaders);
+    return JSON.parse(payloadString) as WebhookEvent;
   } catch (error) {
     console.error('Error verifying webhook event', error);
     return null;

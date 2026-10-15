@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,16 +31,18 @@ export function ProfileBreadcrumb({ items }: ProfileBreadcrumbProps) {
           const isCurrent = index === items.length - 1;
 
           return (
-            <BreadcrumbItem key={`${item.label}-${index}`}>
-              {isCurrent ? (
-                <BreadcrumbPage>{item.label}</BreadcrumbPage>
-              ) : item.href === undefined ? (
-                <span className="text-foreground">{item.label}</span>
-              ) : (
-                <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
-              )}
+            <Fragment key={`${item.label}-${index}`}>
+              <BreadcrumbItem>
+                {isCurrent ? (
+                  <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                ) : item.href === undefined ? (
+                  <span className="text-foreground">{item.label}</span>
+                ) : (
+                  <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
+                )}
+              </BreadcrumbItem>
               {isCurrent ? null : <BreadcrumbSeparator />}
-            </BreadcrumbItem>
+            </Fragment>
           );
         })}
       </BreadcrumbList>

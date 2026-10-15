@@ -4,7 +4,7 @@ import type { Infer } from 'convex/values';
 import { mutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
-import { addressValidator, EDITABLE_FIELD_CLASS, hoursValidator } from '../businessTypes';
+import { EDITABLE_FIELD_CLASS, editableBusinessFieldsValidator } from '../businessTypes';
 import type { EditableBusinessField } from '../businessTypes';
 import { requireBusinessOwner, requireSuperAdmin } from '../authz';
 import { getCurrentUserOrThrow } from '../users';
@@ -50,28 +50,7 @@ const actionValidator = v.union(
   v.literal('reopenAsDraft')
 );
 
-/**
- * The B3a owner-editable field surface (issue #12). Its keys mirror
- * `EDITABLE_FIELD_CLASS`; server-owned fields (`status`, `ownerId`, `searchText`,
- * moderation, timestamps, vertical/photo fields) are deliberately absent. Convex
- * object validation throws on undeclared keys before the handler runs, so a
- * client can never patch them
- * (https://docs.convex.dev/functions/validation.md). `.partial()` makes every
- * field optional for partial saves.
- */
-const editableBusinessFieldsValidator = v.object({
-  name: v.string(),
-  categoryId: v.id('categories'),
-  description: v.string(),
-  address: addressValidator,
-  hours: hoursValidator,
-  phone: v.string(),
-  email: v.string(),
-  website: v.string(),
-  tags: v.array(v.string()),
-  amenities: v.array(v.string()),
-});
-
+/** `.partial()` makes every editable field optional for partial saves. */
 const editablePatchValidator = editableBusinessFieldsValidator.partial();
 
 type EditablePatch = Infer<typeof editablePatchValidator>;
@@ -156,7 +135,10 @@ export const saveDraft = mutation({
     const provided = providedEditableFields(EDITABLE_FIELD_CLASS, patch);
     const persistFields = persistableSaveFields(mode, EDITABLE_FIELD_CLASS, provided);
     const now = Date.now();
-    const searchChanged = persistFields.includes('name') || persistFields.includes('description');
+    const searchChanged =
+      persistFields.includes('name') ||
+      persistFields.includes('description') ||
+      persistFields.includes('keywords');
     const normalizedPatch = withNormalizedName(patch);
 
     await ctx.db.patch(businessId, {
@@ -167,7 +149,7 @@ export const saveDraft = mutation({
         ? {
             searchText: buildSearchText(
               normalizedPatch.name ?? business.name,
-              business.keywords,
+              normalizedPatch.keywords ?? business.keywords,
               normalizedPatch.description ?? business.description
             ),
           }
@@ -416,7 +398,7 @@ export const saveAndResubmit = mutation({
       ...buildEditablePatch(normalizedPatch, provided),
       searchText: buildSearchText(
         normalizedPatch.name ?? business.name,
-        business.keywords,
+        normalizedPatch.keywords ?? business.keywords,
         normalizedPatch.description ?? business.description
       ),
       status: targetStatus,

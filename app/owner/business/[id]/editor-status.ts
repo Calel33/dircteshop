@@ -21,6 +21,8 @@ export interface StatusBanner {
   message: string;
   /** Submission timestamp, surfaced only by the pending-review banner. */
   submittedAt?: number;
+  /** Inline action the banner offers, mirroring the prototype (L350). */
+  action?: 'revise';
 }
 
 export interface PrimaryActionInput {
@@ -97,7 +99,7 @@ export function getPrimaryAction({
 }
 
 const PRIMARY_ACTION_LABELS: Record<EditorActionKind, string> = {
-  submit: 'Submit for approval',
+  submit: 'Submit for Approval',
   resubmit: 'Submit changes for review',
   revise: 'Revise listing',
   publish: 'Publish changes',
@@ -112,7 +114,7 @@ export function getPrimaryActionLabel(action: EditorActionKind): string {
  * immediately, so its save reads "Save changes" rather than "Save draft".
  */
 export function getSaveActionLabel(status: ListingStatus): string {
-  return status === 'approved' ? 'Save changes' : 'Save draft';
+  return status === 'approved' ? 'Save changes' : 'Save Draft';
 }
 
 export interface SaveAvailabilityInput {
@@ -186,7 +188,7 @@ export function getStatusBanner({
 }: StatusBannerInput): StatusBanner | null {
   if (status === 'pendingReview') {
     return {
-      tone: 'info',
+      tone: 'brand',
       title: 'Submitted — pending review',
       message: 'This listing is read-only while a moderator reviews it.',
       ...(submittedAt === undefined ? {} : { submittedAt }),
@@ -195,21 +197,16 @@ export function getStatusBanner({
   if (status === 'changesRequested') {
     return {
       tone: 'warning',
-      title: 'Changes requested',
-      message: withReason(
-        'A moderator asked for changes. Editing is re-enabled — revise and submit again.',
-        moderationReason
-      ),
+      title: 'Changes requested by LocalHub Admin',
+      message: withReason('Editing is re-enabled — revise and resubmit.', moderationReason),
     };
   }
   if (status === 'rejected') {
     return {
       tone: 'danger',
       title: 'Listing rejected',
-      message: withReason(
-        'This listing was not approved. Revise it to make changes, then submit again.',
-        moderationReason
-      ),
+      message: withReason('Start a revision to fix it, then submit again.', moderationReason),
+      action: 'revise',
     };
   }
   if (status === 'suspended') {
@@ -222,9 +219,9 @@ export function getStatusBanner({
   if (status === 'approved' && coreStaged) {
     return {
       tone: 'brand',
-      title: 'Core identity changes staged',
+      title: 'Core identity fields changed',
       message:
-        'Name, category, description and address are core identity. Saving and resubmitting sends this approved listing back for review; content edits publish immediately.',
+        'Name, category, description and address are core — submitting sends this approved listing back for review. Content edits (hours, contact, tags and amenities) go live immediately.',
     };
   }
   return null;

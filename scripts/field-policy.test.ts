@@ -13,7 +13,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { EDITABLE_FIELD_CLASS } from '../convex/businessTypes.ts';
+import { EDITABLE_FIELD_CLASS, editableBusinessFieldsValidator } from '../convex/businessTypes.ts';
 import * as stateMachine from '../convex/businesses/helpers.ts';
 
 const classification = EDITABLE_FIELD_CLASS;
@@ -27,7 +27,7 @@ test('classifies the SPEC §5 core identity fields as "core"', () => {
 });
 
 test('classifies the remaining editable fields as "content"', () => {
-  const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities'] as const;
+  const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities', 'keywords'] as const;
 
   for (const field of contentFields) {
     assert.equal(classification[field], 'content', `${field} must be content`);
@@ -46,7 +46,29 @@ test('pins the exact editable allowlist and its classes', () => {
     website: 'content',
     tags: 'content',
     amenities: 'content',
+    keywords: 'content',
   });
+});
+
+/**
+ * Regression guard: the `saveDraft` / `saveAndResubmit` patch validator once
+ * diverged from this policy and rejected a `keywords` field the editor sends
+ * (`Object contains extra field "keywords" ... Path: .patch`). The validator's
+ * declared keys must mirror the allowlist exactly so no editable field is ever
+ * refused at the API boundary.
+ */
+test('editable patch validator declares exactly the editable allowlist keys', () => {
+  const validatorKeys = Object.keys(editableBusinessFieldsValidator.fields).sort();
+  const policyKeys = Object.keys(classification).sort();
+
+  assert.deepStrictEqual(validatorKeys, policyKeys);
+});
+
+test('keywords is a declared, optional string array in a partial patch', () => {
+  const patchFields = editableBusinessFieldsValidator.partial().fields;
+
+  assert.equal(patchFields.keywords.isOptional, 'optional');
+  assert.equal(patchFields.keywords.kind, 'array');
 });
 
 test('excludes non-editable and out-of-scope B3a fields', () => {
@@ -61,7 +83,6 @@ test('excludes non-editable and out-of-scope B3a fields', () => {
     'photos',
     'services',
     'credentials',
-    'keywords',
     'timezone',
     'isFeatured',
     'moderationReason',

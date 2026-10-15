@@ -86,7 +86,13 @@ export function ActionsBar({ actions, business }: ActionsBarProps) {
           const { label, icon } = resolveWorkflowAction(action);
 
           return (
-            <Button key={key} variant="outline" disabled title="Available in a future release">
+            <Button
+              key={key}
+              variant="outline"
+              disabled
+              title="Available in a future release"
+              className="disabled:opacity-100 border-muted-foreground/40 text-muted-foreground"
+            >
               {icon}
               {label}
             </Button>
@@ -96,7 +102,13 @@ export function ActionsBar({ actions, business }: ActionsBarProps) {
         const { label, icon, href } = resolveLinkAction(action, business);
 
         return href === undefined ? (
-          <Button key={key} variant="outline" disabled title="Not provided by this business">
+          <Button
+            key={key}
+            variant="outline"
+            disabled
+            title="Not provided by this business"
+            className="disabled:opacity-100 border-muted-foreground/40 text-muted-foreground"
+          >
             {icon}
             {label}
           </Button>
