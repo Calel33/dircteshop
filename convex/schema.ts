@@ -76,6 +76,15 @@ export default defineSchema({
     // scanning unrelated categories. Retains `byStatusSubmittedAt` for the
     // all-category path. Docs: https://docs.convex.dev/database/reading-data/indexes
     .index('byStatusCategorySubmittedAt', ['status', 'categoryId', 'submittedAt'])
+    // Landing feed ordering (B4, SPEC §8): approved featured listings by last
+    // update, and approved verified listings by verification time. Dot paths
+    // index nested fields (https://docs.convex.dev/database/reading-data/indexes).
+    .index('byStatusFeaturedUpdatedAt', ['status', 'isFeatured', 'lastUpdatedAt'])
+    .index('byStatusVerifiedVerifiedAt', [
+      'status',
+      'verification.isVerified',
+      'verification.verifiedAt',
+    ])
     .index('byCategoryId', ['categoryId'])
     .index('byOwnerId', ['ownerId'])
     .searchIndex('searchText', {
