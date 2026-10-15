@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 
 import { api } from '@/convex/_generated/api';
@@ -180,18 +180,33 @@ function ConnectedApprovalQueue({
   // Current page size; halved when a SplitRequired page cannot be narrowed.
   const [pageSize, setPageSize] = useState(APPROVAL_PAGE_SIZE);
 
+  // The queue read requires a Super Admin identity, so it must not subscribe
+  // before Convex auth is confirmed: on a fresh page load the first fire would
+  // otherwise race `ConvexProviderWithClerk`'s token fetch and
+  // `requireSuperAdmin` would reject it (`Unauthorized`), latching this route's
+  // load boundary. While auth resolves the queue stays in its loading state; an
+  // authenticated non-admin still gets the server's `Forbidden` once the query
+  // runs.
+  // Docs: https://docs.convex.dev/auth/clerk
+  const { isAuthenticated } = useConvexAuth();
+
   const categories = useQuery(api.categories.listOrdered);
-  const result = useQuery(api.businesses.queries.listPendingApprovals, {
-    paginationOpts: {
-      numItems: pageSize,
-      cursor: pageRef.cursor,
-      endCursor: pageRef.endCursor,
-    },
-    categoryId: filters.categoryId as Id<'categories'> | undefined,
-    priority: filters.priority,
-    time: filters.time,
-    now,
-  });
+  const result = useQuery(
+    api.businesses.queries.listPendingApprovals,
+    isAuthenticated
+      ? {
+          paginationOpts: {
+            numItems: pageSize,
+            cursor: pageRef.cursor,
+            endCursor: pageRef.endCursor,
+          },
+          categoryId: filters.categoryId as Id<'categories'> | undefined,
+          priority: filters.priority,
+          time: filters.time,
+          now,
+        }
+      : 'skip'
+  );
   const moderateListing = useMutation(api.businesses.mutations.moderateListing);
 
   const [detailsTarget, setDetailsTarget] = useState<ApprovalCard | null>(null);
