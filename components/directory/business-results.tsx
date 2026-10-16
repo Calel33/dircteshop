@@ -234,8 +234,8 @@ function ConnectedBusinessResults({ q, category, resetPath }: BusinessResultsPro
   /** Empty-state CTA: drop chips and any search term, back to the full list. */
   function clearAll() {
     setFilters(OFF_FILTERS);
-    if (q.trim().length > 0) {
-      router.replace(resetPath);
+    if (q.trim().length > 0 || category) {
+      router.replace(category ? '/search' : resetPath);
     }
   }
 
