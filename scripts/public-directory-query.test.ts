@@ -186,6 +186,20 @@ class PaginateBudget {
 }
 
 /**
+ * One index/search read as the handler requested it: the builder
+ * (`withIndex` / `withSearchIndex`) and index name, the search field and term
+ * (search reads only), the equality chain in call order (Convex index ranges
+ * are positional, so order is part of the contract), and the requested
+ * `.order` direction. `directoryCtx` collects these for assertions.
+ */
+type CapturedQuery = {
+  index: string;
+  search: { field: string; term: string } | null;
+  equalities: ReadonlyArray<[string, unknown]>;
+  order: 'asc' | 'desc' | null;
+};
+
+/**
  * Minimal `ctx.db` stand-in for the reads under test: only `query('businesses')`
  * is exercised. Every query object is single-use, mirroring
  * `QueryImpl#takeQuery`/`startQuery` (query_impl.ts) including the runtime error
@@ -193,22 +207,26 @@ class PaginateBudget {
  * `PaginateBudget` adds the one-paginated-query-per-function rule.
  *
  * Fixture rows are listed in `byStatusSubmittedAt` order (newest first), so the
- * fake's `order('desc')` has nothing to re-sort.
+ * fake's `order('desc')` has nothing to re-sort; the requested chain is
+ * recorded on the captured query instead.
  */
 class FakeQuery {
   private state: 'preparing' | 'executing' | 'closed' | 'consumed' = 'preparing';
   private readonly rows: Doc<'businesses'>[];
   private readonly equalities: ReadonlyArray<[string, unknown]>;
   private readonly paginateBudget: PaginateBudget;
+  private readonly captured: CapturedQuery;
 
   constructor(
     rows: Doc<'businesses'>[],
     paginateBudget: PaginateBudget,
-    equalities: ReadonlyArray<[string, unknown]> = [],
+    captured: CapturedQuery,
+    equalities: ReadonlyArray<[string, unknown]> = captured.equalities
   ) {
     this.rows = rows;
     this.equalities = equalities;
     this.paginateBudget = paginateBudget;
+    this.captured = captured;
   }
 
   private matchingRows(): Doc<'businesses'>[] {
@@ -235,9 +253,10 @@ class FakeQuery {
     );
   }
 
-  order(): FakeQuery {
+  order(direction: 'asc' | 'desc'): FakeQuery {
     this.takeQuery();
-    return new FakeQuery(this.rows, this.paginateBudget, this.equalities);
+    this.captured.order = direction;
+    return new FakeQuery(this.rows, this.paginateBudget, this.captured, this.equalities);
   }
 
   async paginate(options: { cursor: string | null; numItems: number }): Promise<{
@@ -274,19 +293,47 @@ class FakeQuery {
 class FakeQueryInitializer {
   private readonly rows: Doc<'businesses'>[];
   private readonly paginateBudget: PaginateBudget;
+  private readonly capturedQueries: CapturedQuery[];
 
-  constructor(rows: Doc<'businesses'>[], paginateBudget: PaginateBudget) {
+  constructor(
+    rows: Doc<'businesses'>[],
+    paginateBudget: PaginateBudget,
+    capturedQueries: CapturedQuery[]
+  ) {
     this.rows = rows;
     this.paginateBudget = paginateBudget;
+    this.capturedQueries = capturedQueries;
   }
 
-  withIndex(
-    _indexName: string,
-    indexRange: (range: FakeIndexRange) => unknown,
-  ): FakeQuery {
+  withIndex(indexName: string, indexRange: (range: FakeIndexRange) => unknown): FakeQuery {
     const range = new FakeIndexRange();
     indexRange(range);
-    return new FakeQuery(this.rows, this.paginateBudget, range.equalities);
+    const captured: CapturedQuery = {
+      index: indexName,
+      search: null,
+      equalities: range.equalities,
+      order: null,
+    };
+    this.capturedQueries.push(captured);
+    return new FakeQuery(this.rows, this.paginateBudget, captured);
+  }
+
+  withSearchIndex(indexName: string, searchRange: (range: FakeSearchRange) => unknown): FakeQuery {
+    const range = new FakeSearchRange();
+    searchRange(range);
+    const captured: CapturedQuery = {
+      index: indexName,
+      search: { field: range.searchField, term: range.searchTerm },
+      equalities: range.equalities,
+      order: null,
+    };
+    this.capturedQueries.push(captured);
+    const rows = this.rows.filter((row) =>
+      String((row as Record<string, unknown>)[range.searchField] ?? '')
+        .toLowerCase()
+        .includes(range.searchTerm.toLowerCase())
+    );
+    return new FakeQuery(rows, this.paginateBudget, captured);
   }
 }
 
@@ -299,15 +346,35 @@ class FakeIndexRange {
   }
 }
 
+/** Search-filter builder stand-in: records the search call and chains `.eq`. */
+class FakeSearchRange {
+  searchField = '';
+  searchTerm = '';
+  readonly equalities: Array<[string, unknown]> = [];
+
+  search(field: string, term: string): FakeSearchRange {
+    this.searchField = field;
+    this.searchTerm = term;
+    return this;
+  }
+
+  eq(field: string, value: unknown): FakeSearchRange {
+    this.equalities.push([field, value]);
+    return this;
+  }
+}
+
 function directoryCtx(rows: Doc<'businesses'>[]) {
   const paginateBudget = new PaginateBudget();
+  const capturedQueries: CapturedQuery[] = [];
   return {
     db: {
       query(tableName: string) {
         assert.equal(tableName, 'businesses');
-        return new FakeQueryInitializer(rows, paginateBudget);
+        return new FakeQueryInitializer(rows, paginateBudget, capturedQueries);
       },
     },
+    capturedQueries,
   };
 }
 
@@ -468,7 +535,8 @@ test('countDirectory and the chip-filtered listDirectory page read the same chip
 });
 
 test('listDirectory without chips reads the first index page in one pass', async () => {
-  const page = await listDirectoryHandler(directoryCtx(directoryRows()), {
+  const ctx = directoryCtx(directoryRows());
+  const page = await listDirectoryHandler(ctx, {
     paginationOpts: { numItems: 6, cursor: null },
     q: '',
     openNow: false,
@@ -481,4 +549,124 @@ test('listDirectory without chips reads the first index page in one pass', async
     ['Closed Cafe 1', 'Closed Cafe 2', 'Closed Cafe 3', 'Closed Cafe 4', 'Closed Cafe 5', 'Closed Cafe 6'],
   );
   assert.equal(page.isDone, false);
+
+  const [captured] = ctx.capturedQueries;
+  assert.equal(captured.index, 'byStatusSubmittedAt');
+  assert.equal(captured.search, null);
+  assert.deepStrictEqual(captured.equalities, [['status', 'approved']]);
+  assert.equal(captured.order, 'desc');
+});
+
+// ---------------------------------------------------------------------------
+// Search vs browse routing at the live handlers. Each case inspects the
+// captured builder — branch (`withSearchIndex` / `withIndex`), index name,
+// search field and trimmed term, equality-chain order, and `.order` direction
+// — so a regression that routes a term into browse, drops or reorders a
+// positional `.eq`, or flips an order direction fails here.
+// ---------------------------------------------------------------------------
+
+/**
+ * Routing fixture in `byStatusSubmittedAt` order (newest first). `searchText`
+ * drives the fake search; categories and statuses differ so each test shows
+ * which constraint removed a row.
+ */
+function routingRows(): Doc<'businesses'>[] {
+  return [
+    directoryBusiness({
+      _id: 'businesses_sunrise_bakery' as Id<'businesses'>,
+      name: 'Sunrise Bakery',
+      searchText: 'Sunrise Bakery bakery bread',
+      submittedAt: 1_700_000_000_004,
+    }),
+    directoryBusiness({
+      _id: 'businesses_acme_coffee' as Id<'businesses'>,
+      name: 'Acme Coffee',
+      categoryId: 'categories_2' as Id<'categories'>,
+      searchText: 'Acme Coffee coffee espresso',
+      submittedAt: 1_700_000_000_003,
+    }),
+    directoryBusiness({
+      _id: 'businesses_corner_bakery' as Id<'businesses'>,
+      name: 'Corner Bakery',
+      categoryId: 'categories_2' as Id<'categories'>,
+      searchText: 'Corner Bakery bakery croissant',
+      submittedAt: 1_700_000_000_002,
+    }),
+    directoryBusiness({
+      _id: 'businesses_hidden_bakery' as Id<'businesses'>,
+      name: 'Hidden Bakery',
+      searchText: 'Hidden Bakery bakery bread',
+      status: 'pendingReview',
+      submittedAt: 1_700_000_000_001,
+    }),
+  ];
+}
+
+test('listDirectory sends a non-empty trimmed term to the approved search index', async () => {
+  const ctx = directoryCtx(routingRows());
+
+  const page = await listDirectoryHandler(ctx, {
+    paginationOpts: { numItems: 6, cursor: null },
+    q: '  bakery  ',
+    openNow: false,
+    highlyRated: false,
+    now: NOW,
+  });
+
+  const names = page.page.map((result) => result.name);
+  assert.deepStrictEqual(names, ['Sunrise Bakery', 'Corner Bakery']);
+
+  const [captured] = ctx.capturedQueries;
+  assert.equal(captured.index, 'searchText');
+  assert.deepStrictEqual(captured.search, { field: 'searchText', term: 'bakery' });
+  assert.deepStrictEqual(captured.equalities, [['status', 'approved']]);
+  assert.equal(captured.order, null);
+});
+
+test('listDirectory scopes a search to the category after the approved constraint', async () => {
+  const ctx = directoryCtx(routingRows());
+
+  const page = await listDirectoryHandler(ctx, {
+    paginationOpts: { numItems: 6, cursor: null },
+    q: 'bakery',
+    categoryId: 'categories_2' as Id<'categories'>,
+    openNow: false,
+    highlyRated: false,
+    now: NOW,
+  });
+
+  const names = page.page.map((result) => result.name);
+  assert.deepStrictEqual(names, ['Corner Bakery']);
+
+  const [captured] = ctx.capturedQueries;
+  assert.equal(captured.index, 'searchText');
+  assert.deepStrictEqual(captured.search, { field: 'searchText', term: 'bakery' });
+  assert.deepStrictEqual(captured.equalities, [
+    ['status', 'approved'],
+    ['categoryId', 'categories_2'],
+  ]);
+});
+
+test('listDirectory browses a category on the newest-first approved+category index', async () => {
+  const ctx = directoryCtx(routingRows());
+
+  const page = await listDirectoryHandler(ctx, {
+    paginationOpts: { numItems: 6, cursor: null },
+    q: '',
+    categoryId: 'categories_2' as Id<'categories'>,
+    openNow: false,
+    highlyRated: false,
+    now: NOW,
+  });
+
+  const names = page.page.map((result) => result.name);
+  assert.deepStrictEqual(names, ['Acme Coffee', 'Corner Bakery']);
+
+  const [captured] = ctx.capturedQueries;
+  assert.equal(captured.index, 'byStatusCategorySubmittedAt');
+  assert.deepStrictEqual(captured.equalities, [
+    ['status', 'approved'],
+    ['categoryId', 'categories_2'],
+  ]);
+  assert.equal(captured.order, 'desc');
 });
