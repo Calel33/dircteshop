@@ -3,7 +3,7 @@
 import { usePaginatedQuery, useQuery } from 'convex/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Component, Fragment, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/convex/_generated/api';
@@ -16,7 +16,7 @@ import { CategoryIcon } from './category-icon';
 import {
   DirectoryCountLine,
   DirectoryEmptyState,
-  DirectoryErrorState,
+  DirectoryLoadBoundary,
   LoadMoreControl,
   ResultRowsSkeleton,
 } from './directory-states';
@@ -54,36 +54,6 @@ export type BusinessResultsProps = {
   /** Where the empty state's clear-filters CTA returns to (drops `q`). */
   resetPath: string;
 };
-
-/**
- * Catches render-time failures from the live queries (`usePaginatedQuery` and
- * `useQuery` throw during render on a function error; the positional
- * `usePaginatedQuery` exposes no error value). The retry remounts the subtree
- * so the queries re-subscribe instead of replaying the cached error.
- * Docs: https://docs.convex.dev/functions/error-handling
- */
-class DirectoryLoadBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean; resetKey: number }
-> {
-  state = { hasError: false, resetKey: 0 };
-
-  static getDerivedStateFromError(): Partial<{ hasError: boolean }> {
-    return { hasError: true };
-  }
-
-  reset = () => {
-    this.setState((previous) => ({ hasError: false, resetKey: previous.resetKey + 1 }));
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return <DirectoryErrorState onRetry={this.reset} />;
-    }
-
-    return <Fragment key={this.state.resetKey}>{this.props.children}</Fragment>;
-  }
-}
 
 /** Category links + approved counts and the real chips (the results sidebar). */
 function ResultsSidebar({

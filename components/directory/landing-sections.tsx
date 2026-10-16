@@ -13,6 +13,7 @@ import { BusinessCard, type BusinessCardCategory } from './business-card';
 import { CategoryPills, type CategoryPillData } from './category-pills';
 import {
   DirectoryEmptyState,
+  DirectoryLoadBoundary,
   MiniCardsSkeleton,
   PillsSkeleton,
   ResultRowsSkeleton,
@@ -192,7 +193,7 @@ function LandingFeeds({
   );
 }
 
-export function LandingDiscovery() {
+function ConnectedLandingDiscovery() {
   const [filters, setFilters] = useState<DirectoryFilterState>(OFF_FILTERS);
 
   // Stable per chip session; recomputed only when a chip changes.
@@ -246,5 +247,20 @@ export function LandingDiscovery() {
         <LandingSkeletonSections />
       )}
     </div>
+  );
+}
+
+/**
+ * Public entry: the landing discovery wrapped in the shared load boundary
+ * (mirrors `BusinessResults`) so a failed category or feed query renders the
+ * kit's DirectoryErrorState with a remount retry instead of escaping to the
+ * framework error page. The four live queries run inside this subtree, so the
+ * boundary can catch their render-time throws.
+ */
+export function LandingDiscovery() {
+  return (
+    <DirectoryLoadBoundary>
+      <ConnectedLandingDiscovery />
+    </DirectoryLoadBoundary>
   );
 }
