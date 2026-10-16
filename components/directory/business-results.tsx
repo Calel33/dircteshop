@@ -239,6 +239,11 @@ function ConnectedBusinessResults({ q, category, resetPath }: BusinessResultsPro
     now,
   };
 
+  // `initialNumItems` / `loadMore` sizes do not cap the returned batch: with a
+  // chip active `listDirectory` returns every match from its scan window
+  // (`numItems * MAX_DIRECTORY_PAGE_CHUNKS`, 5), so a batch can be smaller than
+  // `DIRECTORY_PAGE_SIZE`, up to 5x larger, or an empty-but-continuable page.
+  // Counts render from `results.length`.
   const { results, status, loadMore } = usePaginatedQuery(
     api.businesses.queries.listDirectory,
     directoryArgs,
