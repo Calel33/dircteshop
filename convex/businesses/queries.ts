@@ -93,8 +93,10 @@ export const getPublic = query({
  * most one paginated query, so the budget cannot be spent across several
  * `.paginate` calls (query_impl.ts). The cap bounds reads per request; the
  * backend's `isDone`/`continueCursor` always describe the scanned window, so no
- * record is ever skipped or duplicated, and a window with fewer than `numItems`
- * matches simply returns a shorter page.
+ * record is ever skipped or duplicated. A chip-active page returns every match
+ * from its window — 0 through `numItems * MAX_DIRECTORY_PAGE_CHUNKS` results —
+ * so a batch can be shorter than `numItems`, longer than `numItems`, or an
+ * empty-but-continuable page when the window holds no match.
  */
 const MAX_DIRECTORY_PAGE_CHUNKS = 5;
 
@@ -177,12 +179,16 @@ function toDirectoryResult(
  * one in the same invocation ("This query or mutation function ran multiple
  * paginated queries", query_impl.ts), so the refill budget is one scan window
  * of `numItems * MAX_DIRECTORY_PAGE_CHUNKS` rows and the shared predicate
- * (`matchesDirectoryFilters`) filters the returned page in-function. The
- * backend's `isDone`/`continueCursor` pass through unchanged, so a window with
- * few matches returns a shorter, still-continuable page (page sizes may
- * legitimately change — PaginationOptions docs) and no record is ever skipped
- * or duplicated. The 1,024-document search scan limit is the hard bound for
- * text searches.
+ * (`matchesDirectoryFilters`) filters the returned page in-function. That page
+ * holds every match in the window — 0 through
+ * `numItems * MAX_DIRECTORY_PAGE_CHUNKS` results — so `paginationOpts.numItems`
+ * sets the scan budget, not a cap on the returned batch: the client's
+ * `initialNumItems` / `loadMore` sizes work the same way. The backend's
+ * `isDone`/`continueCursor` pass through unchanged, so a window with few or no
+ * matches returns a shorter or empty-but-continuable page while the cursor
+ * keeps advancing over the scanned window (page sizes may legitimately change —
+ * PaginationOptions docs) and no record is ever skipped or duplicated. The
+ * 1,024-document search scan limit is the hard bound for text searches.
  * Docs: https://docs.convex.dev/database/pagination
  */
 export const listDirectory = query({
@@ -212,7 +218,8 @@ export const listDirectory = query({
 
     // One `.paginate` per invocation is the runtime's hard limit, so the whole
     // refill budget is one window of `numItems * MAX_DIRECTORY_PAGE_CHUNKS`
-    // scanned rows; the chip predicate filters the returned page in-function.
+    // scanned rows; the chip predicate filters the returned page in-function,
+    // so the batch is every window match — 0 through the full window size.
     const result = await directoryBaseQuery(ctx, args, term).paginate({
       ...args.paginationOpts,
       numItems: args.paginationOpts.numItems * MAX_DIRECTORY_PAGE_CHUNKS,
