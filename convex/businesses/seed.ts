@@ -2,10 +2,11 @@ import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { buildSearchText } from './helpers';
+import { SEED_FIXTURES, type SeedFixture } from './seedFixtures';
 
-// Dev-only seed data for the LocalConnect reference profiles (B2). Nothing in
-// this module is client-callable: every entry point is an `internalMutation`,
-// runnable only from the CLI / Dashboard:
+// Dev-only seed data for the LocalConnect public surfaces (B2, extended by B4).
+// Nothing in this module is client-callable: every entry point is an
+// `internalMutation`, runnable only from the CLI / Dashboard:
 //
 //   npx convex run businesses/seed:seedBusinesses
 //
@@ -13,7 +14,9 @@ import { buildSearchText } from './helpers';
 // `externalId`, categories are resolved by slug (seeded separately by
 // `categories:seedCategories`), and a business is inserted only when the seed
 // owner has no business of that name. Re-running therefore returns the same
-// ids and writes nothing.
+// ids and writes nothing. The fixture contract (statuses, categories, ratings,
+// hours, timezones, deterministic feed offsets) lives in `seedFixtures.ts` and
+// is pinned by `scripts/business-seed.test.ts`.
 //
 // This module exists so `businesses/transition` stays a pure state machine —
 // the seed never fabricates a transition, it writes the terminal docs directly.
@@ -30,76 +33,33 @@ const SEED_OWNER_NAME = 'LocalConnect Seed Owner';
 const SEED_ADMIN_EXTERNAL_ID = 'seed-admin-localconnect';
 const SEED_ADMIN_NAME = 'LocalConnect Seed Admin';
 
-// The approved food-drink listing the generic public profile renders (plan T7/T8).
-const APPROVED_FOOD_DRINK = {
-  name: 'Sunrise Bakery & Café',
-  description:
-    'Neighbourhood bakery and café serving hand-rolled pastries, sourdough bread and single-origin coffee.',
-  address: {
-    addressLine1: '18 Maple Street',
-    city: 'Springfield',
-    state: 'IL',
-    postalCode: '62704',
-    country: 'US',
-  },
-  phone: '+1 555 0134',
-  website: 'https://sunrisebakery.example.com',
-  hours: {
-    monday: [{ opensAt: '07:00', closesAt: '17:00' }],
-    tuesday: [{ opensAt: '07:00', closesAt: '17:00' }],
-    wednesday: [{ opensAt: '07:00', closesAt: '17:00' }],
-    thursday: [{ opensAt: '07:00', closesAt: '17:00' }],
-    friday: [{ opensAt: '07:00', closesAt: '18:00' }],
-    saturday: [{ opensAt: '08:00', closesAt: '16:00' }],
-    sunday: [{ opensAt: '08:00', closesAt: '14:00' }],
-  },
-  services: ['Fresh bread', 'Pastries', 'Coffee', 'Cakes', 'Breakfast'],
-  credentials: ['Certified Organic', 'Local Favourite 2025'],
-  keywords: ['bakery', 'cafe', 'coffee', 'pastries', 'bread', 'breakfast'],
-  rating: 4.6,
-  ratingCount: 128,
-};
-
-// The draft retail listing that proves public queries hide non-approved docs.
-const DRAFT_RETAIL = {
-  name: 'Main Street Outfitters',
-  description: 'Independent outdoor and everyday clothing shop for the Springfield community.',
-  address: {
-    addressLine1: '52 Main Street',
-    city: 'Springfield',
-    state: 'IL',
-    postalCode: '62701',
-    country: 'US',
-  },
-  phone: '+1 555 0199',
-  services: ['Outdoor clothing', 'Footwear', 'Accessories'],
-  credentials: [],
-  keywords: ['outfitters', 'clothing', 'outdoor', 'gear', 'retail'],
-};
-
 /**
- * Seeds the two reference businesses against the DEV deployment. Returns the
- * seed owner id and both business ids for the seed script to log.
+ * Seeds the B4 discovery fixtures against the DEV deployment. Returns the seed
+ * owner/admin ids and every fixture's id + status for the seed script to log.
  */
 export const seedBusinesses = internalMutation({
   args: {},
   handler: async (ctx) => {
     const ownerId = await ensureSeedOwner(ctx);
     const adminId = await ensureSeedAdmin(ctx);
-    const foodDrinkCategoryId = await categoryIdBySlug(ctx, 'food-drink');
-    const retailCategoryId = await categoryIdBySlug(ctx, 'retail');
     const now = Date.now();
 
-    const approvedBusinessId = await ensureApprovedFoodDrink(
-      ctx,
-      ownerId,
-      adminId,
-      foodDrinkCategoryId,
-      now
-    );
-    const draftBusinessId = await ensureDraftRetail(ctx, ownerId, retailCategoryId, now);
+    const categoryIds = new Map<string, Id<'categories'>>();
+    const seeded: { name: string; status: SeedFixture['status']; businessId: Id<'businesses'> }[] =
+      [];
 
-    return { ownerId, adminId, approvedBusinessId, draftBusinessId };
+    for (const fixture of SEED_FIXTURES) {
+      let categoryId = categoryIds.get(fixture.categorySlug);
+      if (categoryId === undefined) {
+        categoryId = await categoryIdBySlug(ctx, fixture.categorySlug);
+        categoryIds.set(fixture.categorySlug, categoryId);
+      }
+
+      const businessId = await ensureFixture(ctx, ownerId, adminId, categoryId, now, fixture);
+      seeded.push({ name: fixture.name, status: fixture.status, businessId });
+    }
+
+    return { ownerId, adminId, seeded };
   },
 });
 
@@ -153,72 +113,63 @@ async function categoryIdBySlug(ctx: MutationCtx, slug: string): Promise<Id<'cat
   return category._id;
 }
 
-/** Inserts the approved food-drink listing once; subsequent runs return the existing id. */
-async function ensureApprovedFoodDrink(
+/**
+ * Inserts one fixture once; subsequent runs return the existing id. Relative
+ * fixture offsets become absolute timestamps against this run's `now`, so feed
+ * ordering (featured by lastUpdatedAt, new by submittedAt, verified by
+ * verifiedAt) is deterministic across fresh deployments.
+ */
+async function ensureFixture(
   ctx: MutationCtx,
   ownerId: Id<'users'>,
   adminId: Id<'users'>,
   categoryId: Id<'categories'>,
-  now: number
+  now: number,
+  fixture: SeedFixture
 ): Promise<Id<'businesses'>> {
-  const existing = await findOwnedBusinessId(ctx, ownerId, APPROVED_FOOD_DRINK.name);
+  const existing = await findOwnedBusinessId(ctx, ownerId, fixture.name);
   if (existing !== null) {
     return existing;
   }
+
+  const lastUpdatedAt = now - fixture.lastUpdatedAtAgoMs;
+  const submittedAt =
+    fixture.submittedAtAgoMs === undefined ? undefined : now - fixture.submittedAtAgoMs;
+  const verifiedAt = fixture.verifiedAgoMs === undefined ? undefined : now - fixture.verifiedAgoMs;
 
   // `photos` stays empty on purpose: `photos[].storageId` is `v.id('_storage')`,
-  // so a placeholder URL cannot live on the doc — ProfileHero renders the
-  // placeholder. Real uploads are B7.
+  // so a placeholder URL cannot live on the doc — card components render a
+  // category-tinted placeholder. Real uploads are B7.
   return await ctx.db.insert('businesses', {
-    ...APPROVED_FOOD_DRINK,
+    name: fixture.name,
     categoryId,
+    description: fixture.description,
+    address: fixture.address,
+    phone: fixture.phone,
+    email: fixture.email,
+    website: fixture.website,
+    timezone: fixture.timezone,
     photos: [],
-    timezone: 'America/Chicago',
-    status: 'approved',
+    hours: fixture.hours,
+    status: fixture.status,
     // `verifiedBy` must reference the approving Super Admin, so the seed stamps
     // the seeded Super Admin row rather than the listing's owner.
-    verification: { isVerified: true, verifiedAt: now, verifiedBy: adminId },
-    searchText: buildSearchText(
-      APPROVED_FOOD_DRINK.name,
-      APPROVED_FOOD_DRINK.keywords,
-      APPROVED_FOOD_DRINK.description
-    ),
+    verification:
+      verifiedAt === undefined
+        ? { isVerified: false }
+        : { isVerified: true, verifiedAt, verifiedBy: adminId },
+    rating: fixture.rating,
+    ratingCount: fixture.ratingCount,
+    services: fixture.services,
+    credentials: fixture.credentials,
+    keywords: fixture.keywords,
+    searchText: buildSearchText(fixture.name, fixture.keywords, fixture.description),
     ownerId,
-    lastUpdatedAt: now,
-    submittedAt: now,
-    isFeatured: false,
-    moderatedAt: now,
-    lastSavedAt: now,
-  });
-}
-
-/** Inserts the draft retail listing once; subsequent runs return the existing id. */
-async function ensureDraftRetail(
-  ctx: MutationCtx,
-  ownerId: Id<'users'>,
-  categoryId: Id<'categories'>,
-  now: number
-): Promise<Id<'businesses'>> {
-  const existing = await findOwnedBusinessId(ctx, ownerId, DRAFT_RETAIL.name);
-  if (existing !== null) {
-    return existing;
-  }
-
-  return await ctx.db.insert('businesses', {
-    ...DRAFT_RETAIL,
-    categoryId,
-    photos: [],
-    hours: {},
-    timezone: 'America/Chicago',
-    status: 'draft',
-    verification: { isVerified: false },
-    rating: 0,
-    ratingCount: 0,
-    searchText: buildSearchText(DRAFT_RETAIL.name, DRAFT_RETAIL.keywords, DRAFT_RETAIL.description),
-    ownerId,
-    lastUpdatedAt: now,
-    isFeatured: false,
-    lastSavedAt: now,
+    lastUpdatedAt,
+    submittedAt,
+    isFeatured: fixture.isFeatured,
+    moderatedAt: verifiedAt ?? submittedAt,
+    lastSavedAt: lastUpdatedAt,
   });
 }
 

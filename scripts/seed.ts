@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Seeds the DEV Convex deployment with the SPEC §10 categories and the two
- * reference businesses (one approved food-drink, one draft retail).
+ * Seeds the DEV Convex deployment with the SPEC §10 categories and the
+ * development discovery fixtures (B4: approved listings across categories,
+ * nonapproved rows, featured/verified/rating/hours edge cases).
  *
  * Usage: pnpm seed   (or: node scripts/seed.ts)
  *
@@ -17,12 +18,31 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
+type SeededBusiness = {
+  name: string;
+  status: string;
+  businessId: string;
+};
+
 type SeedResult = {
   ownerId: string;
   adminId: string;
-  approvedBusinessId: string;
-  draftBusinessId: string;
+  seeded: SeededBusiness[];
 };
+
+function isSeededBusiness(value: unknown): value is SeededBusiness {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.name === 'string' &&
+    typeof candidate.status === 'string' &&
+    typeof candidate.businessId === 'string'
+  );
+}
 
 /**
  * Narrows an unknown Convex return value to `SeedResult`. Mirrors the
@@ -39,8 +59,8 @@ function isSeedResult(value: unknown): value is SeedResult {
   return (
     typeof candidate.ownerId === 'string' &&
     typeof candidate.adminId === 'string' &&
-    typeof candidate.approvedBusinessId === 'string' &&
-    typeof candidate.draftBusinessId === 'string'
+    Array.isArray(candidate.seeded) &&
+    candidate.seeded.every(isSeededBusiness)
   );
 }
 
@@ -71,7 +91,9 @@ if (!isSeedResult(seed)) {
 }
 
 console.log(`Seeded ${categories.length} categories.`);
-console.log(`Seed owner id:                ${seed.ownerId}`);
-console.log(`Seed admin id:                ${seed.adminId}`);
-console.log(`Approved food-drink business: ${seed.approvedBusinessId}`);
-console.log(`Draft retail business:        ${seed.draftBusinessId}`);
+console.log(`Seed owner id: ${seed.ownerId}`);
+console.log(`Seed admin id: ${seed.adminId}`);
+console.log(`Seeded ${seed.seeded.length} businesses:`);
+for (const business of seed.seeded) {
+  console.log(`  [${business.status}] ${business.name}: ${business.businessId}`);
+}

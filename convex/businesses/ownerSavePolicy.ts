@@ -43,7 +43,7 @@ export function isEditableBusinessField(
  * Unknown-key policy (contract §4.2): anything absent from the allowlist is
  * never patchable, so unknown keys are rejected. Convex object validation already
  * throws on undeclared keys at the API boundary; this is the handler-level
- * defense-in-depth check (same posture as `searchPublic`'s post-filter).
+ * defense-in-depth check (same posture as `listDirectory`'s predicate).
  */
 export function findUnknownPatchFields(fieldClass: FieldClassMap, patch: object): string[] {
   return Object.keys(patch).filter((key) => !isEditableBusinessField(fieldClass, key));

@@ -92,6 +92,24 @@ function contrastRatio(fg: [number, number, number], bg: [number, number, number
 const root = blockOf(':root');
 const dark = blockOf('.dark');
 
+/**
+ * Assert one foreground/background token pair clears WCAG AA in both modes.
+ * Shared by the role pairs `design.md` defines (B4 task 1: card and surface
+ * roles must keep checked contrast after the palette remap).
+ */
+function expectPairAa(foreground: string, background: string, minimum = 4.5): void {
+  for (const [mode, block] of [
+    ['light', root],
+    ['dark', dark],
+  ] as const) {
+    const ratio = contrastRatio(tokenSrgb(block, foreground), tokenSrgb(block, background));
+    assert.ok(
+      ratio >= minimum,
+      `--${foreground} vs --${background} (${mode}) = ${ratio.toFixed(2)}:1 (need >= ${minimum}:1)`
+    );
+  }
+}
+
 test('--card-muted clears AA on the light-mode card', () => {
   const ratio = contrastRatio(tokenSrgb(root, 'card-muted'), tokenSrgb(root, 'card'));
   assert.ok(ratio >= 4.5, `card-muted vs light card = ${ratio.toFixed(2)}:1 (need >= 4.5:1)`);
@@ -108,4 +126,38 @@ test('--card-muted is exposed as a Tailwind color utility', () => {
     /--color-card-muted:\s*var\(--card-muted\)/,
     '@theme inline must map --color-card-muted so text-card-muted utilities compile'
   );
+});
+
+// `design.md` (B4 task 1) defines the palette roles mapped below. The surface
+// role (#53617A) is dark, so it carries its own readable foreground rather
+// than pairing text-primary with it.
+
+test('--foreground clears AA on --background in both modes', () => {
+  expectPairAa('foreground', 'background');
+});
+
+test('--card-foreground clears AA on --card in both modes', () => {
+  expectPairAa('card-foreground', 'card');
+});
+
+test('--primary-foreground clears AA on --primary in both modes', () => {
+  expectPairAa('primary-foreground', 'primary');
+});
+
+test('--surface-foreground clears AA on --surface in both modes', () => {
+  expectPairAa('surface-foreground', 'surface');
+});
+
+test('--muted-foreground clears AA on --muted in both modes', () => {
+  expectPairAa('muted-foreground', 'muted');
+});
+
+test('surface roles are exposed as Tailwind color utilities', () => {
+  for (const name of ['surface', 'surface-foreground']) {
+    assert.match(
+      css,
+      new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`),
+      `@theme inline must map --color-${name} so its utilities compile`
+    );
+  }
 });
