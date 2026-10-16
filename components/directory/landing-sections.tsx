@@ -116,10 +116,12 @@ function CategoryStrip({ categories }: { categories: readonly CategoryPillData[]
 function LandingSkeletonSections() {
   return (
     <>
-      <section aria-busy="true" aria-label="Loading trending businesses">
+      <section role="status">
+        <span className="sr-only">Loading…</span>
         <ResultRowsSkeleton count={2} />
       </section>
-      <section aria-busy="true" aria-label="Loading new businesses">
+      <section role="status">
+        <span className="sr-only">Loading…</span>
         <MiniCardsSkeleton count={4} />
       </section>
     </>

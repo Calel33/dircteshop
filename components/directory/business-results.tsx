@@ -169,7 +169,8 @@ function ResultsRegion({
 }) {
   if (status === 'LoadingFirstPage') {
     return (
-      <div className="flex flex-col gap-gap" aria-busy="true" aria-label="Loading directory results">
+      <div className="flex flex-col gap-gap" role="status">
+        <span className="sr-only">Loading…</span>
         <Skeleton className="bg-muted h-4 w-40" />
         <ResultRowsSkeleton />
       </div>

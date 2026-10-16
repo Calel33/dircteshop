@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 /** Skeleton rows shaped like the dense result card. */
 export function ResultRowsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading results">
+    <div className="flex flex-col gap-3" role="status">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="bg-card border-border rounded-card flex gap-gap border p-3">
           <Skeleton className="bg-muted size-20 shrink-0 rounded-control" />
@@ -29,7 +30,8 @@ export function ResultRowsSkeleton({ count = 4 }: { count?: number }) {
 /** Skeleton grid shaped like the landing mini cards / category cards. */
 export function MiniCardsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true" aria-label="Loading cards">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} className="bg-muted h-40 rounded-card" />
       ))}
@@ -40,7 +42,8 @@ export function MiniCardsSkeleton({ count = 4 }: { count?: number }) {
 /** Skeleton for the pill strip (landing categories). */
 export function PillsSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <div className="flex flex-wrap gap-2" aria-busy="true" aria-label="Loading categories">
+    <div className="flex flex-wrap gap-2" role="status">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} className="bg-muted h-8 w-28 rounded-pill" />
       ))}
