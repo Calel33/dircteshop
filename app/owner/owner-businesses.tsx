@@ -5,6 +5,7 @@ import { UserButton } from '@clerk/nextjs';
 import { useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
+import { NotificationMenu } from '@/components/notifications/notification-menu';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,6 +51,7 @@ export function OwnerBusinesses() {
           <Button onClick={() => setIsCreating(true)} disabled={isCreating}>
             Add Your Business
           </Button>
+          <NotificationMenu />
           <UserButton />
         </div>
       </header>

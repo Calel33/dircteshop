@@ -24,6 +24,8 @@ import type * as businesses_seed from "../businesses/seed.js";
 import type * as businesses_seedFixtures from "../businesses/seedFixtures.js";
 import type * as categories from "../categories.js";
 import type * as http from "../http.js";
+import type * as notificationHelpers from "../notificationHelpers.js";
+import type * as notifications from "../notifications.js";
 import type * as paymentAttemptTypes from "../paymentAttemptTypes.js";
 import type * as paymentAttempts from "../paymentAttempts.js";
 import type * as users from "../users.js";
@@ -51,6 +53,8 @@ declare const fullApi: ApiFromModules<{
   "businesses/seedFixtures": typeof businesses_seedFixtures;
   categories: typeof categories;
   http: typeof http;
+  notificationHelpers: typeof notificationHelpers;
+  notifications: typeof notifications;
   paymentAttemptTypes: typeof paymentAttemptTypes;
   paymentAttempts: typeof paymentAttempts;
   users: typeof users;
