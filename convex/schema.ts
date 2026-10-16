@@ -223,5 +223,12 @@ export default defineSchema({
     reason: v.optional(v.string()),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
-  }).index('byUserId', ['userId']),
+  })
+    .index('byUserId', ['userId'])
+    // B5 (issue #5): newest-first user lists and unread-only reads. The read
+    // path steps userId -> createdAt desc for pagination and userId ->
+    // readAt === undefined for the badge/batch reads (undefined matches rows
+    // without the field; https://docs.convex.dev/database/types#working-with-undefined).
+    .index('byUserIdAndCreatedAt', ['userId', 'createdAt'])
+    .index('byUserIdAndReadAt', ['userId', 'readAt']),
 });

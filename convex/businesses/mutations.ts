@@ -6,7 +6,13 @@ import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import { EDITABLE_FIELD_CLASS, editableBusinessFieldsValidator } from '../businessTypes';
 import type { EditableBusinessField } from '../businessTypes';
-import { requireBusinessOwner, requireSuperAdmin } from '../authz';
+import { configuredSuperAdminIds, requireBusinessOwner, requireSuperAdmin } from '../authz';
+import {
+  insertNotification,
+  moderationNotificationEvent,
+  notifyAdminRecipients,
+  planTransitionNotification,
+} from '../notificationHelpers';
 import { getCurrentUserOrThrow } from '../users';
 import {
   approvedResubmitTarget,
@@ -185,7 +191,7 @@ export const transition = mutation({
       throw new Error(`Invalid transition from ${business.status} for ${args.action}`);
     }
 
-    await authorizeAction(ctx, args.businessId, resolution.requiredRole);
+    const actor = await authorizeAction(ctx, args.businessId, resolution.requiredRole);
     assertTransitionAllowed(business.status, args.action, resolution.targetStatus);
 
     const now = Date.now();
@@ -203,6 +209,35 @@ export const transition = mutation({
         ? { moderatedAt: now, moderationReason: args.reason }
         : {}),
     });
+
+    // B5 notice in the same transaction (plan §Trigger matrix): owner submit
+    // notifies every configured Super Admin; the admin reopen of a rejected
+    // listing (same action, superAdmin-resolved) notifies the others and never
+    // the actor; suspend/restore notify the owner. Any other combination
+    // inserts nothing. A failed insert rolls back the transition above.
+    const notificationPlan = planTransitionNotification({
+      action: args.action,
+      requiredRole: resolution.requiredRole,
+      targetStatus: resolution.targetStatus,
+      businessId: args.businessId,
+      businessName: business.name,
+      reason: args.reason,
+    });
+
+    if (notificationPlan !== undefined) {
+      if (notificationPlan.audience === 'owner') {
+        await insertNotification(ctx, business.ownerId, notificationPlan.event, now);
+      } else {
+        await notifyAdminRecipients(ctx, notificationPlan.event, {
+          allowlist: configuredSuperAdminIds(),
+          excludeUserId:
+            notificationPlan.audience === 'configuredAdminsExcludingActor'
+              ? (actor?._id ?? null)
+              : null,
+          createdAt: now,
+        });
+      }
+    }
   },
 });
 
@@ -278,6 +313,20 @@ export const moderateListing = mutation({
         createdAt: now,
       })
     );
+
+    // B5 notice in the same transaction: the owner is told the decision and
+    // the (required, normalized) reason; approve carries none.
+    await insertNotification(
+      ctx,
+      business.ownerId,
+      moderationNotificationEvent({
+        action: args.action,
+        businessId: args.businessId,
+        businessName: business.name,
+        reason: normalizedReason,
+      }),
+      now
+    );
   },
 });
 
@@ -304,11 +353,13 @@ export const approveSelected = mutation({
 
     const listings = await Promise.all(ids.map((listingId) => ctx.db.get(listingId)));
     const statuses: ListingStatus[] = [];
+    const pending: Doc<'businesses'>[] = [];
     for (const listing of listings) {
       if (listing === null) {
         throw new ConvexError('One or more listings no longer exist; refresh the queue.');
       }
       statuses.push(listing.status);
+      pending.push(listing);
     }
     assertAllPendingReview(statuses);
 
@@ -320,8 +371,8 @@ export const approveSelected = mutation({
     const now = Date.now();
     const normalizedReason = normalizeModerationReason('approve', undefined);
 
-    for (const id of ids) {
-      await ctx.db.patch(id, {
+    for (const listing of pending) {
+      await ctx.db.patch(listing._id, {
         status: resolution.targetStatus,
         lastUpdatedAt: now,
         moderatedAt: now,
@@ -334,11 +385,25 @@ export const approveSelected = mutation({
         buildModerationAuditLog({
           actorUserId: admin._id,
           action: 'approve',
-          targetId: id,
+          targetId: listing._id,
           toStatus: resolution.targetStatus,
           reason: normalizedReason,
           createdAt: now,
         })
+      );
+
+      // B5 notice in the same transaction: one owner notice per approved
+      // listing, inside the existing all-or-none loop.
+      await insertNotification(
+        ctx,
+        listing.ownerId,
+        moderationNotificationEvent({
+          action: 'approve',
+          businessId: listing._id,
+          businessName: listing.name,
+          reason: normalizedReason,
+        }),
+        now
       );
     }
 
@@ -408,6 +473,24 @@ export const saveAndResubmit = mutation({
         ? { moderationReason: undefined, moderatedAt: undefined }
         : {}),
     });
+
+    // B5 notice in the same transaction (the easy-to-miss path, plan L206):
+    // an owner-origin resubmit notifies every configured Super Admin, using
+    // the resubmitted name so the review is keyed to what they will see.
+    await notifyAdminRecipients(
+      ctx,
+      {
+        type: 'listing_submitted',
+        businessId,
+        businessName: normalizedPatch.name ?? business.name,
+        reason: undefined,
+      },
+      {
+        allowlist: configuredSuperAdminIds(),
+        excludeUserId: null,
+        createdAt: now,
+      }
+    );
   },
 });
 

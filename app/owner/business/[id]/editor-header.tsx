@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
 
+import { NotificationMenu } from '@/components/notifications/notification-menu';
 import { BusinessSwitcher } from './business-switcher';
 import type { OwnerEditorDocument } from './editor-types';
 import { StatusChip } from '../../status-chip';
@@ -20,6 +21,7 @@ export function EditorHeader({ business }: { business: OwnerEditorDocument }) {
       </div>
       <div className="flex items-center gap-2">
         <BusinessSwitcher currentId={business._id} />
+        <NotificationMenu />
         <UserButton />
       </div>
     </header>
