@@ -13,7 +13,7 @@
  * Run: node --test scripts/public-directory-query.test.ts
  */
 import assert from 'node:assert/strict';
-import { registerHooks } from 'node:module';
+import { register } from 'node:module';
 import { test } from 'node:test';
 
 import type { Doc, Id } from '../convex/_generated/dataModel.ts';
@@ -121,37 +121,15 @@ test('list and count share one predicate: identical inputs give identical verdic
 // Node cannot resolve `convex/`'s extensionless imports (the Convex bundler
 // does), and `convex/users.ts` imports type names in value position
 // (`QueryCtx`, `UserJSON`, `Validator`) that type stripping cannot elide. The
-// hooks below add the missing extensions and substitute `users.ts`; neither
-// `listDirectory` nor `countDirectory` calls into it.
+// loader registered below adds the missing extensions and substitutes
+// `users.ts`; neither `listDirectory` nor `countDirectory` calls into it.
 // ---------------------------------------------------------------------------
 
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (
-      (specifier.startsWith('./') || specifier.startsWith('../')) &&
-      !/\.[cm]?[jt]s$/.test(specifier)
-    ) {
-      for (const extension of ['.ts', '.js']) {
-        try {
-          return nextResolve(specifier + extension, context);
-        } catch {
-          // Try the next extension.
-        }
-      }
-    }
-    return nextResolve(specifier, context);
-  },
-  load(url, context, nextLoad) {
-    if (url.endsWith('/convex/users.ts')) {
-      return {
-        format: 'module',
-        shortCircuit: true,
-        source: 'export async function getCurrentUser() { return null; }\n',
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
+// `module.register` (Node >= 20.6) runs the loader's async hooks on a
+// dedicated thread and keeps the declared `node >= 22.6` floor; the inline
+// `registerHooks` it replaces is Node >= 22.15. Hooks apply only to modules
+// imported after registration, so `queries.ts` stays a dynamic import.
+register('./public-directory-query-loader.mjs', import.meta.url);
 
 const { listDirectory, countDirectory } = await import('../convex/businesses/queries.ts');
 
