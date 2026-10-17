@@ -1,8 +1,15 @@
 export default function AdminPage() {
   return (
-    <main className="min-h-screen bg-background p-8 font-sans text-foreground">
-      <h1 className="text-2xl font-semibold tracking-tight">Admin overview</h1>
-      <p className="mt-2 text-sm text-muted-foreground">B1 placeholder — super-admin access verified.</p>
-    </main>
+    <div className="p-6">
+      <h1 className="text-2xl font-display font-bold mb-4">Overview</h1>
+      <div className="grid gap-6">
+        <div className="p-4 border rounded-card bg-card">
+          <h2 className="font-semibold">Owners (Coming soon)</h2>
+        </div>
+        <div className="p-4 border rounded-card bg-card">
+          <h2 className="font-semibold">Categories (Coming soon)</h2>
+        </div>
+      </div>
+    </div>
   );
 }

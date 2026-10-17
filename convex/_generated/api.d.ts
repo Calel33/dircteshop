@@ -8,8 +8,15 @@
  * @module
  */
 
+import type * as auditLogs from "../auditLogs.js";
+import type * as auditProjections from "../auditProjections.js";
 import type * as authz from "../authz.js";
 import type * as businessTypes from "../businessTypes.js";
+import type * as businesses_adminDeletion from "../businesses/adminDeletion.js";
+import type * as businesses_adminMutations from "../businesses/adminMutations.js";
+import type * as businesses_adminOwnerActions from "../businesses/adminOwnerActions.js";
+import type * as businesses_adminPolicy from "../businesses/adminPolicy.js";
+import type * as businesses_adminProjections from "../businesses/adminProjections.js";
 import type * as businesses_directoryQuery from "../businesses/directoryQuery.js";
 import type * as businesses_helpers from "../businesses/helpers.js";
 import type * as businesses_moderationPolicy from "../businesses/moderationPolicy.js";
@@ -37,8 +44,15 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auditLogs: typeof auditLogs;
+  auditProjections: typeof auditProjections;
   authz: typeof authz;
   businessTypes: typeof businessTypes;
+  "businesses/adminDeletion": typeof businesses_adminDeletion;
+  "businesses/adminMutations": typeof businesses_adminMutations;
+  "businesses/adminOwnerActions": typeof businesses_adminOwnerActions;
+  "businesses/adminPolicy": typeof businesses_adminPolicy;
+  "businesses/adminProjections": typeof businesses_adminProjections;
   "businesses/directoryQuery": typeof businesses_directoryQuery;
   "businesses/helpers": typeof businesses_helpers;
   "businesses/moderationPolicy": typeof businesses_moderationPolicy;

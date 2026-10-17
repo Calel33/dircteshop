@@ -5,7 +5,16 @@ import { query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import { requireSuperAdmin } from '../authz';
+import { listingStatusValidator } from '../businessTypes';
 import { getCurrentUser } from '../users';
+import {
+  assertAdminDirectoryPageSize,
+  matchesAdminDirectoryFilters,
+  resolveAdminDirectoryIndexPlan,
+  toAdminDirectoryRow,
+  type AdminDirectoryFilters,
+  type AdminDirectoryIndexPlan,
+} from './adminProjections';
 import {
   directoryMode,
   directorySearchTerm,
@@ -592,5 +601,132 @@ export const getPendingApprovalDetails = query({
     ]);
 
     return toPendingApprovalDetails({ business, category, owner });
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Super Admin directory (B6a, issue #15 / todo task 1).
+//
+// Same admin boundary as the approval queue: `requireSuperAdmin` runs before
+// any read, the page is bounded server-side (≤ 25), and the returned rows are
+// the frozen admin projection (`./adminProjections.ts`) — never raw documents
+// and never owner identity. Public directory queries above are unchanged.
+// Contract: tasks/issue-15-contracts.md §B1/§B2.
+// Docs: https://docs.convex.dev/database/pagination · https://docs.convex.dev/database/reading-data/indexes
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the single-use index query the planner prescribes. The returned
+ * query object is consumed by exactly one `.paginate` in the handler (the
+ * runtime allows one paginated query per invocation) and is never reused —
+ * chaining after iteration begins throws (query_impl.ts).
+ */
+function adminDirectoryBaseQuery(ctx: QueryCtx, plan: AdminDirectoryIndexPlan) {
+  switch (plan.indexName) {
+    case 'byStatusCategorySubmittedAt':
+      return ctx.db
+        .query('businesses')
+        .withIndex('byStatusCategorySubmittedAt', (q) =>
+          q.eq('status', plan.status).eq('categoryId', plan.categoryId)
+        );
+    case 'byStatusVerifiedVerifiedAt':
+      return ctx.db
+        .query('businesses')
+        .withIndex('byStatusVerifiedVerifiedAt', (q) =>
+          q.eq('status', plan.status).eq('verification.isVerified', plan.isVerified)
+        );
+    case 'byStatusFeaturedUpdatedAt':
+      return ctx.db
+        .query('businesses')
+        .withIndex('byStatusFeaturedUpdatedAt', (q) =>
+          q.eq('status', plan.status).eq('isFeatured', plan.isFeatured)
+        );
+    case 'byStatusSubmittedAt':
+      return ctx.db
+        .query('businesses')
+        .withIndex('byStatusSubmittedAt', (q) => q.eq('status', plan.status));
+    case 'byCategoryId':
+      return ctx.db
+        .query('businesses')
+        .withIndex('byCategoryId', (q) => q.eq('categoryId', plan.categoryId));
+    case null:
+      return ctx.db.query('businesses');
+  }
+}
+
+/**
+ * Super Admin directory (B6a): a cursor-paginated page of at most 25
+ * businesses across every status, with name / owner-name / location search and
+ * exact category/status/verification/featured filters over the full dataset.
+ *
+ * The read is one `.paginate` on the index the planner prescribes for the
+ * active filters — filters constrain the scan range BEFORE pagination, never a
+ * post-pagination drop. The matcher then rechecks every scanned row (search
+ * plus all filters); the returned page is every match from the scanned window,
+ * so sparse matches shorten the page while `continueCursor` still advances
+ * past the whole window — no record is ever skipped or silently dropped, and a
+ * short-but-continued page is legitimate (the same explicit contract as the
+ * chip-filtered `listDirectory`; plan §Data and API design). The page length
+ * can never exceed `paginationOpts.numItems`, which is capped at 25 server
+ * side. `splitCursor`/`pageStatus` pass through from the runtime so a split
+ * stays explicit.
+ */
+export const listAdminDirectory = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+    categoryId: v.optional(v.id('categories')),
+    status: v.optional(listingStatusValidator),
+    isVerified: v.optional(v.boolean()),
+    isFeatured: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+    assertAdminDirectoryPageSize(args.paginationOpts.numItems);
+
+    const filters: AdminDirectoryFilters = {
+      search: args.search,
+      categoryId: args.categoryId,
+      status: args.status,
+      isVerified: args.isVerified,
+      isFeatured: args.isFeatured,
+    };
+
+    const page = await adminDirectoryBaseQuery(ctx, resolveAdminDirectoryIndexPlan(filters))
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    // Join each scanned row's category and owner once (they feed both the
+    // owner-name search and the row projection); the joins run in parallel.
+    const enriched = await Promise.all(
+      page.page.map(async (business) => {
+        const [category, owner] = await Promise.all([
+          ctx.db.get('categories', business.categoryId),
+          ctx.db.get('users', business.ownerId),
+        ]);
+        return { business, category, owner };
+      })
+    );
+
+    const rows = enriched
+      .filter(({ business, owner }) =>
+        matchesAdminDirectoryFilters(
+          {
+            name: business.name,
+            ownerName: owner?.name ?? null,
+            addressLine1: business.address.addressLine1,
+            city: business.address.city,
+            state: business.address.state,
+            status: business.status,
+            categoryId: business.categoryId,
+            isVerified: business.verification.isVerified,
+            isFeatured: business.isFeatured,
+          },
+          filters
+        )
+      )
+      .map(({ business, category, owner }) => toAdminDirectoryRow({ business, category, owner }));
+
+    return { ...page, page: rows };
   },
 });

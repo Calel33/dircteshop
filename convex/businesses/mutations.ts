@@ -27,6 +27,7 @@ import {
   buildModerationAuditLog,
   normalizeBulkApproveIds,
   normalizeModerationReason,
+  type ModerationAction,
 } from './moderationPolicy';
 import {
   changedCoreIdentityFields,
@@ -44,15 +45,14 @@ import {
 // never a client-supplied status (SPEC §5); the target status is resolved
 // server-side and checked against the STATUS_TRANSITIONS allow-list.
 
-// The action allow-list is enforced by the validator. Moderation decisions
-// (approve / requestChanges / reject) are deliberately excluded here: they must
-// go through `moderateListing`, which writes the required audit row in the same
-// transaction (issue #13). Transition handles only the remaining lifecycle
+// The action allow-list is enforced by the validator. ALL moderation decisions
+// (approve / requestChanges / reject / suspend / restore) are deliberately
+// excluded here: each must go through `moderateListing`, which enforces the
+// reason rule and writes the required audit row in the same transaction
+// (issue #13; SPEC §10). Transition handles only the remaining lifecycle
 // actions.
 const actionValidator = v.union(
   v.literal('submitForReview'),
-  v.literal('suspend'),
-  v.literal('restore'),
   v.literal('reopenAsDraft')
 );
 
@@ -179,8 +179,6 @@ export const transition = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    assertReasonProvided(args.action, args.reason);
-
     const business = await ctx.db.get('businesses', args.businessId);
     if (business === null) {
       throw new Error('Business not found');
@@ -204,7 +202,7 @@ export const transition = mutation({
       // approvals queue reads it for "submitted age" (SPEC §10, B6).
       ...(args.action === 'submitForReview' ? { submittedAt: now } : {}),
       // Admin moderation stamps. Passing `undefined` removes a stale
-      // moderationReason on suspend / restore.
+      // moderationReason.
       ...(resolution.requiredRole === 'superAdmin'
         ? { moderatedAt: now, moderationReason: args.reason }
         : {}),
@@ -213,8 +211,9 @@ export const transition = mutation({
     // B5 notice in the same transaction (plan §Trigger matrix): owner submit
     // notifies every configured Super Admin; the admin reopen of a rejected
     // listing (same action, superAdmin-resolved) notifies the others and never
-    // the actor; suspend/restore notify the owner. Any other combination
-    // inserts nothing. A failed insert rolls back the transition above.
+    // the actor. Suspend/restore owner notices are planned by the same helper
+    // from `moderateListing`. Any other combination inserts nothing; a failed
+    // insert rolls back the transition above.
     const notificationPlan = planTransitionNotification({
       action: args.action,
       requiredRole: resolution.requiredRole,
@@ -242,27 +241,59 @@ export const transition = mutation({
 });
 
 /**
- * B3b per-card moderation decision (issue #13, Task 3): the narrow Super Admin
- * action set for a `pendingReview` listing. Deliberately separate from
- * `transition` so owner submit/reopen behavior and the out-of-scope
- * suspend/restore flows are untouched, and only this decision writes its atomic
- * audit row.
+ * B3b per-card moderation decision (issue #13, Task 3), extended by B6a
+ * (issue #15, Task 3) to the full directory action set: Approve, Request
+ * Changes, Reject (a `pendingReview` listing) and Suspend, Restore (a live
+ * one). Deliberately separate from `transition` so owner submit/reopen
+ * behavior is untouched, and only this decision writes its atomic audit row.
  *
- * Frozen check order: reason -> authorize -> load -> resolve + pendingReview
- * guard -> atomic patch + audit insert. The target status is resolved
- * server-side (`resolveTransition`) and the acting Super Admin is derived from
- * `requireSuperAdmin`; a client never supplies a status, actor id, or
- * verification stamp.
+ * Frozen check order (contract §B6): reason -> authorize -> load ->
+ * resolve + current-status guard -> atomic patch + audit insert. The target
+ * status is resolved server-side (`resolveTransition`) and the acting Super
+ * Admin is derived from `requireSuperAdmin`; a client never supplies a status,
+ * actor id, or verification stamp.
  *
- * The explicit `pendingReview` guard is required because the state machine
+ * The explicit current-status guard is required because the state machine
  * resolves a `suspended -> approved` `approve` (helpers.ts), so a stale card
- * could otherwise re-approve a listing that already left review.
+ * could otherwise re-approve a listing that already left review; Suspend is
+ * `approved`-only and Restore `suspended`-only for the same reason.
  */
 const moderationActionValidator = v.union(
   v.literal('approve'),
   v.literal('requestChanges'),
-  v.literal('reject')
+  v.literal('reject'),
+  v.literal('suspend'),
+  v.literal('restore')
 );
+
+/** The current status each moderation action requires (contract §A). */
+const MODERATION_REQUIRED_STATUS: Record<
+  ModerationAction,
+  'pendingReview' | 'approved' | 'suspended'
+> = {
+  approve: 'pendingReview',
+  requestChanges: 'pendingReview',
+  reject: 'pendingReview',
+  suspend: 'approved',
+  restore: 'suspended',
+};
+
+function assertModerationCurrentStatus(
+  action: ModerationAction,
+  currentStatus: ListingStatus
+): void {
+  const required = MODERATION_REQUIRED_STATUS[action];
+  if (currentStatus === required) {
+    return;
+  }
+
+  if (required === 'pendingReview') {
+    throw new ConvexError('Listing is no longer pending review; refresh the queue.');
+  }
+  throw new ConvexError(
+    `Only a ${required} listing can be ${action === 'suspend' ? 'suspended' : 'restored'}.`
+  );
+}
 
 export const moderateListing = mutation({
   args: {
@@ -285,9 +316,7 @@ export const moderateListing = mutation({
       throw new ConvexError(`Invalid transition from ${business.status} for ${args.action}`);
     }
 
-    if (business.status !== 'pendingReview') {
-      throw new ConvexError('Listing is no longer pending review; refresh the queue.');
-    }
+    assertModerationCurrentStatus(args.action, business.status);
 
     const now = Date.now();
     const normalizedReason = normalizeModerationReason(args.action, args.reason);
@@ -297,6 +326,7 @@ export const moderateListing = mutation({
       lastUpdatedAt: now,
       moderatedAt: now,
       moderationReason: normalizedReason,
+      // Only approve stamps verification; suspend/restore never touch it.
       ...(args.action === 'approve'
         ? { verification: { isVerified: true, verifiedAt: now, verifiedBy: admin._id } }
         : {}),
@@ -308,25 +338,45 @@ export const moderateListing = mutation({
         actorUserId: admin._id,
         action: args.action,
         targetId: args.businessId,
+        fromStatus: business.status,
         toStatus: resolution.targetStatus,
         reason: normalizedReason,
+        targetName: business.name,
         createdAt: now,
       })
     );
 
-    // B5 notice in the same transaction: the owner is told the decision and
-    // the (required, normalized) reason; approve carries none.
-    await insertNotification(
-      ctx,
-      business.ownerId,
-      moderationNotificationEvent({
+    // Notification parity with the existing `transition()` path:
+    // approve/requestChanges/reject keep the moderation event; suspend/restore
+    // write the same owner notice as the transition path
+    // (`planTransitionNotification`). Both are inserted in the same
+    // transaction, so a status change never commits without its notice.
+    if (args.action === 'suspend' || args.action === 'restore') {
+      const notificationPlan = planTransitionNotification({
         action: args.action,
+        requiredRole: 'superAdmin',
+        targetStatus: resolution.targetStatus,
         businessId: args.businessId,
         businessName: business.name,
         reason: normalizedReason,
-      }),
-      now
-    );
+      });
+
+      if (notificationPlan?.audience === 'owner') {
+        await insertNotification(ctx, business.ownerId, notificationPlan.event, now);
+      }
+    } else {
+      await insertNotification(
+        ctx,
+        business.ownerId,
+        moderationNotificationEvent({
+          action: args.action,
+          businessId: args.businessId,
+          businessName: business.name,
+          reason: normalizedReason,
+        }),
+        now
+      );
+    }
   },
 });
 
@@ -386,8 +436,10 @@ export const approveSelected = mutation({
           actorUserId: admin._id,
           action: 'approve',
           targetId: listing._id,
+          fromStatus: 'pendingReview',
           toStatus: resolution.targetStatus,
           reason: normalizedReason,
+          targetName: listing.name,
           createdAt: now,
         })
       );
@@ -510,18 +562,6 @@ async function authorizeAction(
 
   await requireBusinessOwner(ctx, businessId);
   return null;
-}
-
-/**
- * `requestChanges` and `reject` must carry a moderation reason (SPEC §10: the
- * reason is shown to the owner). Enforced before any state is read or written.
- */
-function assertReasonProvided(action: TransitionAction, reason: string | undefined) {
-  const requiresReason = action === 'requestChanges' || action === 'reject';
-
-  if (requiresReason && (reason ?? '').trim().length === 0) {
-    throw new Error(`${action} requires a reason`);
-  }
 }
 
 /**
