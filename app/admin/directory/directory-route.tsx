@@ -97,7 +97,7 @@ export function DirectoryRoute({
                     key={tab} 
                     variant={tab === 'Directory' ? 'default' : 'ghost'} 
                     size="sm"
-                    disabled={!['Directory', 'Audit'].includes(tab)}
+                    disabled={!['Directory'].includes(tab)}
                   >
                     {tab}
                   </Button>
@@ -113,7 +113,7 @@ export function DirectoryRoute({
                 onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
               />
               <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>+ Add Business</Button>
-              <Button variant="outline" size="sm">Export CSV</Button>
+              <Button variant="outline" size="sm" disabled>Export CSV</Button>
               <div className="w-8 h-8 rounded-full bg-muted" />
             </div>
           </div>
