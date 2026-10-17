@@ -20,7 +20,7 @@ export function DirectoryTable({
 }: { 
   rows: AdminDirectoryRow[]; 
   selectedIds: Set<string>;
-  onToggleSelectBulk: (ids: Set<string>) => void;
+  onToggleSelectBulk: (updater: (prev: Set<string>) => Set<string>) => void;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -39,12 +39,14 @@ export function DirectoryTable({
                 })()}
                 onCheckedChange={(checked) => {
                   const eligibleRows = rows.filter(r => r.status === 'pendingReview');
-                  const next = new Set(selectedIds);
-                  eligibleRows.forEach(r => {
-                    if (checked) next.add(r._id);
-                    else next.delete(r._id);
+                  onToggleSelectBulk((prev) => {
+                    const next = new Set(prev);
+                    eligibleRows.forEach(r => {
+                      if (checked) next.add(r._id);
+                      else next.delete(r._id);
+                    });
+                    return next;
                   });
-                  onToggleSelectBulk(next);
                 }}
               />
             </TableHead>
@@ -68,10 +70,12 @@ export function DirectoryTable({
               <TableCell onClick={(e) => {
                 e.stopPropagation();
                 if (row.status === 'pendingReview') {
-                  const next = new Set(selectedIds);
-                  if (next.has(row._id)) next.delete(row._id);
-                  else next.add(row._id);
-                  onToggleSelectBulk(next);
+                  onToggleSelectBulk((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(row._id)) next.delete(row._id);
+                    else next.add(row._id);
+                    return next;
+                  });
                 }
               }}>
                 <Checkbox 

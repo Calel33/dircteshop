@@ -69,6 +69,9 @@ export function DirectoryRoute({
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const updateSelectedIds = (updater: (prev: Set<string>) => Set<string>) => {
+    setSelectedIds((prev) => updater(new Set(prev)));
+  };
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -174,7 +177,7 @@ export function DirectoryRoute({
                     <DirectoryTable
                       rows={rows}
                       selectedIds={selectedIds}
-                      onToggleSelectBulk={setSelectedIds}
+                      onToggleSelectBulk={updateSelectedIds}
                       onSelect={setSelectedId}
                     />
                   )}
