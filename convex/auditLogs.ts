@@ -6,6 +6,7 @@ import type { QueryCtx } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { requireSuperAdmin } from './authz';
 import {
+  AUDIT_MAXIMUM_ROWS_READ,
   assertAuditPageSize,
   matchesAuditLogFilters,
   toAuditLogRow,
@@ -51,7 +52,8 @@ async function resolveLiveBusinessName(
  * reason).
  *
  * The read is one `.paginate` on `byCreatedAt` descending (the runtime allows
- * one paginated query per invocation); the filters refine the scanned window
+ * one paginated query per invocation) with a server-owned row-read cap; the
+ * filters refine the scanned window
  * in-function and the returned page is every match from that window, so a
  * short page with a valid `continueCursor` is legitimate and no row is ever
  * skipped or silently dropped. Rows survive target deletion (snapshot-first
@@ -78,7 +80,9 @@ export const listAuditLogs = query({
       .query('auditLogs')
       .withIndex('byCreatedAt')
       .order('desc')
-      .paginate(args.paginationOpts);
+      // Spread first so the client's cursor/endCursor (and split fields)
+      // survive; the server-owned read cap always wins over a client value.
+      .paginate({ ...args.paginationOpts, maximumRowsRead: AUDIT_MAXIMUM_ROWS_READ });
 
     // Resolve the joins each row needs once: the actor name (for the actor
     // filter and the row) and the live business-name fallback (only for

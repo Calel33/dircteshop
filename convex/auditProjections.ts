@@ -23,6 +23,17 @@ import type { ListingStatus } from './businesses/helpers';
 export const AUDIT_PAGE_SIZE = 25;
 
 /**
+ * Server-owned cap on the rows one audit page may scan (contract §B3). The
+ * page size bounds only the returned items; `endCursor` sets an index range, so
+ * a client could otherwise ask Convex to read far more rows than the page
+ * holds. Filtering happens after pagination, so 4x the page size leaves
+ * headroom for reactive page splits without letting an oversized range scan
+ * the whole table. When the cap is hit, Convex returns `pageStatus` /
+ * `splitCursor` and the paginated client splits the page.
+ */
+export const AUDIT_MAXIMUM_ROWS_READ = AUDIT_PAGE_SIZE * 4;
+
+/**
  * The narrow audit row (frozen contract §B3). `reason` is `null` for actions
  * that carry none; `fromStatus`/`toStatus` are `null` for actions that never
  * change status (feature/delete/createDraft). `actorName`/`targetName` are
