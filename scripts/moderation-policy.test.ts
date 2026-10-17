@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Pins the B3b (issue #13) moderation policy for todo #3.
+ * Pins the B3b (issue #13) moderation policy and its B6a extension
+ * (issue #15, Task 3): the directory action set adds `suspend`/`restore`, the
+ * reason matrix covers the five actions (suspend requires a reason;
+ * approve/restore never carry one), and the audit builder records the ACTUAL
+ * `fromStatus` plus an optional `targetName` snapshot.
  *
  * `convex/businesses/moderationPolicy.ts` uses ConvexError for its expected
  * invalid-reason failure; its pure policy helpers and audit payload are
@@ -30,7 +34,7 @@ import {
 
 const adminId = 'users_admin' as Id<'users'>;
 const businessId = 'businesses_1' as Id<'businesses'>;
-const reasonActions = ['requestChanges', 'reject'] as const;
+const reasonActions = ['requestChanges', 'reject', 'suspend'] as const;
 
 test('exposes all five directory moderation actions', () => {
   assert.deepStrictEqual([...MODERATION_ACTIONS], [
@@ -42,19 +46,21 @@ test('exposes all five directory moderation actions', () => {
   ]);
 });
 
-test('approve never requires a reason', () => {
+test('approve and restore never require a reason', () => {
   assert.doesNotThrow(() => assertModerationReason('approve', undefined));
   assert.doesNotThrow(() => assertModerationReason('approve', ''));
   assert.doesNotThrow(() => assertModerationReason('approve', 'ignored reason'));
+  assert.doesNotThrow(() => assertModerationReason('restore', undefined));
+  assert.doesNotThrow(() => assertModerationReason('restore', 'ignored reason'));
 });
 
-test('requestChanges and reject accept a non-blank reason', () => {
+test('requestChanges, reject, and suspend accept a non-blank reason', () => {
   for (const action of reasonActions) {
     assert.doesNotThrow(() => assertModerationReason(action, 'Needs a clearer description'));
   }
 });
 
-test('requestChanges and reject reject missing/blank/whitespace reasons', () => {
+test('requestChanges, reject, and suspend reject missing/blank/whitespace reasons', () => {
   for (const action of reasonActions) {
     const message = new RegExp(`${action} requires a reason`);
     assert.throws(() => assertModerationReason(action, undefined), message);
@@ -64,12 +70,14 @@ test('requestChanges and reject reject missing/blank/whitespace reasons', () => 
   }
 });
 
-test('approve clears the moderation reason', () => {
+test('approve and restore clear the moderation reason', () => {
   assert.equal(normalizeModerationReason('approve', undefined), undefined);
   assert.equal(normalizeModerationReason('approve', 'stale reason'), undefined);
+  assert.equal(normalizeModerationReason('restore', undefined), undefined);
+  assert.equal(normalizeModerationReason('restore', 'stale reason'), undefined);
 });
 
-test('requestChanges and reject persist the trimmed reason', () => {
+test('requestChanges, reject, and suspend persist the trimmed reason', () => {
   for (const action of reasonActions) {
     assert.equal(normalizeModerationReason(action, '  Needs work  '), 'Needs work');
     assert.equal(normalizeModerationReason(action, 'Already trimmed'), 'Already trimmed');
@@ -132,6 +140,70 @@ test('reject audit payload targets the rejected status', () => {
   assert.equal(payload.toStatus, 'rejected');
   assert.equal(payload.reason, 'Duplicate listing');
   assert.equal(payload.createdAt, 42);
+});
+
+test('suspend audit payload records the actual fromStatus and the reason', () => {
+  const payload = buildModerationAuditLog({
+    actorUserId: adminId,
+    action: 'suspend',
+    targetId: businessId,
+    fromStatus: 'approved',
+    toStatus: 'suspended',
+    reason: 'Policy violation',
+    createdAt: 1_700_000_000_000,
+  });
+
+  assert.deepStrictEqual(payload, {
+    actorUserId: adminId,
+    action: 'suspend',
+    targetType: 'business',
+    targetId: businessId,
+    fromStatus: 'approved',
+    toStatus: 'suspended',
+    reason: 'Policy violation',
+    createdAt: 1_700_000_000_000,
+  });
+});
+
+test('restore audit payload records suspended -> approved with no reason', () => {
+  const payload = buildModerationAuditLog({
+    actorUserId: adminId,
+    action: 'restore',
+    targetId: businessId,
+    fromStatus: 'suspended',
+    toStatus: 'approved',
+    reason: undefined,
+    createdAt: 1_700_000_000_000,
+  });
+
+  assert.equal(payload.fromStatus, 'suspended');
+  assert.equal(payload.toStatus, 'approved');
+  assert.equal(payload.reason, undefined);
+});
+
+test('the audit payload omits targetName unless one is supplied', () => {
+  const withoutSnapshot = buildModerationAuditLog({
+    actorUserId: adminId,
+    action: 'approve',
+    targetId: businessId,
+    fromStatus: 'pendingReview',
+    toStatus: 'approved',
+    reason: undefined,
+    createdAt: 1_700_000_000_000,
+  });
+  assert.equal('targetName' in withoutSnapshot, false);
+
+  const withSnapshot = buildModerationAuditLog({
+    actorUserId: adminId,
+    action: 'approve',
+    targetId: businessId,
+    fromStatus: 'pendingReview',
+    toStatus: 'approved',
+    reason: undefined,
+    createdAt: 1_700_000_000_000,
+    targetName: 'Acme Coffee',
+  });
+  assert.equal(withSnapshot.targetName, 'Acme Coffee');
 });
 
 // ---------------------------------------------------------------------------
