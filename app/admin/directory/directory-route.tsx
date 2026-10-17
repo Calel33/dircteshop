@@ -174,15 +174,7 @@ export function DirectoryRoute({
                     <DirectoryTable
                       rows={rows}
                       selectedIds={selectedIds}
-                      onToggleSelect={(id) => {
-                        const next = new Set(selectedIds);
-                        if (next.has(id)) {
-                          next.delete(id);
-                        } else {
-                          next.add(id);
-                        }
-                        setSelectedIds(next);
-                      }}
+                      onToggleSelectBulk={setSelectedIds}
                       onSelect={setSelectedId}
                     />
                   )}

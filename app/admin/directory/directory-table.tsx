@@ -15,12 +15,12 @@ import { AdminDirectoryRow, DIRECTORY_STATUS_LABELS } from './directory-types';
 export function DirectoryTable({ 
   rows, 
   selectedIds, 
-  onToggleSelect, 
+  onToggleSelectBulk, 
   onSelect 
 }: { 
   rows: AdminDirectoryRow[]; 
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onToggleSelectBulk: (ids: Set<string>) => void;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -30,21 +30,21 @@ export function DirectoryTable({
           <TableRow>
             <TableHead className="w-12">
               <Checkbox 
-                checked={
-                  rows.length > 0 && 
-                  rows.filter(r => r.status === 'pendingReview').every(r => selectedIds.has(r._id)) 
-                    ? true 
-                    : rows.filter(r => r.status === 'pendingReview').some(r => selectedIds.has(r._id)) 
-                      ? 'indeterminate' 
-                      : false
-                }
+                checked={(() => {
+                  const eligibleRows = rows.filter(r => r.status === 'pendingReview');
+                  if (eligibleRows.length === 0) return false;
+                  const allSelected = eligibleRows.every(r => selectedIds.has(r._id));
+                  const someSelected = eligibleRows.some(r => selectedIds.has(r._id));
+                  return allSelected ? true : (someSelected ? 'indeterminate' : false);
+                })()}
                 onCheckedChange={(checked) => {
                   const eligibleRows = rows.filter(r => r.status === 'pendingReview');
+                  const next = new Set(selectedIds);
                   eligibleRows.forEach(r => {
-                    const isSelected = selectedIds.has(r._id);
-                    if (checked && !isSelected) onToggleSelect(r._id);
-                    if (!checked && isSelected) onToggleSelect(r._id);
+                    if (checked) next.add(r._id);
+                    else next.delete(r._id);
                   });
+                  onToggleSelectBulk(next);
                 }}
               />
             </TableHead>
@@ -65,7 +65,15 @@ export function DirectoryTable({
               className="cursor-pointer hover:bg-muted/50"
               onClick={() => onSelect(row._id)}
             >
-              <TableCell onClick={(e) => { e.stopPropagation(); onToggleSelect(row._id); }}>
+              <TableCell onClick={(e) => {
+                e.stopPropagation();
+                if (row.status === 'pendingReview') {
+                  const next = new Set(selectedIds);
+                  if (next.has(row._id)) next.delete(row._id);
+                  else next.add(row._id);
+                  onToggleSelectBulk(next);
+                }
+              }}>
                 <Checkbox 
                   checked={selectedIds.has(row._id)} 
                   disabled={row.status !== 'pendingReview'}
