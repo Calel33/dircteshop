@@ -30,17 +30,21 @@ export function DirectoryTable({
           <TableRow>
             <TableHead className="w-12">
               <Checkbox 
-                checked={rows.length > 0 && Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length === rows.filter(r => r.status === 'pendingReview').length}
+                checked={
+                  rows.length > 0 && 
+                  rows.filter(r => r.status === 'pendingReview').every(r => selectedIds.has(r._id)) 
+                    ? true 
+                    : rows.filter(r => r.status === 'pendingReview').some(r => selectedIds.has(r._id)) 
+                      ? 'indeterminate' 
+                      : false
+                }
                 onCheckedChange={(checked) => {
-                  const eligibleIds = rows.filter(r => r.status === 'pendingReview').map(r => r._id);
-                  if (checked) {
-                    const next = new Set(selectedIds);
-                    eligibleIds.forEach(id => next.add(id));
-                    // Using onToggleSelect directly for the set isn't possible given existing signature
-                  } else {
-                    const next = new Set(selectedIds);
-                    eligibleIds.forEach(id => next.delete(id));
-                  }
+                  const eligibleRows = rows.filter(r => r.status === 'pendingReview');
+                  eligibleRows.forEach(r => {
+                    const isSelected = selectedIds.has(r._id);
+                    if (checked && !isSelected) onToggleSelect(r._id);
+                    if (!checked && isSelected) onToggleSelect(r._id);
+                  });
                 }}
               />
             </TableHead>
