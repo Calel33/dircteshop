@@ -42,8 +42,9 @@ export function DirectoryInlineConfirm({
 
       {isModeration && (
         <div className="space-y-1">
-          <Label className="text-xs font-semibold">Moderation Reason</Label>
+          <Label htmlFor="reason" className="text-xs font-semibold">Moderation Reason</Label>
           <Textarea
+            id="reason"
             placeholder="Enter reason..."
             value={reason}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReason(e.target.value)}
@@ -53,8 +54,9 @@ export function DirectoryInlineConfirm({
 
       {isDelete && (
         <div className="space-y-1">
-          <Label className="text-xs font-semibold">Confirm Deletion</Label>
+          <Label htmlFor="confirm" className="text-xs font-semibold">Confirm Deletion</Label>
           <Input
+            id="confirm"
             placeholder={`Type "${targetName}" to confirm`}
             value={confirmName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmName(e.target.value)}
