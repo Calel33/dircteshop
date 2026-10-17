@@ -13,6 +13,7 @@
  * Run: node --test scripts/moderation-policy.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { Id } from '../convex/_generated/dataModel';
@@ -260,4 +261,99 @@ test('assertAllPendingReview rejects any already-decided listing (all-or-nothing
       /no longer pending review/
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// PR #55 Round 3 / High #1 — the generic `transition` mutation cannot perform
+// a moderation decision. `suspend`/`restore` are excluded from its action
+// validator, so they are reachable only through `moderateListing`, which
+// enforces the suspend-reason rule and writes the audit row in the same
+// transaction. Asserted against the source because `mutations.ts` imports the
+// Convex generated runtime, which `node --test` cannot load (see header).
+// ---------------------------------------------------------------------------
+
+const mutationsSource = readFileSync(
+  new URL('../convex/businesses/mutations.ts', import.meta.url),
+  'utf8'
+);
+
+/** Capture group 1 of a declaration pattern found in mutations.ts. */
+function declarationBody(pattern: RegExp, description: string): string {
+  const match = mutationsSource.match(pattern);
+  assert.ok(match, `expected ${description} in mutations.ts`);
+  const [, body] = match;
+  assert.ok(body, `expected a body for ${description}`);
+  return body;
+}
+
+/** Literal members of a `const <name> = v.union(...)` validator, sorted. */
+function unionLiteralMembers(declaration: string): string[] {
+  const body = declarationBody(
+    new RegExp(`const ${declaration} = v\\.union\\(([\\s\\S]*?)\\);`),
+    `the ${declaration} union`
+  );
+  const members: string[] = [];
+  for (const literal of body.matchAll(/v\.literal\('([^']+)'\)/g)) {
+    if (literal[1] !== undefined) {
+      members.push(literal[1]);
+    }
+  }
+  return members.sort();
+}
+
+test('the transition action validator admits only the owner lifecycle actions', () => {
+  assert.deepStrictEqual(unionLiteralMembers('actionValidator'), [
+    'reopenAsDraft',
+    'submitForReview',
+  ]);
+});
+
+test('suspend and restore are rejected by the transition validator', () => {
+  const allowed = unionLiteralMembers('actionValidator');
+  assert.ok(!allowed.includes('suspend'), 'transition must not accept suspend');
+  assert.ok(!allowed.includes('restore'), 'transition must not accept restore');
+});
+
+test('moderateListing still admits all five moderation decisions', () => {
+  assert.deepStrictEqual(unionLiteralMembers('moderationActionValidator'), [
+    'approve',
+    'reject',
+    'requestChanges',
+    'restore',
+    'suspend',
+  ]);
+});
+
+test('the transition handler writes no audit row; moderateListing writes one', () => {
+  const transitionBody = declarationBody(
+    /export const transition = mutation\(\{([\s\S]*?)\n\}\);/,
+    'the transition mutation'
+  );
+  assert.ok(
+    !transitionBody.includes("'auditLogs'"),
+    'the transition handler must not write an auditLogs row'
+  );
+
+  const moderationBody = declarationBody(
+    /export const moderateListing = mutation\(\{([\s\S]*?)\n\}\);/,
+    'the moderateListing mutation'
+  );
+  assert.match(
+    moderationBody,
+    /ctx\.db\.insert\(\s*'auditLogs'/,
+    'moderateListing must insert its auditLogs row in the same handler'
+  );
+  assert.ok(
+    moderationBody.includes('buildModerationAuditLog('),
+    'moderateListing must build its moderation audit payload'
+  );
+});
+
+test('moderateListing requires suspend from approved and restore from suspended', () => {
+  const requiredStatus = declarationBody(
+    /const MODERATION_REQUIRED_STATUS[\s\S]*?= \{([\s\S]*?)\n\};/,
+    'MODERATION_REQUIRED_STATUS'
+  );
+  assert.match(requiredStatus, /suspend:\s*'approved'/);
+  assert.match(requiredStatus, /restore:\s*'suspended'/);
 });

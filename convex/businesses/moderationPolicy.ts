@@ -33,9 +33,8 @@ export type ModerationAction = (typeof MODERATION_ACTIONS)[number];
 /**
  * `requestChanges`, `reject`, and `suspend` must carry a non-blank reason
  * (SPEC §10: the reason is shown to the owner; contract §A). `approve` and
- * `restore` never require one. Mirrors `assertReasonProvided` in ./mutations.ts
- * and runs before any state is read or written, so a rejected call performs no
- * writes.
+ * `restore` never require one. Runs before any state is read or written, so a
+ * rejected call performs no writes.
  */
 export function assertModerationReason(
   action: ModerationAction,

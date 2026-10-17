@@ -45,15 +45,14 @@ import {
 // never a client-supplied status (SPEC §5); the target status is resolved
 // server-side and checked against the STATUS_TRANSITIONS allow-list.
 
-// The action allow-list is enforced by the validator. Moderation decisions
-// (approve / requestChanges / reject) are deliberately excluded here: they must
-// go through `moderateListing`, which writes the required audit row in the same
-// transaction (issue #13). Transition handles only the remaining lifecycle
+// The action allow-list is enforced by the validator. ALL moderation decisions
+// (approve / requestChanges / reject / suspend / restore) are deliberately
+// excluded here: each must go through `moderateListing`, which enforces the
+// reason rule and writes the required audit row in the same transaction
+// (issue #13; SPEC §10). Transition handles only the remaining lifecycle
 // actions.
 const actionValidator = v.union(
   v.literal('submitForReview'),
-  v.literal('suspend'),
-  v.literal('restore'),
   v.literal('reopenAsDraft')
 );
 
@@ -180,8 +179,6 @@ export const transition = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    assertReasonProvided(args.action, args.reason);
-
     const business = await ctx.db.get('businesses', args.businessId);
     if (business === null) {
       throw new Error('Business not found');
@@ -205,7 +202,7 @@ export const transition = mutation({
       // approvals queue reads it for "submitted age" (SPEC §10, B6).
       ...(args.action === 'submitForReview' ? { submittedAt: now } : {}),
       // Admin moderation stamps. Passing `undefined` removes a stale
-      // moderationReason on suspend / restore.
+      // moderationReason.
       ...(resolution.requiredRole === 'superAdmin'
         ? { moderatedAt: now, moderationReason: args.reason }
         : {}),
@@ -214,8 +211,9 @@ export const transition = mutation({
     // B5 notice in the same transaction (plan §Trigger matrix): owner submit
     // notifies every configured Super Admin; the admin reopen of a rejected
     // listing (same action, superAdmin-resolved) notifies the others and never
-    // the actor; suspend/restore notify the owner. Any other combination
-    // inserts nothing. A failed insert rolls back the transition above.
+    // the actor. Suspend/restore owner notices are planned by the same helper
+    // from `moderateListing`. Any other combination inserts nothing; a failed
+    // insert rolls back the transition above.
     const notificationPlan = planTransitionNotification({
       action: args.action,
       requiredRole: resolution.requiredRole,
@@ -564,18 +562,6 @@ async function authorizeAction(
 
   await requireBusinessOwner(ctx, businessId);
   return null;
-}
-
-/**
- * `requestChanges` and `reject` must carry a moderation reason (SPEC §10: the
- * reason is shown to the owner). Enforced before any state is read or written.
- */
-function assertReasonProvided(action: TransitionAction, reason: string | undefined) {
-  const requiresReason = action === 'requestChanges' || action === 'reject';
-
-  if (requiresReason && (reason ?? '').trim().length === 0) {
-    throw new Error(`${action} requires a reason`);
-  }
 }
 
 /**
