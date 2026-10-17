@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, Fragment, useState, type ReactNode } from 'react';
+import { Component, Fragment, useEffect, useState, type ReactNode } from 'react';
 import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,7 @@ class AuditLoadBoundary extends Component<AuditLoadBoundaryProps, AuditLoadBound
  * Connected `/admin/audit` route (issue #15, Task 15). Read-only: the manual
  * cursor stack pages the guarded `listAuditLogs` query 25 rows at a time
  * (contract §G1/§G6 — the server rejects `numItems > 25`, so load-more is not
- * usable); every filter change starts a fresh traversal.
+ * usable); every applied filter change starts a fresh traversal.
  */
 export default function AuditPage() {
   return (
@@ -68,7 +68,11 @@ export default function AuditPage() {
 
 function AuditPageContent() {
   const { isAuthenticated } = useConvexAuth();
+  // `filters` holds the applied values the query runs with; the text inputs
+  // render from the draft state below so keystrokes stay responsive.
   const [filters, setFilters] = useState<{ action?: string; actor?: string; search?: string }>({});
+  const [actorInput, setActorInput] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const cursor = cursorStack[cursorStack.length - 1];
 
@@ -77,15 +81,56 @@ function AuditPageContent() {
     isAuthenticated ? { paginationOpts: { numItems: 25, cursor }, ...filters } : 'skip'
   );
 
+  // The actor/target inputs stay responsive through the draft state while the
+  // query arguments follow 300ms after the last keystroke; applying a changed
+  // value starts a fresh traversal. Cleanup cancels the pending timer on
+  // unmount/next keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextActor = actorInput.trim() === '' ? undefined : actorInput;
+      if (nextActor !== filters.actor) {
+        setFilters((current) => ({ ...current, actor: nextActor }));
+        setCursorStack([null]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [actorInput, filters.actor]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextSearch = searchInput.trim() === '' ? undefined : searchInput;
+      if (nextSearch !== filters.search) {
+        setFilters((current) => ({ ...current, search: nextSearch }));
+        setCursorStack([null]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, filters.search]);
+
+  function handleFiltersChange(next: { action?: string; actor?: string; search?: string }) {
+    // The text fields are debounced separately; only a real action change
+    // applies immediately and restarts the cursor traversal.
+    const nextActor = next.actor ?? '';
+    if (nextActor !== actorInput) {
+      setActorInput(nextActor);
+    }
+    const nextSearch = next.search ?? '';
+    if (nextSearch !== searchInput) {
+      setSearchInput(nextSearch);
+    }
+
+    if (next.action !== filters.action) {
+      setFilters((current) => ({ ...current, action: next.action }));
+      setCursorStack([null]);
+    }
+  }
+
   return (
     <AuditRoute
       rows={result?.page ?? []}
       loading={result === undefined}
-      filters={filters}
-      onFiltersChange={(f) => {
-        setFilters(f);
-        setCursorStack([null]);
-      }}
+      filters={{ action: filters.action, actor: actorInput, search: searchInput }}
+      onFiltersChange={handleFiltersChange}
       canGoNext={result?.isDone === false}
       canGoPrevious={cursorStack.length > 1}
       onNext={() => {
