@@ -44,6 +44,7 @@ export function AddBusinessForm({
         <Input required type="email" value={data.ownerEmail} onChange={(e) => setData({...data, ownerEmail: e.target.value})} disabled={isPending} />
       </div>
       {error && <div role="alert" className="text-destructive text-sm">{error}</div>}
+      <Button type="button" variant="ghost" size="sm" onClick={() => { setData({ name: '', categoryId: '', ownerEmail: '' }); }}>Cancel</Button>
       <Button type="submit" disabled={isPending || !data.categoryId}>Create Draft</Button>
     </form>
   );

@@ -112,6 +112,7 @@ export function DirectoryRoute({
                 value={filters.search}
                 onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
               />
+              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>+ Add Business</Button>
               <Button variant="outline" size="sm">Export CSV</Button>
               <div className="w-8 h-8 rounded-full bg-muted" />
             </div>
