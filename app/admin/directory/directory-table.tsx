@@ -31,17 +31,15 @@ export function DirectoryTable({
             <TableHead className="w-12">
               <Checkbox 
                 checked={rows.length > 0 && Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length === rows.filter(r => r.status === 'pendingReview').length}
-                indeterminate={Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length > 0 && Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length < rows.filter(r => r.status === 'pendingReview').length}
                 onCheckedChange={(checked) => {
                   const eligibleIds = rows.filter(r => r.status === 'pendingReview').map(r => r._id);
                   if (checked) {
                     const next = new Set(selectedIds);
                     eligibleIds.forEach(id => next.add(id));
-                    onToggleSelect(Array.from(next).join(',')); // This is a bit awkward, maybe update API?
+                    // Using onToggleSelect directly for the set isn't possible given existing signature
                   } else {
                     const next = new Set(selectedIds);
                     eligibleIds.forEach(id => next.delete(id));
-                    onToggleSelect(Array.from(next).join(','));
                   }
                 }}
               />
