@@ -137,20 +137,21 @@ export function buildHardDeleteAuditLog(input: {
 }
 
 /**
- * Upper bound on audit rows whose name snapshot is backfilled at delete time
- * (contract §B4/§B7). Business audit rows written before B6a's write-time
- * snapshots have no `targetName`, and once the target is gone the audit read's
- * live-name fallback cannot resolve one. The `byTarget` read is ordered by
- * creation time, so the oldest rows — the ones most likely to predate the
- * snapshots — are patched first. The bound keeps the delete transaction within
- * Convex read/write limits; rows beyond it stay unnamed rather than making the
- * delete unbounded.
- */
-export const AUDIT_NAME_BACKFILL_LIMIT = 100;
-
-/**
- * Snapshots the business name onto legacy audit rows before the cascade
- * removes the target. Only a missing `targetName` is patched; existing
+ * Snapshots the business name onto EVERY legacy audit row for the target
+ * before the cascade removes it (contract §B4/§B7). Business audit rows
+ * written before B6a's write-time snapshots have no `targetName`, and once the
+ * target is gone the audit read's live-name fallback cannot resolve one — a
+ * row left unnamed here would be unsearchable by name forever.
+ *
+ * The whole `byTarget` range is read in one `.collect()`: the Convex runtime
+ * allows at most one paginated query per function invocation ("This query or
+ * mutation function ran multiple paginated queries. Convex only supports a
+ * single paginated query in each function." — mirrored in
+ * scripts/public-directory-query.test.ts), so a `.paginate` cursor loop cannot
+ * run inside this delete mutation. The single range read is bounded by the
+ * transaction's document limits; a business whose audit history exceeds them
+ * fails the whole transaction safely (nothing is deleted) instead of leaving
+ * unnamed rows behind. Only a missing `targetName` is patched; existing
  * snapshots and the delete row inserted by the caller are left untouched.
  */
 export async function backfillAuditTargetNames(
@@ -160,7 +161,7 @@ export async function backfillAuditTargetNames(
   const logs = await ctx.db
     .query('auditLogs')
     .withIndex('byTarget', (q) => q.eq('targetType', 'business').eq('targetId', business._id))
-    .take(AUDIT_NAME_BACKFILL_LIMIT);
+    .collect();
 
   for (const log of logs) {
     if (log.targetName === undefined) {
