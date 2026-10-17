@@ -87,10 +87,11 @@ export type ModerationAuditLog = {
  * patch (convex/schema.ts `auditLogs`). `fromStatus` is the ACTUAL current
  * status (contract §B6: generalized for suspend/restore); the caller resolves
  * the transition first, so `fromStatus`/`toStatus` always describe the
- * committed change. `targetName` is an optional immutable snapshot — B6a's
- * status actions leave it absent, and the audit read resolves the live name
- * instead (auditProjections.ts). Pure so the payload can be asserted without a
- * Convex runtime.
+ * committed change. The handler supplies `targetName` as an immutable snapshot
+ * so the row survives a later hard delete; it stays optional so callers that
+ * have no name (and legacy rows) keep the live-name fallback
+ * (auditProjections.ts). Pure so the payload can be asserted without a Convex
+ * runtime.
  */
 export function buildModerationAuditLog(input: {
   actorUserId: Id<'users'>;

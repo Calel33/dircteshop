@@ -207,9 +207,10 @@ export default defineSchema({
     action: v.string(),
     targetType: v.string(),
     targetId: v.string(),
-    // Immutable name snapshot for rows whose target can be deleted (B6a hard
-    // delete REQUIRES it); status-action rows leave it absent and the audit
-    // query falls back to the live business name (issue #15 §B4/§B5).
+    // Immutable name snapshot written by every business audit path (B6a hard
+    // delete REQUIRES it); the delete cascade also backfills legacy rows
+    // before the target disappears, and the audit query falls back to the live
+    // business name only when no snapshot exists (issue #15 §B4/§B5).
     targetName: v.optional(v.string()),
     fromStatus: v.optional(listingStatusValidator),
     toStatus: v.optional(listingStatusValidator),

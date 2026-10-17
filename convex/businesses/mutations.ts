@@ -343,6 +343,7 @@ export const moderateListing = mutation({
         fromStatus: business.status,
         toStatus: resolution.targetStatus,
         reason: normalizedReason,
+        targetName: business.name,
         createdAt: now,
       })
     );
@@ -440,6 +441,7 @@ export const approveSelected = mutation({
           fromStatus: 'pendingReview',
           toStatus: resolution.targetStatus,
           reason: normalizedReason,
+          targetName: listing.name,
           createdAt: now,
         })
       );

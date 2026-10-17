@@ -33,8 +33,10 @@ export function resolveFeaturedChange(current: boolean, next: boolean): Featured
 
 /**
  * The single `auditLogs` row per actual featured change (contract §B4):
- * `action: 'feature'`, `reason` = `pinned` | `unpinned` (the direction), and
- * deliberately no statuses — the flag is not a state-machine transition.
+ * `action: 'feature'`, `reason` = `pinned` | `unpinned` (the direction), the
+ * immutable business-name snapshot, and deliberately no statuses — the flag is
+ * not a state-machine transition. The snapshot keeps the row searchable by
+ * name after a hard delete.
  */
 export type FeaturedAuditLog = {
   actorUserId: Id<'users'>;
@@ -42,6 +44,7 @@ export type FeaturedAuditLog = {
   targetType: 'business';
   targetId: Id<'businesses'>;
   reason: 'pinned' | 'unpinned';
+  targetName: string;
   createdAt: number;
 };
 
@@ -49,6 +52,7 @@ export function buildFeaturedAuditLog(input: {
   actorUserId: Id<'users'>;
   targetId: Id<'businesses'>;
   reason: 'pinned' | 'unpinned';
+  targetName: string;
   createdAt: number;
 }): FeaturedAuditLog {
   return {
@@ -57,6 +61,7 @@ export function buildFeaturedAuditLog(input: {
     targetType: 'business',
     targetId: input.targetId,
     reason: input.reason,
+    targetName: input.targetName,
     createdAt: input.createdAt,
   };
 }

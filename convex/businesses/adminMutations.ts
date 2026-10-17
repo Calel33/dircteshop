@@ -56,6 +56,7 @@ export const setFeatured = mutation({
         actorUserId: admin._id,
         targetId: businessId,
         reason: change.reason,
+        targetName: business.name,
         createdAt: now,
       })
     );

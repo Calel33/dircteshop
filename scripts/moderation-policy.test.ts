@@ -189,6 +189,21 @@ test('restore audit payload records suspended -> approved with no reason', () =>
   assert.equal(payload.reason, undefined);
 });
 
+test('audit payload carries the immutable business-name snapshot when supplied', () => {
+  const payload = buildModerationAuditLog({
+    actorUserId: adminId,
+    action: 'approve',
+    targetId: businessId,
+    fromStatus: 'pendingReview',
+    toStatus: 'approved',
+    reason: undefined,
+    targetName: 'Cedar Cafe',
+    createdAt: 9,
+  });
+
+  assert.equal(payload.targetName, 'Cedar Cafe');
+});
+
 // ---------------------------------------------------------------------------
 // B3c / issue #14 Task 2 — bulk approve bounds and all-or-nothing precondition.
 // ---------------------------------------------------------------------------

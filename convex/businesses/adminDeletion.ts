@@ -23,8 +23,9 @@ import type { ListingStatus } from './helpers';
  * The directly linked child tables the cascade removes (contract §B7). The
  * handler queries each by its `byBusinessId` index — `notifications` uses the
  * B6a `byBusinessId` index added in convex/schema.ts. Deliberately NOT here:
- * `auditLogs` (the delete's own audit row must survive; audit rows are
- * immutable evidence) and `paymentAttempts` (no business foreign key; SPEC
+ * `auditLogs` (the delete's own audit row must survive and audit rows are
+ * immutable evidence; the cascade only fills a missing name snapshot — it
+ * never deletes one) and `paymentAttempts` (no business foreign key; SPEC
  * scope limited to business-linked records).
  */
 export const HARD_DELETE_CHILD_TABLES = [
@@ -136,10 +137,43 @@ export function buildHardDeleteAuditLog(input: {
 }
 
 /**
+ * Upper bound on audit rows whose name snapshot is backfilled at delete time
+ * (contract §B4/§B7). Business audit rows written before B6a's write-time
+ * snapshots have no `targetName`, and once the target is gone the audit read's
+ * live-name fallback cannot resolve one. The `byTarget` read is ordered by
+ * creation time, so the oldest rows — the ones most likely to predate the
+ * snapshots — are patched first. The bound keeps the delete transaction within
+ * Convex read/write limits; rows beyond it stay unnamed rather than making the
+ * delete unbounded.
+ */
+export const AUDIT_NAME_BACKFILL_LIMIT = 100;
+
+/**
+ * Snapshots the business name onto legacy audit rows before the cascade
+ * removes the target. Only a missing `targetName` is patched; existing
+ * snapshots and the delete row inserted by the caller are left untouched.
+ */
+export async function backfillAuditTargetNames(
+  ctx: MutationCtx,
+  business: Pick<Doc<'businesses'>, '_id' | 'name'>
+): Promise<void> {
+  const logs = await ctx.db
+    .query('auditLogs')
+    .withIndex('byTarget', (q) => q.eq('targetType', 'business').eq('targetId', business._id))
+    .take(AUDIT_NAME_BACKFILL_LIMIT);
+
+  for (const log of logs) {
+    if (log.targetName === undefined) {
+      await ctx.db.patch(log._id, { targetName: business.name });
+    }
+  }
+}
+
+/**
  * Executes the cascade inside the caller's mutation transaction, in the
  * frozen order (contract §B7): read every linked child set FIRST (bounded by
- * `byBusinessId`), then delete the children, then the parent, and finally the
- * storage objects.
+ * `byBusinessId`), backfill legacy audit name snapshots, then delete the
+ * children, then the parent, and finally the storage objects.
  *
  * - The parent delete is the caller-visible point of no return for the
  *   database; every database write commits or rolls back together.
@@ -196,6 +230,10 @@ export async function cascadeHardDeleteBusiness(
       .withIndex('byBusinessId', (q) => q.eq('businessId', businessId))
       .collect(),
   ]);
+
+  // Legacy audit rows must keep their searchable name after the business is
+  // gone; the audit read can only fall back to a live target.
+  await backfillAuditTargetNames(ctx, business);
 
   for (const child of menuGroups) {
     await ctx.db.delete(child._id);
