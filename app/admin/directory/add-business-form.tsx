@@ -25,13 +25,13 @@ export function AddBusinessForm({
       onSubmit(data);
     }}>
       <div className="space-y-1">
-        <Label>Business Name</Label>
-        <Input required value={data.name} onChange={(e) => setData({...data, name: e.target.value})} disabled={isPending} />
+        <Label htmlFor="name">Business Name</Label>
+        <Input id="name" required value={data.name} onChange={(e) => setData({...data, name: e.target.value})} disabled={isPending} />
       </div>
       <div className="space-y-1">
-        <Label>Category</Label>
+        <Label htmlFor="category">Category</Label>
         <Select value={data.categoryId} onValueChange={(categoryId) => setData({...data, categoryId})} disabled={isPending}>
-          <SelectTrigger>
+          <SelectTrigger id="category">
             <SelectValue placeholder="Select a category" />
           </SelectTrigger>
           <SelectContent>
@@ -40,8 +40,8 @@ export function AddBusinessForm({
         </Select>
       </div>
       <div className="space-y-1">
-        <Label>Owner Email</Label>
-        <Input required type="email" value={data.ownerEmail} onChange={(e) => setData({...data, ownerEmail: e.target.value})} disabled={isPending} />
+        <Label htmlFor="email">Owner Email</Label>
+        <Input id="email" required type="email" value={data.ownerEmail} onChange={(e) => setData({...data, ownerEmail: e.target.value})} disabled={isPending} />
       </div>
       {error && <div role="alert" className="text-destructive text-sm">{error}</div>}
       <Button type="button" variant="ghost" size="sm" onClick={() => { setData({ name: '', categoryId: '', ownerEmail: '' }); }}>Cancel</Button>
