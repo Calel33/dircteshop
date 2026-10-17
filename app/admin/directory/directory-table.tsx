@@ -67,7 +67,16 @@ export function DirectoryTable({
                   disabled={row.status !== 'pendingReview'}
                 />
               </TableCell>
-              <TableCell className="font-medium">{row.name}</TableCell>
+              <TableCell className="font-medium">
+                <button
+                  type="button"
+                  className="text-left hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onSelect(row._id); }}
+                  aria-label={`View inspector for ${row.name}`}
+                >
+                  {row.name}
+                </button>
+              </TableCell>
               <TableCell>{row.categoryName ?? 'Uncategorized'}</TableCell>
               <TableCell>{row.ownerName ?? 'Unknown'}</TableCell>
               <TableCell>{row.address.city}, {row.address.state}</TableCell>
