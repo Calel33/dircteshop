@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export function AddBusinessForm({ 
   categories,
   onSubmit,
+  onCancel,
   isPending,
   error
 }: { 
   categories: { _id: string, name: string }[];
   onSubmit: (data: { name: string, categoryId: string, ownerEmail: string }) => void;
+  onCancel: () => void;
   isPending: boolean;
   error: string | null;
 }) {
@@ -44,7 +46,7 @@ export function AddBusinessForm({
         <Input id="email" required type="email" value={data.ownerEmail} onChange={(e) => setData({...data, ownerEmail: e.target.value})} disabled={isPending} />
       </div>
       {error && <div role="alert" className="text-destructive text-sm">{error}</div>}
-      <Button type="button" variant="ghost" size="sm" onClick={() => { setData({ name: '', categoryId: '', ownerEmail: '' }); }}>Cancel</Button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => { setData({ name: '', categoryId: '', ownerEmail: '' }); onCancel(); }}>Cancel</Button>
       <Button type="submit" disabled={isPending || !data.categoryId}>Create Draft</Button>
     </form>
   );

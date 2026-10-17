@@ -148,6 +148,7 @@ export function DirectoryRoute({
                     await onSubmitAdd(d);
                     setAddOpen(false);
                   }}
+                  onCancel={() => setAddOpen(false)}
                   isPending={addState.isPending}
                   error={addState.error}
                 />
