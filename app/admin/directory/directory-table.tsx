@@ -29,7 +29,22 @@ export function DirectoryTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
-              <Checkbox />
+              <Checkbox 
+                checked={rows.length > 0 && Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length === rows.filter(r => r.status === 'pendingReview').length}
+                indeterminate={Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length > 0 && Array.from(selectedIds).filter(id => rows.find(r => r._id === id)?.status === 'pendingReview').length < rows.filter(r => r.status === 'pendingReview').length}
+                onCheckedChange={(checked) => {
+                  const eligibleIds = rows.filter(r => r.status === 'pendingReview').map(r => r._id);
+                  if (checked) {
+                    const next = new Set(selectedIds);
+                    eligibleIds.forEach(id => next.add(id));
+                    onToggleSelect(Array.from(next).join(',')); // This is a bit awkward, maybe update API?
+                  } else {
+                    const next = new Set(selectedIds);
+                    eligibleIds.forEach(id => next.delete(id));
+                    onToggleSelect(Array.from(next).join(','));
+                  }
+                }}
+              />
             </TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Category</TableHead>
