@@ -27,6 +27,7 @@ import {
   buildModerationAuditLog,
   normalizeBulkApproveIds,
   normalizeModerationReason,
+  type ModerationAction,
 } from './moderationPolicy';
 import {
   changedCoreIdentityFields,
@@ -242,27 +243,59 @@ export const transition = mutation({
 });
 
 /**
- * B3b per-card moderation decision (issue #13, Task 3): the narrow Super Admin
- * action set for a `pendingReview` listing. Deliberately separate from
- * `transition` so owner submit/reopen behavior and the out-of-scope
- * suspend/restore flows are untouched, and only this decision writes its atomic
- * audit row.
+ * B3b per-card moderation decision (issue #13, Task 3), extended by B6a
+ * (issue #15, Task 3) to the full directory action set: Approve, Request
+ * Changes, Reject (a `pendingReview` listing) and Suspend, Restore (a live
+ * one). Deliberately separate from `transition` so owner submit/reopen
+ * behavior is untouched, and only this decision writes its atomic audit row.
  *
- * Frozen check order: reason -> authorize -> load -> resolve + pendingReview
- * guard -> atomic patch + audit insert. The target status is resolved
- * server-side (`resolveTransition`) and the acting Super Admin is derived from
- * `requireSuperAdmin`; a client never supplies a status, actor id, or
- * verification stamp.
+ * Frozen check order (contract §B6): reason -> authorize -> load ->
+ * resolve + current-status guard -> atomic patch + audit insert. The target
+ * status is resolved server-side (`resolveTransition`) and the acting Super
+ * Admin is derived from `requireSuperAdmin`; a client never supplies a status,
+ * actor id, or verification stamp.
  *
- * The explicit `pendingReview` guard is required because the state machine
+ * The explicit current-status guard is required because the state machine
  * resolves a `suspended -> approved` `approve` (helpers.ts), so a stale card
- * could otherwise re-approve a listing that already left review.
+ * could otherwise re-approve a listing that already left review; Suspend is
+ * `approved`-only and Restore `suspended`-only for the same reason.
  */
 const moderationActionValidator = v.union(
   v.literal('approve'),
   v.literal('requestChanges'),
-  v.literal('reject')
+  v.literal('reject'),
+  v.literal('suspend'),
+  v.literal('restore')
 );
+
+/** The current status each moderation action requires (contract §A). */
+const MODERATION_REQUIRED_STATUS: Record<
+  ModerationAction,
+  'pendingReview' | 'approved' | 'suspended'
+> = {
+  approve: 'pendingReview',
+  requestChanges: 'pendingReview',
+  reject: 'pendingReview',
+  suspend: 'approved',
+  restore: 'suspended',
+};
+
+function assertModerationCurrentStatus(
+  action: ModerationAction,
+  currentStatus: ListingStatus
+): void {
+  const required = MODERATION_REQUIRED_STATUS[action];
+  if (currentStatus === required) {
+    return;
+  }
+
+  if (required === 'pendingReview') {
+    throw new ConvexError('Listing is no longer pending review; refresh the queue.');
+  }
+  throw new ConvexError(
+    `Only a ${required} listing can be ${action === 'suspend' ? 'suspended' : 'restored'}.`
+  );
+}
 
 export const moderateListing = mutation({
   args: {
@@ -285,9 +318,7 @@ export const moderateListing = mutation({
       throw new ConvexError(`Invalid transition from ${business.status} for ${args.action}`);
     }
 
-    if (business.status !== 'pendingReview') {
-      throw new ConvexError('Listing is no longer pending review; refresh the queue.');
-    }
+    assertModerationCurrentStatus(args.action, business.status);
 
     const now = Date.now();
     const normalizedReason = normalizeModerationReason(args.action, args.reason);
@@ -297,6 +328,7 @@ export const moderateListing = mutation({
       lastUpdatedAt: now,
       moderatedAt: now,
       moderationReason: normalizedReason,
+      // Only approve stamps verification; suspend/restore never touch it.
       ...(args.action === 'approve'
         ? { verification: { isVerified: true, verifiedAt: now, verifiedBy: admin._id } }
         : {}),
@@ -308,25 +340,44 @@ export const moderateListing = mutation({
         actorUserId: admin._id,
         action: args.action,
         targetId: args.businessId,
+        fromStatus: business.status,
         toStatus: resolution.targetStatus,
         reason: normalizedReason,
         createdAt: now,
       })
     );
 
-    // B5 notice in the same transaction: the owner is told the decision and
-    // the (required, normalized) reason; approve carries none.
-    await insertNotification(
-      ctx,
-      business.ownerId,
-      moderationNotificationEvent({
+    // Notification parity with the existing `transition()` path:
+    // approve/requestChanges/reject keep the moderation event; suspend/restore
+    // write the same owner notice as the transition path
+    // (`planTransitionNotification`). Both are inserted in the same
+    // transaction, so a status change never commits without its notice.
+    if (args.action === 'suspend' || args.action === 'restore') {
+      const notificationPlan = planTransitionNotification({
         action: args.action,
+        requiredRole: 'superAdmin',
+        targetStatus: resolution.targetStatus,
         businessId: args.businessId,
         businessName: business.name,
         reason: normalizedReason,
-      }),
-      now
-    );
+      });
+
+      if (notificationPlan?.audience === 'owner') {
+        await insertNotification(ctx, business.ownerId, notificationPlan.event, now);
+      }
+    } else {
+      await insertNotification(
+        ctx,
+        business.ownerId,
+        moderationNotificationEvent({
+          action: args.action,
+          businessId: args.businessId,
+          businessName: business.name,
+          reason: normalizedReason,
+        }),
+        now
+      );
+    }
   },
 });
 
@@ -386,6 +437,7 @@ export const approveSelected = mutation({
           actorUserId: admin._id,
           action: 'approve',
           targetId: listing._id,
+          fromStatus: 'pendingReview',
           toStatus: resolution.targetStatus,
           reason: normalizedReason,
           createdAt: now,

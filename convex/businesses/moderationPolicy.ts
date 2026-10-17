@@ -3,30 +3,45 @@ import { ConvexError } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { ListingStatus } from './helpers';
 
-// B3b moderation policy (issue #13, Task 3): the pure decision logic behind the
-// `/admin/approvals` queue. It imports ConvexError only for the expected
-// invalid-reason application error; the pure policy helpers remain importable
-// by `node --test` (runtime DB tests are unavailable in this repo). The Convex
-// handler (`moderateListing` in ./mutations.ts) is a thin shell over these
-// functions: it authorizes, resolves the transition, and commits the patch +
-// audit row atomically.
+// B3b moderation policy (issue #13, Task 3), extended by B6a (issue #15,
+// Task 3): the pure decision logic behind the `/admin/approvals` queue and the
+// `/admin/directory` status actions. It imports ConvexError only for the
+// expected invalid-reason application error; the pure policy helpers remain
+// importable by `node --test` (runtime DB tests are unavailable in this repo).
+// The Convex handler (`moderateListing` in ./mutations.ts) is a thin shell
+// over these functions: it authorizes, resolves the transition, and commits
+// the patch + audit row atomically.
+//
+// Contract: tasks/issue-15-contracts.md §A/§B4/§B6.
 
-/** The only three queue decisions (SPEC §10). Suspend/Restore stay out of scope. */
-export const MODERATION_ACTIONS = ['approve', 'requestChanges', 'reject'] as const;
+/**
+ * The five directory moderation actions (contract §A). Approve / Request
+ * changes / Reject decide a `pendingReview` listing; Suspend/Restore manage a
+ * live one (Suspend: `approved`; Restore: `suspended`). The B3 queue keeps
+ * sending only the first three.
+ */
+export const MODERATION_ACTIONS = [
+  'approve',
+  'requestChanges',
+  'reject',
+  'suspend',
+  'restore',
+] as const;
 
 export type ModerationAction = (typeof MODERATION_ACTIONS)[number];
 
 /**
- * `requestChanges` and `reject` must carry a non-blank moderation reason
- * (SPEC §10: the reason is shown to the owner). `approve` never requires a
- * reason. Mirrors `assertReasonProvided` in ./mutations.ts and runs before any
- * state is read or written, so a rejected call performs no writes.
+ * `requestChanges`, `reject`, and `suspend` must carry a non-blank reason
+ * (SPEC §10: the reason is shown to the owner; contract §A). `approve` and
+ * `restore` never require one. Mirrors `assertReasonProvided` in ./mutations.ts
+ * and runs before any state is read or written, so a rejected call performs no
+ * writes.
  */
 export function assertModerationReason(
   action: ModerationAction,
   reason: string | undefined
 ): void {
-  if (action === 'approve') {
+  if (action === 'approve' || action === 'restore') {
     return;
   }
 
@@ -36,16 +51,17 @@ export function assertModerationReason(
 }
 
 /**
- * The value persisted to `businesses.moderationReason`. `approve` clears any
- * stale reason (`undefined` removes the field on patch); Changes/Reject store
- * the trimmed reason. Callers must run `assertModerationReason` first — this
- * function only normalizes, it does not validate.
+ * The value persisted to `businesses.moderationReason`. `approve`/`restore`
+ * clear any stale reason (`undefined` removes the field on patch);
+ * Changes/Reject/Suspend store the trimmed reason. Callers must run
+ * `assertModerationReason` first — this function only normalizes, it does not
+ * validate.
  */
 export function normalizeModerationReason(
   action: ModerationAction,
   reason: string | undefined
 ): string | undefined {
-  if (action === 'approve') {
+  if (action === 'approve' || action === 'restore') {
     return undefined;
   }
 
@@ -61,32 +77,40 @@ export type ModerationAuditLog = {
   fromStatus: ListingStatus;
   toStatus: ListingStatus;
   reason: string | undefined;
+  /** Present only when the caller supplies an immutable name snapshot. */
+  targetName?: string;
   createdAt: number;
 };
 
 /**
  * Builds the audit payload inserted in the same transaction as the business
- * patch (convex/schema.ts `auditLogs`). `fromStatus` is always `pendingReview`:
- * the queue mutation refuses any other current status, so a decision can only
- * move a listing out of review. Pure so the payload can be asserted without a
+ * patch (convex/schema.ts `auditLogs`). `fromStatus` is the ACTUAL current
+ * status (contract §B6: generalized for suspend/restore); the caller resolves
+ * the transition first, so `fromStatus`/`toStatus` always describe the
+ * committed change. `targetName` is an optional immutable snapshot — B6a's
+ * status actions leave it absent, and the audit read resolves the live name
+ * instead (auditProjections.ts). Pure so the payload can be asserted without a
  * Convex runtime.
  */
 export function buildModerationAuditLog(input: {
   actorUserId: Id<'users'>;
   action: ModerationAction;
   targetId: Id<'businesses'>;
+  fromStatus: ListingStatus;
   toStatus: ListingStatus;
   reason: string | undefined;
   createdAt: number;
+  targetName?: string;
 }): ModerationAuditLog {
   return {
     actorUserId: input.actorUserId,
     action: input.action,
     targetType: 'business',
     targetId: input.targetId,
-    fromStatus: 'pendingReview',
+    fromStatus: input.fromStatus,
     toStatus: input.toStatus,
     reason: input.reason,
+    ...(input.targetName === undefined ? {} : { targetName: input.targetName }),
     createdAt: input.createdAt,
   };
 }
