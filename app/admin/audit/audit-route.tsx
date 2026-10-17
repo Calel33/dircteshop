@@ -52,12 +52,14 @@ export function AuditRoute({
         </Select>
         <Input
           placeholder="Filter by actor..."
+          aria-label="Filter by actor"
           value={filters.actor ?? ''}
           onChange={(e) => onFiltersChange({ ...filters, actor: e.target.value })}
           className="w-48"
         />
         <Input
           placeholder="Filter by target..."
+          aria-label="Filter by target"
           value={filters.search ?? ''}
           onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
           className="w-48"
