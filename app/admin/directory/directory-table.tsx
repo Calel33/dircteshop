@@ -15,7 +15,7 @@ import { AdminDirectoryRow, DIRECTORY_STATUS_LABELS } from './directory-types';
 export function DirectoryTable({ 
   rows, 
   selectedIds, 
-  onToggleSelectBulk, 
+  onToggleSelectBulk,
   onSelect 
 }: { 
   rows: AdminDirectoryRow[]; 
@@ -29,7 +29,7 @@ export function DirectoryTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">
-              <Checkbox 
+              <Checkbox
                 checked={(() => {
                   const eligibleRows = rows.filter(r => r.status === 'pendingReview');
                   if (eligibleRows.length === 0) return false;
