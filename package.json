@@ -14,7 +14,7 @@
     "lint:dead-code": "knip",
     "lint:duplicates": "jscpd",
     "lint:tech-debt": "node scripts/check-tech-debt.js",
-    "test": "node scripts/verify-state-machine.ts && node --test",
+    "test": "node scripts/verify-state-machine.ts && node --test \"app/**/*.test.ts\" \"lib/**/*.test.ts\" \"scripts/**/*.test.ts\" && vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "seed": "node scripts/seed.ts",
@@ -61,6 +61,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "^10.0.1",
     "@next/eslint-plugin-next": "^16.3.5",
     "@reticlehq/next": "3.7.0",
@@ -71,6 +72,7 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "convex-test": "^0.0.62",
     "eslint": "^10.10.0",
     "husky": "^9.0.0",
     "jscpd": "^5.2.1",
@@ -80,7 +82,9 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
