@@ -37,6 +37,7 @@ import {
 function form(overrides: Partial<EditorFormState> = {}): EditorFormState {
   return {
     name: 'Acme',
+    photos: [],
     categoryId: 'categories_1',
     description: 'A cafe',
     keywords: '',
