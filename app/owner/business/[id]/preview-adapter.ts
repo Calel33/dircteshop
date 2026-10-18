@@ -7,7 +7,9 @@ import { normalizeAddress, normalizeHours, type EditorFormState } from './editor
 // UNSAVED form state onto the public `PublicBusiness` shape so WYSIWYS preview
 // can reuse the shared `components/profile/BusinessProfile` renderer without
 // forking or modifying it. Only fields the editor owns come from `form`; the
-// rest (photos, rating, verification, …) are carried from the owned document.
+// rest (rating, verification, …) are carried from the owned document. Photos
+// are owned by the form now — unsaved uploads, reorders, alt edits, and
+// removals must reach the preview before save (issue #7 / B7, D7).
 //
 // Type-only imports + a single pure runtime import keep this module usable by
 // both the client bundle and `node --test` (preview-adapter.test.ts).
@@ -15,7 +17,8 @@ import { normalizeAddress, normalizeHours, type EditorFormState } from './editor
 /** The owned-document fields preview carries through unchanged. */
 export interface PreviewSource {
   _id: Id<'businesses'>;
-  photos: PublicBusiness['photos'];
+  /** Saved photos; used only when form state has no photo array yet. */
+  photos?: PublicBusiness['photos'];
   verification: { isVerified: boolean };
   rating: number;
   ratingCount: number;
@@ -43,7 +46,7 @@ export function toPreviewBusiness(source: PreviewSource, form: EditorFormState):
     phone: emptyToUndefined(form.phone),
     email: emptyToUndefined(form.email),
     website: emptyToUndefined(form.website),
-    photos: source.photos,
+    photos: form.photos ?? source.photos ?? [],
     hours: normalizeHours(form.hours),
     verification: source.verification,
     rating: source.rating,
