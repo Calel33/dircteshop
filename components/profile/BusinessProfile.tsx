@@ -44,7 +44,7 @@ function AboutCard({ description }: { description: string }) {
  * 22rem Live Preview column on a wide desktop viewport.
  */
 export function BusinessProfile({ data, actions, mainContent, sidebar }: BusinessProfileProps) {
-  const { business, category, vertical } = data;
+  const { business, category, vertical, photoUrls } = data;
 
   return (
     <article className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 @container">
@@ -56,9 +56,11 @@ export function BusinessProfile({ data, actions, mainContent, sidebar }: Busines
           { label: business.name },
         ]}
       />
-      {/* TODO(#2): pass `photoUrls` once B7 (uploads) resolves storage URLs;
-          the gallery renders placeholders until then. */}
-      <ProfileHero businessName={business.name} photos={business.photos} />
+      <ProfileHero
+        businessName={business.name}
+        photos={business.photos}
+        photoUrls={photoUrls}
+      />
       <IdentityBar business={business} categoryName={category.name} />
       <ActionsBar actions={actions ?? vertical.defaultActions} business={business} />
       <div className="grid grid-cols-1 gap-6 @md:grid-cols-[2fr_1fr]">

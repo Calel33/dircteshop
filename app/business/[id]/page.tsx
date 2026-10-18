@@ -66,6 +66,7 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     business: result.business,
     category: result.category,
     vertical: getVerticalConfig(result.category.slug),
+    photoUrls: result.photoUrls,
   };
 
   return <BusinessProfile data={data} />;

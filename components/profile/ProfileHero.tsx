@@ -54,6 +54,10 @@ export function ProfileHero({ businessName, photos, photoUrls }: ProfileHeroProp
                 <ImageIcon aria-hidden className="size-6" />
               </div>
             ) : (
+              // Raw <img> is deliberate (issue #7 review): URLs are per-file
+              // bearer links on the Convex deployment host with unknown
+              // intrinsic dimensions, so next/image would need remotePatterns
+              // plus explicit sizing for no optimization gain here. Deferred.
               <img
                 src={url}
                 alt={photo.altText ?? businessName}

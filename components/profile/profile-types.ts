@@ -49,4 +49,9 @@ export type BusinessProfileData = {
   business: PublicBusiness;
   category: Doc<'categories'>;
   vertical: VerticalConfig;
+  /**
+   * Storage URLs keyed by storage id, resolved by the caller. Photos without a
+   * resolved URL render the gallery placeholder.
+   */
+  photoUrls?: Readonly<Record<string, string>>;
 };
