@@ -36,9 +36,9 @@ export const EDITOR_SECTIONS = [
 export type EditorFormSectionId = (typeof EDITOR_SECTIONS)[number]['id'];
 
 /**
- * Photos & Media section (issue #14 / B3c Task 8; SPEC §9). Photo upload and
- * storage land in a later slice (B7): the v1 panel renders the prototype's
- * structure (upload zone, photo grid, note) without file controls.
+ * Photos & Media section (issue #14 / B3c Task 8; issue #7 / B7; SPEC §9).
+ * The panel uploads, orders, and captions photos on Convex file storage; photos
+ * are content, so an approved listing publishes them immediately.
  */
 export const PHOTOS_SECTION = {
   id: 'photos-media',
@@ -123,11 +123,11 @@ export type NavCompletion = Partial<Record<EditorSectionId, NavDotState>>;
  * name + description, contact needs a phone for full and email/website for
  * partial, and the well-known singletons fill their own section.
  */
-export function deriveNavCompletion(form: EditorFormState, photoCount: number): NavCompletion {
+export function deriveNavCompletion(form: EditorFormState): NavCompletion {
   return {
     'basic-info': basicDot(form),
     hours: filledDot(Object.values(form.hours).some((periods) => periods.length > 0)),
-    'photos-media': filledDot(photoCount > 0),
+    'photos-media': filledDot(form.photos.length > 0),
     contact: contactDot(form),
     location: textDot(form.address.addressLine1),
     'categories-tags': textDot(form.categoryId),

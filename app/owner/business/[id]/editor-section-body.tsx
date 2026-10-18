@@ -2,9 +2,9 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Id } from '@/convex/_generated/dataModel';
 
 import { EditorHistory } from './editor-history';
-import { getPhotoSlotLabels } from './editor-photo-slots';
 import {
   ANALYTICS_SECTION,
   HISTORY_SECTION,
@@ -12,6 +12,7 @@ import {
   SETTINGS_SECTION,
   type EditorSectionId,
 } from './editor-sections';
+import { PhotosPanel } from './photos-panel';
 import type { EditorSection } from './editor-types';
 import type { EditorFormState } from './editor-form';
 import type { HistoryEntry } from './editor-status';
@@ -20,52 +21,6 @@ import type { CategoryOption } from './section-card';
 
 const STUB_NOTE_CLASS =
   'bg-muted text-muted-foreground rounded-control border border-border p-4 text-sm';
-
-/**
- * Photos & Media panel (prototype L406-411). Uploads are a later slice (B7), so
- * the v1 panel renders the prototype's structure — upload zone, ordered grid,
- * note — without file controls.
- */
-function PhotosPanel({ section, photoCount }: { section: EditorSection; photoCount: number }) {
-  return (
-    <Card className="rounded-card py-card">
-      <CardHeader>
-        <CardTitle className="font-display text-lg">{section.label}</CardTitle>
-        <CardDescription>{section.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="border-border text-card-muted rounded-card border-2 border-dashed p-6 text-center text-sm">
-          Drag photos here — photo uploads arrive in a later slice
-        </div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-3">
-          {getPhotoSlotLabels(photoCount).map((label, index) => (
-            <div
-              key={index}
-              className="bg-muted border-border text-muted-foreground flex aspect-square items-center justify-center rounded-control border text-xs font-semibold"
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled
-            title="Photo uploads arrive in a later slice"
-          >
-            Add photo
-          </Button>
-        </div>
-        <p className="text-card-muted text-xs">
-          Photos are content — adding or reordering an approved listing&apos;s photos goes live
-          immediately.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
 
 const ANALYTICS_STATS = ['Profile views', 'Contact clicks', 'Orders / bookings'] as const;
 
@@ -131,7 +86,10 @@ export function EditorSectionBody({
   readOnly,
   categories,
   historyEntries,
-  photoCount,
+  businessId,
+  photos,
+  savedPhotos,
+  onPhotosChange,
   showResetSection,
   canResetSection,
   onResetSection,
@@ -143,7 +101,10 @@ export function EditorSectionBody({
   readOnly: boolean;
   categories: CategoryOption[];
   historyEntries: HistoryEntry[];
-  photoCount: number;
+  businessId: Id<'businesses'>;
+  photos: EditorFormState['photos'];
+  savedPhotos: EditorFormState['photos'];
+  onPhotosChange: (photos: EditorFormState['photos']) => void;
   /** True when the active section has reset fields. */
   showResetSection: boolean;
   canResetSection: boolean;
@@ -166,7 +127,17 @@ export function EditorSectionBody({
   }
 
   if (activeId === PHOTOS_SECTION.id) {
-    return <PhotosPanel section={activeSection} photoCount={photoCount} />;
+    return (
+      <PhotosPanel
+        businessId={businessId}
+        section={activeSection}
+        photos={photos}
+        savedPhotos={savedPhotos}
+        onPhotosChange={onPhotosChange}
+        readOnly={readOnly}
+        tool={resetTool}
+      />
+    );
   }
 
   if (activeId === ANALYTICS_SECTION.id) {

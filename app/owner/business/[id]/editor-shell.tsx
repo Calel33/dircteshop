@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { ConvexError } from 'convex/values';
 import { useMutation, useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
@@ -91,12 +92,21 @@ function buildPreviewState(
       business: toPreviewBusiness(business, form),
       category,
       vertical: getVerticalConfig(category.slug),
+      // Saved photos already have URLs; the preview resolves only the unsaved
+      // uploads missing from this map.
+      photoUrls: business.photoUrls,
     },
   };
 }
 
 /** Normalises a thrown mutation error into a user-facing message. */
 function messageFromError(error: unknown, fallback: string): string {
+  // The backend sends owner-facing text as the ConvexError payload; the wrapper
+  // the client rebuilds carries the internal function path in `.message`
+  // (https://docs.convex.dev/functions/error-handling/application-errors).
+  if (error instanceof ConvexError && typeof error.data === 'string' && error.data.trim().length > 0) {
+    return error.data;
+  }
   return error instanceof Error ? error.message : fallback;
 }
 
@@ -178,7 +188,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     coreStaged,
   });
   const historyEntries = deriveHistoryEntries(business);
-  const navCompletion = deriveNavCompletion(form, business.photos.length);
+  const navCompletion = deriveNavCompletion(form);
 
   const isBusy = isSaving || isSubmitting;
   // Validate only what will be persisted. Approved core identity (e.g. a staged
@@ -398,7 +408,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
           readOnly={readOnly}
           categories={toCategoryOptions(categories)}
           historyEntries={historyEntries}
-          photoCount={business.photos.length}
+          businessId={business._id}
+          photos={form.photos}
+          savedPhotos={baseline.photos}
+          onPhotosChange={(photos) => handleFieldChange('photos', photos)}
           showResetSection={showResetSection}
           canResetSection={canResetSection}
           onResetSection={handleResetSection}
