@@ -1,6 +1,5 @@
 'use client';
 
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { type DirectoryFilters, type DirectoryListingStatus } from './directory-types';
 
 const STATUSES: { value: string; label: string }[] = [
@@ -13,6 +12,46 @@ const STATUSES: { value: string; label: string }[] = [
   { value: 'suspended', label: 'Suspended' },
 ];
 
+const VERIFICATIONS = [
+  { value: 'all', label: 'Any' },
+  { value: 'true', label: 'Verified' },
+  { value: 'false', label: 'Unverified' },
+];
+
+const SAVED_VIEWS = [
+  { value: 'all', label: 'All listings' },
+  { value: 'pendingReview', label: 'Needs review' },
+  { value: 'featured', label: 'Featured' },
+  { value: 'suspended', label: 'Suspended' },
+];
+
+/** Prototype `.opt`: one aligned radio row. */
+function OptRow({
+  name,
+  checked,
+  label,
+  onChange,
+}: {
+  name: string;
+  checked: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-tiny">
+      <input type="radio" name={name} checked={checked} onChange={onChange} />
+      {label}
+    </label>
+  );
+}
+
+/**
+ * The prototype's `.rail` (Variant B): 14rem, `bg-panel`, hairline right
+ * border. Saved views are left-aligned `.nav-btn` rows (active = brand-soft
+ * fill + brand-strong semibold); category, status and verification are
+ * `.opt` radio rows rather than pill toggles. Hidden below the deck
+ * breakpoint, where the dataset toolbar carries the same filters.
+ */
 export function DirectoryRail({
   filters,
   onUpdate,
@@ -24,7 +63,7 @@ export function DirectoryRail({
   categories: { _id: string; name: string }[];
   shownCount: number;
 }) {
-  const activeView = filters.featuredOnly === true ? 'featured' : filters.status ?? 'all';
+  const activeView = filters.featuredOnly === true ? 'featured' : (filters.status ?? 'all');
 
   const pickView = (view: string) => {
     if (view === 'all') {
@@ -37,90 +76,99 @@ export function DirectoryRail({
   };
 
   return (
-    <aside className="w-full shrink-0 border-b p-4 flex flex-row flex-wrap gap-6 lg:w-64 lg:flex-col lg:flex-nowrap lg:border-b-0 lg:border-r">
-      <div className="min-w-40">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Saved views</h3>
-        <ToggleGroup
-          type="single"
-          value={activeView}
-          onValueChange={(val: string) => {
-            if (val) pickView(val);
-          }}
-          className="flex-col items-start"
-        >
-          <ToggleGroupItem value="all" aria-label="All listings">All listings</ToggleGroupItem>
-          <ToggleGroupItem value="pendingReview" aria-label="Needs review">Needs review</ToggleGroupItem>
-          <ToggleGroupItem value="featured" aria-label="Featured">Featured</ToggleGroupItem>
-          <ToggleGroupItem value="suspended" aria-label="Suspended">Suspended</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
-      <div className="min-w-40">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Category</h3>
-        <div className="grid gap-1">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="rail-category"
-              checked={filters.categoryId === undefined}
-              onChange={() => onUpdate({ ...filters, categoryId: undefined })}
-            />
-            All categories
-          </label>
-          {categories.map((c) => (
-            <label key={c._id} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="rail-category"
-                checked={filters.categoryId === c._id}
-                onChange={() => onUpdate({ ...filters, categoryId: c._id })}
-              />
-              {c.name}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="min-w-40">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Status</h3>
-        <div className="grid gap-1">
-          {STATUSES.map((s) => (
-            <label key={s.value} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="rail-status"
-                checked={(filters.status ?? 'all') === s.value}
-                onChange={() =>
-                  onUpdate({
-                    ...filters,
-                    status: s.value === 'all' ? undefined : (s.value as DirectoryListingStatus),
-                  })
+    <aside className="bg-panel border-border deck:grid hidden border-r p-4 content-start gap-4">
+      <div className="grid gap-2">
+        <h3 className="text-micro text-muted-foreground tracking-label uppercase">Saved views</h3>
+        <div className="grid gap-2">
+          {SAVED_VIEWS.map((view) => {
+            const isActive = activeView === view.value;
+            return (
+              <button
+                key={view.value}
+                type="button"
+                onClick={() => pickView(view.value)}
+                aria-pressed={isActive}
+                className={
+                  isActive
+                    ? 'bg-brand-soft text-brand-strong rounded-menu px-3 py-2 text-left text-sm font-semibold'
+                    : 'text-foreground hover:bg-brand-soft/60 rounded-menu px-3 py-2 text-left text-sm transition-colors'
                 }
-              />
-              {s.label}
-            </label>
+              >
+                {view.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <h3 className="text-micro text-muted-foreground tracking-label uppercase">Category</h3>
+        <div className="grid gap-2">
+          <OptRow
+            name="rail-category"
+            checked={filters.categoryId === undefined}
+            label="All categories"
+            onChange={() => onUpdate({ ...filters, categoryId: undefined })}
+          />
+          {categories.map((category) => (
+            <OptRow
+              key={category._id}
+              name="rail-category"
+              checked={filters.categoryId === category._id}
+              label={category.name}
+              onChange={() => onUpdate({ ...filters, categoryId: category._id })}
+            />
           ))}
         </div>
       </div>
 
-      <div className="min-w-40">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Verification</h3>
-        <ToggleGroup
-          type="single"
-          value={filters.isVerified === undefined ? 'all' : filters.isVerified.toString()}
-          onValueChange={(val: string) => {
-            if (val) onUpdate({ ...filters, isVerified: val === 'all' ? undefined : val === 'true' });
-          }}
-          className="flex-col items-start"
-        >
-          <ToggleGroupItem value="all" aria-label="Any">Any</ToggleGroupItem>
-          <ToggleGroupItem value="true" aria-label="Verified">Verified</ToggleGroupItem>
-          <ToggleGroupItem value="false" aria-label="Unverified">Unverified</ToggleGroupItem>
-        </ToggleGroup>
+      <div className="grid gap-2">
+        <h3 className="text-micro text-muted-foreground tracking-label uppercase">Status</h3>
+        <div className="grid gap-2">
+          {STATUSES.map((status) => (
+            <OptRow
+              key={status.value}
+              name="rail-status"
+              checked={(filters.status ?? 'all') === status.value}
+              label={status.label}
+              onChange={() =>
+                onUpdate({
+                  ...filters,
+                  status: status.value === 'all' ? undefined : (status.value as DirectoryListingStatus),
+                })
+              }
+            />
+          ))}
+        </div>
       </div>
 
-      <p className="text-xs text-muted-foreground w-full" role="status">
-        {shownCount} listings shown.
+      <div className="grid gap-2">
+        <h3 className="text-micro text-muted-foreground tracking-label uppercase">Verification</h3>
+        <div className="grid gap-2">
+          {VERIFICATIONS.map((option) => (
+            <OptRow
+              key={option.value}
+              name="rail-verification"
+              checked={(filters.isVerified === undefined ? 'all' : String(filters.isVerified)) === option.value}
+              label={option.label}
+              onChange={() =>
+                onUpdate({
+                  ...filters,
+                  isVerified: option.value === 'all' ? undefined : option.value === 'true',
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
+
+      {/*
+        The prototype reads "{n} of {m} listings match." The `m` total is not
+        in the paginated projection, and the page cannot invent one without a
+        new query contract, so the rail states the matched count only.
+      */}
+      <p className="text-muted-foreground text-tiny" role="status">
+        {shownCount} listings match.
       </p>
     </aside>
   );

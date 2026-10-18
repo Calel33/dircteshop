@@ -5,8 +5,9 @@ import type { Doc, Id } from './_generated/dataModel';
 // B6b `/admin` projections (issue #16, Tasks 1–2).
 //
 // Pure helpers behind `api.adminQueries`: the overview's LOCAL calendar month
-// window and window assert, plus the owners table's page bounds and row
-// shape. Deliberately distinct from `./businesses/adminProjections.ts` (the
+// window and window assert, the owners table's page bounds and row shape, and
+// the review-workload read bound and row shape. Deliberately distinct from
+// `./businesses/adminProjections.ts` (the
 // B6a directory projection) — this module owns the overview and owners
 // surfaces only, imports nothing from the Convex server runtime, and stays
 // `node --test`-able.
@@ -147,4 +148,50 @@ export function toAnalyticsCounts(
   quoteRequests: number
 ): AnalyticsCounts {
   return { orders, bookings, quoteRequests };
+}
+
+// ---------------------------------------------------------------------------
+// Variant B `/admin` overview "Review workload" projection (issue #22): one
+// exact `pendingReview` count per category, in `byOrdering` read order.
+// ---------------------------------------------------------------------------
+
+/**
+ * The most categories the review-workload read considers: the same bound
+ * every category read takes (`MAX_CATEGORIES` in `./categories.ts`), so the
+ * workload never looks at more categories than the taxonomy surfaces expose.
+ * The seeded taxonomy is the 8 SPEC §10 categories, well inside the cap.
+ */
+export const WORKLOAD_CATEGORY_LIMIT = 100;
+
+/**
+ * The narrow review-workload row (issue #22): category identity, display
+ * name, and the exact `pendingReview` count for that category. `slug`,
+ * `icon`, `ordering`, and `parentCategoryId` are deliberately absent — the
+ * card needs none of them and this module is the only boundary shape. Zero
+ * counts pass through unchanged: the handler measures every category and the
+ * card filters for display, so the read never hides or estimates a count.
+ */
+export type ReviewWorkloadRow = {
+  categoryId: Id<'categories'>;
+  name: string;
+  pendingCount: number;
+};
+
+/**
+ * Projects one categories doc plus its precomputed exact pending count to the
+ * frozen row. The count itself is measured by the handler through the
+ * `businesses.byStatusCategorySubmittedAt` range (see `reviewWorkload` in
+ * `./adminQueries.ts`) — this projection only enforces the boundary shape,
+ * and it maps in place, so the `byOrdering` read order reaches the card
+ * unsorted.
+ */
+export function toReviewWorkloadRow(
+  category: Doc<'categories'>,
+  pendingCount: number
+): ReviewWorkloadRow {
+  return {
+    categoryId: category._id,
+    name: category.name,
+    pendingCount,
+  };
 }

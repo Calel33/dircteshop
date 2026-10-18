@@ -1,107 +1,130 @@
 'use client';
 
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { AdminDirectoryRow, DIRECTORY_STATUS_LABELS } from './directory-types';
+import { cn } from '@/lib/utils';
+import { StarRating, StatusChip } from '@/app/admin/status-chip';
+import { AdminDirectoryRow } from './directory-types';
 
-export function DirectoryTable({ 
-  rows, 
-  selectedIds, 
+const HEAD_CELL =
+  'bg-panel text-muted-foreground border-border text-micro tracking-label h-auto px-3 py-2 font-semibold uppercase';
+const CELL = 'px-3 py-2 text-tiny';
+
+/**
+ * Table view of the current directory page (prototype `directoryBodyB` table
+ * branch): Business (name + location), Category, Status, Owner, Rating, and an
+ * Inspect button. The leading checkbox column is retained from the app's
+ * existing page-scoped selection model so bulk approve keeps working.
+ */
+export function DirectoryTable({
+  rows,
+  selectedIds,
   onToggleSelectBulk,
-  onSelect 
-}: { 
-  rows: AdminDirectoryRow[]; 
+  onSelect,
+}: {
+  rows: AdminDirectoryRow[];
   selectedIds: Set<string>;
   onToggleSelectBulk: (updater: (prev: Set<string>) => Set<string>) => void;
   onSelect: (id: string) => void;
 }) {
+  const eligibleRows = rows.filter((row) => row.status === 'pendingReview');
+  const allSelected = eligibleRows.length > 0 && eligibleRows.every((row) => selectedIds.has(row._id));
+  const someSelected = eligibleRows.some((row) => selectedIds.has(row._id));
+
   return (
-    <div className="rounded-card border overflow-x-auto">
+    <div className="rounded-menu border-border overflow-x-auto border">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-12">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(HEAD_CELL, 'w-12')}>
               <Checkbox
-                checked={(() => {
-                  const eligibleRows = rows.filter(r => r.status === 'pendingReview');
-                  if (eligibleRows.length === 0) return false;
-                  const allSelected = eligibleRows.every(r => selectedIds.has(r._id));
-                  const someSelected = eligibleRows.some(r => selectedIds.has(r._id));
-                  return allSelected ? true : (someSelected ? 'indeterminate' : false);
-                })()}
+                aria-label="Select all pending listings on this page"
+                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
                 onCheckedChange={(checked) => {
-                  const eligibleRows = rows.filter(r => r.status === 'pendingReview');
                   onToggleSelectBulk((prev) => {
                     const next = new Set(prev);
-                    eligibleRows.forEach(r => {
-                      if (checked) next.add(r._id);
-                      else next.delete(r._id);
+                    eligibleRows.forEach((row) => {
+                      if (checked) next.add(row._id);
+                      else next.delete(row._id);
                     });
                     return next;
                   });
                 }}
               />
             </TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Owner</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Verified</TableHead>
-            <TableHead>Featured</TableHead>
-            <TableHead>Updated</TableHead>
+            <TableHead className={HEAD_CELL}>Business</TableHead>
+            <TableHead className={HEAD_CELL}>Category</TableHead>
+            <TableHead className={HEAD_CELL}>Status</TableHead>
+            <TableHead className={HEAD_CELL}>Owner</TableHead>
+            <TableHead className={cn(HEAD_CELL, 'text-right')}>Rating</TableHead>
+            <TableHead className={cn(HEAD_CELL, 'text-right')}>
+              <span className="sr-only">Inspect</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow 
-              key={row._id} 
-              className="cursor-pointer hover:bg-muted/50"
-              onClick={() => onSelect(row._id)}
-            >
-              <TableCell onClick={(e) => {
-                e.stopPropagation();
-                if (row.status === 'pendingReview') {
-                  onToggleSelectBulk((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(row._id)) next.delete(row._id);
-                    else next.add(row._id);
-                    return next;
-                  });
-                }
-              }}>
-                <Checkbox 
-                  checked={selectedIds.has(row._id)} 
-                  disabled={row.status !== 'pendingReview'}
-                />
-              </TableCell>
-              <TableCell className="font-medium">
-                <button
-                  type="button"
-                  className="text-left hover:underline"
-                  onClick={(e) => { e.stopPropagation(); onSelect(row._id); }}
-                  aria-label={`View inspector for ${row.name}`}
+          {rows.map((row) => {
+            const selected = selectedIds.has(row._id);
+            const location = [row.address.city, row.address.state].filter(Boolean).join(', ');
+            return (
+              <TableRow
+                key={row._id}
+                className={cn('cursor-pointer', selected && 'bg-brand-soft hover:bg-brand-soft')}
+                onClick={() => onSelect(row._id)}
+              >
+                <TableCell
+                  className={CELL}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (row.status !== 'pendingReview') return;
+                    onToggleSelectBulk((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(row._id)) next.delete(row._id);
+                      else next.add(row._id);
+                      return next;
+                    });
+                  }}
                 >
-                  {row.name}
-                </button>
-              </TableCell>
-              <TableCell>{row.categoryName ?? 'Uncategorized'}</TableCell>
-              <TableCell>{row.ownerName ?? 'Unknown'}</TableCell>
-              <TableCell>{row.address.city}, {row.address.state}</TableCell>
-              <TableCell><Badge variant="outline">{DIRECTORY_STATUS_LABELS[row.status]}</Badge></TableCell>
-              <TableCell>{row.isVerified ? 'Yes' : 'No'}</TableCell>
-              <TableCell>{row.isFeatured ? 'Yes' : 'No'}</TableCell>
-              <TableCell>{new Date(row.lastUpdatedAt).toLocaleDateString()}</TableCell>
-            </TableRow>
-          ))}
+                  <Checkbox
+                    checked={selected}
+                    disabled={row.status !== 'pendingReview'}
+                    aria-label={`Select ${row.name}`}
+                  />
+                </TableCell>
+                <TableCell className={CELL}>
+                  <div className="font-semibold">{row.name}</div>
+                  <div className="text-muted-foreground text-xs">{location}</div>
+                </TableCell>
+                <TableCell className={CELL}>{row.categoryName ?? 'Uncategorized'}</TableCell>
+                <TableCell className={CELL}>
+                  <StatusChip status={row.status} />
+                </TableCell>
+                <TableCell className={CELL}>{row.ownerName ?? 'Unknown'}</TableCell>
+                <TableCell className={cn(CELL, 'text-right tabular-nums')}>
+                  <StarRating rating={row.rating} />
+                </TableCell>
+                <TableCell className={cn(CELL, 'text-right')}>
+                  <button
+                    type="button"
+                    className="border-border-strong rounded-input hover:bg-panel border px-2 py-1 text-xs font-semibold"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect(row._id);
+                    }}
+                  >
+                    Inspect
+                  </button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

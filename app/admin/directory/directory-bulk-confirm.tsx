@@ -2,13 +2,17 @@
 
 import { Button } from '@/components/ui/button';
 
-export function DirectoryBulkConfirm({ 
-  count, 
-  onConfirm, 
+/**
+ * Bulk-approve confirmation, inline in the dataset column (prototype
+ * `bulkConfirmForm` inside `.inline-confirm`) rather than in a centred modal.
+ */
+export function DirectoryBulkConfirm({
+  count,
+  onConfirm,
   onCancel,
   isPending,
-  error
-}: { 
+  error,
+}: {
   count: number;
   onConfirm: () => void;
   onCancel: () => void;
@@ -16,15 +20,38 @@ export function DirectoryBulkConfirm({
   error: string | null;
 }) {
   return (
-    <div className="p-4 border rounded-lg bg-card space-y-4 mb-4" role="alert">
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Bulk Approval</p>
-        <p className="text-sm text-muted-foreground">Are you sure you want to approve {count} listings? This action is irreversible.</p>
+    <div className="border-border-strong bg-card rounded-menu grid gap-3 border p-3">
+      <div className="border-border bg-panel text-muted-foreground rounded-menu border p-3 text-tiny">
+        Approve <b>{count}</b> selected listings in one action? Each listing writes its own{' '}
+        <code className="font-mono">auditLogs</code> row.
       </div>
-      {error && <p className="text-destructive text-sm">{error}</p>}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={onConfirm} disabled={isPending}>Confirm Approval</Button>
-        <Button size="sm" variant="outline" onClick={onCancel} disabled={isPending}>Cancel</Button>
+
+      {error === null ? null : (
+        <p role="alert" className="text-danger text-xs">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="rounded-input"
+          onClick={onCancel}
+          disabled={isPending}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-input"
+          onClick={onConfirm}
+          disabled={isPending}
+        >
+          {isPending ? 'Approving…' : `Approve ${count}`}
+        </Button>
       </div>
     </div>
   );

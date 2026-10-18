@@ -9,8 +9,8 @@ import { AnalyticsSummary } from './analytics-summary';
  */
 export default function AnalyticsPage() {
   return (
-    <div className="p-6">
-      <h1 className="font-display mb-4 text-2xl font-bold">Analytics</h1>
+    <div className="grid gap-4 p-5">
+      <h1 className="sr-only">Analytics</h1>
       <AnalyticsSummary />
     </div>
   );

@@ -29,12 +29,12 @@ export function ApprovalBulkBar({
     <div
       role="region"
       aria-label="Bulk actions"
-      className="bg-muted flex flex-wrap items-center justify-between gap-2 rounded-control px-card py-3"
+      className="bg-card border-border-strong shadow-md flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2"
     >
-      <span className="text-sm" role="status">
+      <span className="text-tiny" role="status">
         {count} selected
       </span>
-      <Button type="button" onClick={onApprove} disabled={disabled}>
+      <Button type="button" size="sm" className="rounded-input" onClick={onApprove} disabled={disabled}>
         Approve selected
       </Button>
     </div>

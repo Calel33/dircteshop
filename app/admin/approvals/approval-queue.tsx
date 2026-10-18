@@ -4,7 +4,6 @@ import { useId } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -168,15 +167,10 @@ function QueueSelectionHeader({
 /** Empty state shown when filters (not an empty queue) produced no rows. */
 function ApprovalQueueFilteredEmpty() {
   return (
-    <Card role="status" className="rounded-card py-card text-center">
-      <CardHeader>
-        <CardTitle className="font-display text-lg">No submissions match these filters</CardTitle>
-        <CardDescription>
-          Try a broader category, priority, or time range. Pending submissions always appear when the
-          filters are cleared.
-        </CardDescription>
-      </CardHeader>
-    </Card>
+    <div role="status" className="border-border-strong text-muted-foreground rounded-menu border border-dashed p-6 text-center text-sm">
+      No submissions match these filters. Try a broader category, priority, or time range —
+      pending submissions always appear when the filters are cleared.
+    </div>
   );
 }
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /** Loading state: skeleton cards sized like a real pending card. */
@@ -13,23 +12,23 @@ export function ApprovalQueueLoading() {
       aria-label="Loading pending approvals"
     >
       {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-44 rounded-card" />
+        <Skeleton key={index} className="rounded-shell h-44" />
       ))}
     </div>
   );
 }
 
+/** Prototype `.empty`: dashed, centred, muted. */
+const EMPTY_CLASS =
+  'border-border-strong text-muted-foreground rounded-menu border border-dashed p-6 text-center text-sm';
+
 /** Empty state: no pendingReview listings to review. */
 export function ApprovalQueueEmpty() {
   return (
-    <Card role="status" className="rounded-card py-card text-center">
-      <CardHeader>
-        <CardTitle className="font-display text-lg">No pending approvals</CardTitle>
-        <CardDescription>
-          Every submitted listing has been reviewed. New submissions appear here automatically.
-        </CardDescription>
-      </CardHeader>
-    </Card>
+    <div role="status" className={EMPTY_CLASS}>
+      No pending approvals. Every submitted listing has been reviewed; new submissions appear here
+      automatically.
+    </div>
   );
 }
 
@@ -42,23 +41,16 @@ export function ApprovalQueueError({
   onRetry?: () => void;
 }) {
   return (
-    <Card role="alert" className="rounded-card py-card text-center">
-      <CardHeader>
-        <CardTitle className="font-display text-lg">
-          Couldn&apos;t load pending approvals
-        </CardTitle>
-        <CardDescription>
-          {message ??
-            'The queue failed to load. Try again, and if the problem continues, reload the page.'}
-        </CardDescription>
-      </CardHeader>
+    <div role="alert" className={`${EMPTY_CLASS} grid justify-items-center gap-3`}>
+      <p>
+        {message ??
+          'Couldn’t load pending approvals. Try again, and if the problem continues, reload the page.'}
+      </p>
       {onRetry ? (
-        <CardContent className="flex justify-center">
-          <Button type="button" onClick={onRetry}>
-            Try again
-          </Button>
-        </CardContent>
+        <Button type="button" size="sm" className="rounded-input" onClick={onRetry}>
+          Try again
+        </Button>
       ) : null}
-    </Card>
+    </div>
   );
 }

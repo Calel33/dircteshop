@@ -7,12 +7,15 @@ import {
   assertOverviewWindow,
   assertOwnersPageSize,
   OWNERS_MAXIMUM_ROWS_READ,
+  WORKLOAD_CATEGORY_LIMIT,
   toAnalyticsCounts,
   toOwnerRow,
+  toReviewWorkloadRow,
 } from './adminProjections';
 
 // B6b `/admin` reads (issue #16, Tasks 1–3): the overview counters, the
-// read-only owners table, and the analytics v1 stub counts.
+// read-only owners table, and the analytics v1 stub counts. Variant B
+// follow-up (issue #22): the overview's review-workload read.
 //
 // Every count is exact: each one streams one index range through the query's
 // async iterator (no page of results is materialized) and the platform's
@@ -85,6 +88,48 @@ export const overviewStats = query({
     );
 
     return { totalBusinesses, pendingApprovals, verifiedActive, submissionsThisMonth };
+  },
+});
+
+/**
+ * The `/admin` overview "Review workload" card (issue #22, Variant B): one
+ * exact `pendingReview` count per category. Super Admin only, zero args.
+ *
+ * The read is one `byOrdering` page of at most `WORKLOAD_CATEGORY_LIMIT`
+ * categories (the same bound every category read takes), so the response is
+ * already display-ordered. Each category contributes exactly one bounded
+ * `byStatusCategorySubmittedAt` range with `status` and `categoryId` fixed,
+ * so a range yields only that category's pending rows: the per-category
+ * fan-out (≤ the cap) is the read-budget tradeoff — cost scales with the
+ * category count, never with the size of the businesses table. Every count
+ * is streamed by `countRows` (never `.collect()`), and a platform read-limit
+ * breach throws instead of returning an estimate — the B4/B6 "fail visibly,
+ * never a false total" rule.
+ */
+export const reviewWorkload = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperAdmin(ctx);
+
+    const categories = await ctx.db
+      .query('categories')
+      .withIndex('byOrdering')
+      .take(WORKLOAD_CATEGORY_LIMIT);
+
+    return await Promise.all(
+      categories.map(async (category) =>
+        toReviewWorkloadRow(
+          category,
+          await countRows(
+            ctx.db
+              .query('businesses')
+              .withIndex('byStatusCategorySubmittedAt', (q) =>
+                q.eq('status', 'pendingReview').eq('categoryId', category._id)
+              )
+          )
+        )
+      )
+    );
   },
 });
 

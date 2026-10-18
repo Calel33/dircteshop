@@ -3,17 +3,18 @@
 import { AdminDirectoryRow } from './directory-types';
 import { AdminBusinessCard } from '@/components/directory/admin-business-card';
 
-export function DirectoryGrid({ 
-  rows, 
-  selectedId, 
-  onSelect 
-}: { 
+/** Prototype `.grid-cards`: auto-fill columns, 0.75rem gutter. */
+export function DirectoryGrid({
+  rows,
+  selectedId,
+  onSelect,
+}: {
   rows: AdminDirectoryRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid-cols-(--grid-admin-cards) grid gap-3">
       {rows.map((row) => (
         <AdminBusinessCard
           key={row._id}

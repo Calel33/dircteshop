@@ -55,12 +55,25 @@ class OverviewLoadBoundary extends Component<OverviewLoadBoundaryProps, Overview
   }
 }
 
+/** Prototype `.stat`: mono micro label, 2rem tabular value, faint hint line. */
+const STAT_CLASS = 'bg-card border-border rounded-shell shadow-sm border p-4 text-left';
+
+function StatLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="text-card-muted text-micro font-mono tracking-label uppercase">{children}</div>
+  );
+}
+
+function StatValue({ children }: { children: ReactNode }) {
+  return <div className="text-stat mt-1 font-bold tabular-nums">{children}</div>;
+}
+
 function StatCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
-    <div className="rounded-[1rem] border border-border bg-card p-[1.5rem] shadow-sm">
-      <div className="text-[0.75rem] font-[600] uppercase tracking-wide text-card-muted font-mono">{label}</div>
-      <div className="mt-[0.5rem] text-[2rem] font-[700] tabular-nums">{value}</div>
-      {hint === undefined ? null : <div className="text-[0.75rem] text-card-muted">{hint}</div>}
+    <div className={STAT_CLASS}>
+      <StatLabel>{label}</StatLabel>
+      <StatValue>{value}</StatValue>
+      {hint === undefined ? null : <div className="text-card-muted text-xs">{hint}</div>}
     </div>
   );
 }
@@ -73,13 +86,11 @@ function PendingApprovalsCard({ count }: { count: number }) {
   return (
     <Link
       href="/admin/approvals"
-      className="rounded-[1rem] border border-border bg-card p-[1.5rem] shadow-sm transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={`${STAT_CLASS} hover:border-brand-border hover:bg-brand-soft focus-visible:ring-ring transition-colors focus-visible:ring-2 focus-visible:outline-none`}
     >
-      <div className="text-[0.75rem] font-[600] uppercase tracking-wide text-card-muted font-mono">
-        Pending approval
-      </div>
-      <div className="mt-[0.5rem] text-[2rem] font-[700] tabular-nums">{count}</div>
-      <div className="text-[0.75rem] text-card-muted">Open the queue →</div>
+      <StatLabel>Pending approval</StatLabel>
+      <StatValue>{count}</StatValue>
+      <div className="text-card-muted text-xs">Open the queue →</div>
     </Link>
   );
 }
@@ -88,12 +99,12 @@ function PendingApprovalsCard({ count }: { count: number }) {
 function OverviewSkeleton() {
   return (
     <div
-      className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      className="deck-sm:grid-cols-2 deck:grid-cols-4 grid grid-cols-1 gap-3"
       aria-busy="true"
       aria-label="Loading overview counts"
     >
       {Array.from({ length: 4 }, (_, index) => (
-        <Skeleton key={index} className="h-28 rounded-card" />
+        <Skeleton key={index} className="rounded-shell h-28" />
       ))}
     </div>
   );
@@ -127,7 +138,7 @@ function OverviewCardsContent() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-[1rem] sm:grid-cols-2 lg:grid-cols-4">
+    <div className="deck-sm:grid-cols-2 deck:grid-cols-4 grid grid-cols-1 gap-3">
       <StatCard label="Total businesses" value={stats.totalBusinesses} />
       <PendingApprovalsCard count={stats.pendingApprovals} />
       <StatCard label="Verified active" value={stats.verifiedActive} />

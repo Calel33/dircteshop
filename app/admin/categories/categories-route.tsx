@@ -45,20 +45,19 @@ function PanelError({ message }: { message: string | null }) {
     return null;
   }
   return (
-    <p role="alert" className="w-full text-sm text-destructive">
+    <p role="alert" className="w-full text-xs text-danger">
       {message}
     </p>
   );
 }
 
 /**
- * Category manager presentation (issue #16, Task 5), matching the
- * `admin-workspace.html` prototype 1:1: position number, display-order list
- * with ↑/↓ reorder controls (disabled at the ends), the inline blocked-delete
- * state showing the live referencing count, and the inline edit / confirm
- * panels reused from the B6a destructive-action pattern. Reassignment is NOT
- * an admin control here — the blocked state documents the owner editor as the
- * path that frees a referenced category.
+ * Category manager presentation (issue #16, Task 5), matching the prototype's
+ * card: position number, display-order list with ↑/↓ reorder controls
+ * (disabled at the ends), the inline blocked-delete `.cat-block`, and the
+ * inline edit / confirm panels reused from the B6a destructive-action pattern.
+ * Reassignment is NOT an admin control here — the blocked state documents the
+ * owner editor as the path that frees a referenced category.
  */
 export function CategoriesRoute({
   categories,
@@ -179,48 +178,54 @@ export function CategoriesRoute({
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="rounded-card border border-border bg-card p-6 shadow-sm space-y-4">
-        <div className="space-y-1">
-          <h2 className="font-display text-base font-medium">Categories</h2>
-          <p className="text-sm text-card-muted">
-            Super Admin only. Ordering persists as a category ordering field; delete is blocked
-            while any business references the category.
-          </p>
-        </div>
+    <div className="grid gap-4 p-5">
+      <div className="bg-card border-border rounded-shell shadow-sm border p-4">
+        <h2 className="mb-1 text-base font-semibold">Categories</h2>
+        <p className="text-card-muted mb-3 text-tiny">
+          Super Admin only. Ordering persists as a category{' '}
+          <code className="font-mono">order</code> field; delete is blocked while any business
+          references the category.
+        </p>
 
-        <form className="flex flex-wrap items-center gap-2" onSubmit={handleAdd} noValidate>
+        <form className="mb-4 flex flex-wrap items-center gap-2" onSubmit={handleAdd} noValidate>
           <Input
+            id="new-category"
             value={newName}
             onChange={(event) => setNewName(event.target.value)}
             placeholder="New category name"
             aria-label="New category name"
-            className="w-full sm:w-64"
+            className="rounded-input bg-card h-8 min-w-52 text-tiny"
             disabled={isPending}
           />
-          <Button type="submit" size="sm" disabled={isPending || newName.trim() === ''}>
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            className="rounded-input"
+            disabled={isPending || newName.trim() === ''}
+          >
             Add category
           </Button>
         </form>
 
-        {listError ? (
-          <p role="alert" className="text-sm text-destructive">
+        {listError === null ? null : (
+          <p role="alert" className="text-danger mb-3 text-tiny">
             {listError}
           </p>
-        ) : null}
+        )}
 
         {loading ? (
           <div className="space-y-2" aria-busy="true" aria-label="Loading categories">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="h-11 w-full bg-muted-foreground/20" />
+              <Skeleton key={index} className="h-11 w-full" />
             ))}
           </div>
         ) : categories.length === 0 ? (
-          <div className="rounded-control border border-dashed border-border p-6 text-center text-sm text-card-muted">
+          <div className="border-border-strong text-muted-foreground rounded-menu border border-dashed p-6 text-center text-sm">
             No categories yet. Add the first category above.
           </div>
         ) : (
-          <ul className="overflow-hidden rounded-control border border-border">
+          <ul className="rounded-menu border-border overflow-hidden border">
             {categories.map((category, index) => {
               const single = isSingleReference(
                 category.referenceCount,
@@ -230,18 +235,19 @@ export function CategoriesRoute({
               return (
                 <li
                   key={category._id}
-                  className="grid gap-2 border-t border-border p-3 first:border-t-0"
+                  className="border-border grid gap-2 border-t p-3 first:border-t-0"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-label text-xs text-card-muted">{index + 1}</span>
-                    <span className="text-sm font-semibold">{category.name}</span>
-                    <span className="text-xs text-card-muted">
+                    <span className="text-muted-foreground font-mono text-xs">{index + 1}</span>
+                    <b className="text-sm font-semibold">{category.name}</b>
+                    <span className="text-muted-foreground text-tiny">
                       {referenceLabel(category.referenceCount, category.referenceCountCapped)}
                     </span>
                     <span className="flex-1" />
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="rounded-input"
                       aria-label={`Move ${category.name} up`}
                       disabled={isPending || index === 0}
                       onClick={() => moveCategory(index, -1)}
@@ -251,6 +257,7 @@ export function CategoriesRoute({
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="rounded-input"
                       aria-label={`Move ${category.name} down`}
                       disabled={isPending || index === categories.length - 1}
                       onClick={() => moveCategory(index, 1)}
@@ -260,6 +267,7 @@ export function CategoriesRoute({
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="rounded-input"
                       disabled={isPending}
                       onClick={() => startEdit(category)}
                     >
@@ -268,7 +276,7 @@ export function CategoriesRoute({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive"
+                      className="rounded-input text-danger hover:bg-danger-soft hover:text-danger-strong"
                       disabled={isPending}
                       onClick={() => startDelete(category)}
                     >
@@ -278,23 +286,29 @@ export function CategoriesRoute({
 
                   {editingId === category._id ? (
                     <form
-                      className="flex flex-wrap items-end gap-2 rounded-control border border-border bg-muted p-2"
+                      className="border-border bg-panel rounded-menu grid gap-2 border p-2 sm:flex sm:flex-wrap sm:items-end"
                       onSubmit={saveEdit}
                       noValidate
                     >
-                      <div className="flex w-full flex-col gap-1 sm:w-64">
-                        <Label htmlFor={`category-name-${category._id}`}>Name</Label>
+                      <div className="grid w-full gap-1 sm:w-64">
+                        <Label htmlFor={`category-name-${category._id}`} className="text-xs">
+                          Name
+                        </Label>
                         <Input
                           id={`category-name-${category._id}`}
+                          className="rounded-input bg-card h-8 text-tiny"
                           value={draftName}
                           onChange={(event) => setDraftName(event.target.value)}
                           disabled={isPending}
                         />
                       </div>
-                      <div className="flex w-full flex-col gap-1 sm:w-48">
-                        <Label htmlFor={`category-icon-${category._id}`}>Icon</Label>
+                      <div className="grid w-full gap-1 sm:w-48">
+                        <Label htmlFor={`category-icon-${category._id}`} className="text-xs">
+                          Icon
+                        </Label>
                         <Input
                           id={`category-icon-${category._id}`}
+                          className="rounded-input bg-card h-8 text-tiny"
                           value={draftIcon}
                           onChange={(event) => setDraftIcon(event.target.value)}
                           placeholder="lucide icon name"
@@ -304,6 +318,7 @@ export function CategoriesRoute({
                       <Button
                         type="submit"
                         size="sm"
+                        className="rounded-input"
                         disabled={isPending || draftName.trim() === ''}
                       >
                         Save
@@ -312,6 +327,7 @@ export function CategoriesRoute({
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="rounded-input"
                         onClick={closePanels}
                         disabled={isPending}
                       >
@@ -322,39 +338,50 @@ export function CategoriesRoute({
                   ) : null}
 
                   {blockedId === category._id ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-control border border-destructive/40 bg-destructive/10 p-2 text-sm text-card-foreground">
+                    <div className="border-danger-border bg-danger-soft text-danger-strong rounded-menu flex flex-wrap items-center gap-2 border p-2 text-tiny">
                       <span>
-                        <span className="font-semibold">
+                        <b>
                           {referenceLabel(category.referenceCount, category.referenceCountCapped)}
-                        </span>{' '}
+                        </b>{' '}
                         {single ? 'references' : 'reference'} this category. Reassign{' '}
                         {single ? 'it' : 'them'} in the owner editor, then delete.
                       </span>
-                      <Button variant="ghost" size="sm" onClick={closePanels}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-input"
+                        onClick={closePanels}
+                      >
                         Cancel
                       </Button>
                     </div>
                   ) : null}
 
                   {confirmId === category._id ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-control border border-border bg-muted p-2 text-sm">
-                      <span>Delete &ldquo;{category.name}&rdquo;? This cannot be undone.</span>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => confirmDelete(category)}
-                      >
-                        Delete category
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={closePanels}
-                        disabled={isPending}
-                      >
-                        Cancel
-                      </Button>
+                    <div className="border-border-strong bg-card rounded-menu grid gap-3 border p-3">
+                      <div className="border-border bg-panel text-muted-foreground rounded-menu border p-3 text-tiny">
+                        Delete <b>{category.name}</b>? This cannot be undone.
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-input"
+                          onClick={closePanels}
+                          disabled={isPending}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="rounded-input"
+                          disabled={isPending}
+                          onClick={() => confirmDelete(category)}
+                        >
+                          Delete category
+                        </Button>
+                      </div>
                       <PanelError message={panelError} />
                     </div>
                   ) : null}

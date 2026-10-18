@@ -9,11 +9,12 @@ import { AUDIT_ACTION_LABELS, type AuditLogRow } from './audit-types';
 
 /**
  * Read-only audit feed presentation (issue #15, Tasks 11/15; date range added
- * by B6b, issue #16): action/actor/text/date filters over the current page
- * plus the manual Back/Next cursor controls. The date bounds are inclusive
- * start / exclusive next day, so `through` includes its whole local day. There
- * are no write controls here by design — rows reflect committed Convex audit
- * state only.
+ * by B6b, issue #16), shaped as the prototype's audit card: title + read-only
+ * sub-line, then a toolbar of action / actor / text / date filters over the
+ * current page and the manual Back/Next cursor controls. The date bounds are
+ * inclusive start / exclusive next day, so `through` includes its whole local
+ * day. There are no write controls here by design — rows reflect committed
+ * Convex audit state only.
  */
 export function AuditRoute({
   rows,
@@ -45,90 +46,106 @@ export function AuditRoute({
   onPrevious: () => void;
 }) {
   return (
-    <div className="p-6 space-y-4">
-      <div className="rounded-card border border-border bg-card p-6 shadow-sm space-y-4">
-        <div className="space-y-1">
-          <h2 className="font-display text-base font-medium">Audit log</h2>
-          <p className="text-sm text-card-muted">
-            Read-only. Every admin action writes a row here.
+    <div className="grid gap-4 p-5">
+      <div className="bg-card border-border rounded-shell shadow-sm grid gap-4 border p-4">
+        <div>
+          <h2 className="mb-1 text-base font-semibold">Audit log</h2>
+          <p className="text-card-muted text-tiny">
+            Read-only. Every status change and delete writes a row here via{' '}
+            <code className="font-mono">auditLogs</code>.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             value={filters.action ?? 'all'}
-            onValueChange={(val) => onFiltersChange({ ...filters, action: val === 'all' ? undefined : val })}
+            onValueChange={(val) =>
+              onFiltersChange({ ...filters, action: val === 'all' ? undefined : val })
+            }
           >
-            <SelectTrigger className="w-full sm:w-48" aria-label="Filter by action">
+            <SelectTrigger
+              size="sm"
+              className="rounded-input bg-card text-tiny"
+              aria-label="Filter by action"
+            >
               <SelectValue placeholder="Action" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All actions</SelectItem>
-              {Object.entries(AUDIT_ACTION_LABELS).map(([k, v]) => (
-                <SelectItem key={k} value={k}>
-                  {v}
+              {Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
           <Input
-            placeholder="Filter by actor..."
+            placeholder="Filter by actor…"
             aria-label="Filter by actor"
             value={filters.actor ?? ''}
-            onChange={(e) => onFiltersChange({ ...filters, actor: e.target.value })}
-            className="w-full sm:w-48"
+            onChange={(event) => onFiltersChange({ ...filters, actor: event.target.value })}
+            className="rounded-input bg-card h-8 min-w-40 text-tiny"
           />
+
           <Input
-            placeholder="Filter by target..."
-            aria-label="Filter by target"
+            placeholder="Search target or reason"
+            aria-label="Search audit log"
             value={filters.search ?? ''}
-            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-            className="w-full sm:w-48"
+            onChange={(event) => onFiltersChange({ ...filters, search: event.target.value })}
+            className="rounded-input bg-card h-8 min-w-52 text-tiny"
           />
+
           <Input
             type="date"
             aria-label="From date"
             value={filters.from ?? ''}
-            onChange={(e) => onFiltersChange({ ...filters, from: e.target.value })}
-            className="w-full sm:w-48"
+            onChange={(event) => onFiltersChange({ ...filters, from: event.target.value })}
+            className="rounded-input bg-card h-8 w-40 text-tiny"
           />
           <Input
             type="date"
             aria-label="Through date"
             value={filters.through ?? ''}
-            onChange={(e) => onFiltersChange({ ...filters, through: e.target.value })}
-            className="w-full sm:w-48"
+            onChange={(event) => onFiltersChange({ ...filters, through: event.target.value })}
+            className="rounded-input bg-card h-8 w-40 text-tiny"
           />
         </div>
 
         {dateError !== undefined ? (
-          <div role="alert" className="text-sm text-destructive">
+          <div role="alert" className="text-danger text-tiny">
             {dateError}
           </div>
         ) : paginationError !== undefined ? (
-          <div role="alert" className="text-sm text-destructive">
+          <div role="alert" className="text-danger text-tiny">
             {paginationError}
           </div>
         ) : loading ? (
           <div className="space-y-2" aria-busy="true" aria-label="Loading audit entries">
             {Array.from({ length: 6 }).map((_, index) => (
-              <Skeleton key={index} className="h-10 w-full bg-muted-foreground/20" />
+              <Skeleton key={index} className="h-10 w-full" />
             ))}
           </div>
         ) : (
           <>
-            {rows.length === 0 ? (
-              <div className="rounded-control border border-dashed border-border p-6 text-center text-sm text-card-muted">
-                No audit entries match those filters. Clear a filter or a search term to see more.
-              </div>
-            ) : (
-              <AuditTable rows={rows} />
-            )}
+            <AuditTable rows={rows} />
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onPrevious} disabled={!canGoPrevious}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-input"
+                onClick={onPrevious}
+                disabled={!canGoPrevious}
+              >
                 Back
               </Button>
-              <Button variant="outline" onClick={onNext} disabled={!canGoNext}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-input"
+                onClick={onNext}
+                disabled={!canGoNext}
+              >
                 Next
               </Button>
             </div>

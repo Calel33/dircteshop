@@ -19,16 +19,26 @@ const ROLE_LABELS: Record<OwnerRow['role'], string> = {
   superAdmin: 'Super Admin',
 };
 
-/** The prototype's `.chip`: pill, hairline border, one size. */
+/**
+ * Prototype `.chip` for the role column: Super Admin reads as brand blue,
+ * every other account as the neutral slate chip.
+ */
 const ROLE_CHIP_CLASSES: Record<OwnerRow['role'], string> = {
-  user: 'bg-muted text-muted-foreground border-border',
-  superAdmin: 'bg-secondary text-secondary-foreground border-border',
+  user: 'bg-neutral-chip text-neutral-chip-foreground border-border-strong',
+  superAdmin: 'bg-brand-soft text-brand-strong border-brand-border',
 };
+
+const HEAD_CELL =
+  'bg-panel text-muted-foreground border-border text-micro tracking-label h-auto px-3 py-2 font-semibold uppercase';
+const CELL = 'border-border border-b px-3 py-2 text-tiny';
 
 function RoleChip({ role }: { role: OwnerRow['role'] }) {
   return (
     <span
-      className={cn('rounded-pill border px-2 py-0.5 text-xs font-semibold', ROLE_CHIP_CLASSES[role])}
+      className={cn(
+        'rounded-pill inline-flex items-center border px-2 py-0.5 text-xs font-semibold whitespace-nowrap',
+        ROLE_CHIP_CLASSES[role]
+      )}
     >
       {ROLE_LABELS[role]}
     </span>
@@ -47,12 +57,14 @@ function OwnersTableSkeleton() {
 }
 
 /**
- * Read-only `/admin/owners` table (issue #16, Task 2). Presentation only: the
- * route (`page.tsx`) owns the guarded query and the cursor stack, so this
- * component renders state and never writes. The prototype's panel is matched
- * column for column — Name, Businesses (right aligned), Role chip — minus its
- * Email column: the issue's privacy rule forbids returning one, and `users`
- * rows carry no email anyway. Zero-business users render like any other row.
+ * Read-only `/admin/owners` panel (issue #16, Task 2), matching the
+ * prototype's card: title, read-only sub-line, and a bordered table of Name /
+ * Businesses (right, tabular) / Role chip. Presentation only: the route
+ * (`page.tsx`) owns the guarded query and the cursor stack.
+ *
+ * The prototype's Email column is absent because the guarded projection
+ * intentionally returns no address (privacy rule), and a column the server
+ * does not send cannot be rendered without changing the query contract.
  */
 export function OwnersTable({
   rows,
@@ -72,45 +84,41 @@ export function OwnersTable({
   onPrevious: () => void;
 }) {
   return (
-    <div className="p-[1.5rem] space-y-[1.5rem]">
-      <div className="rounded-[1rem] border border-border bg-card p-[1.5rem] shadow-sm">
-        <h2 className="font-display text-[1rem] font-[600]">Business owners</h2>
-        <p className="text-card-muted mt-[0.25rem] mb-[1.5rem] text-[0.8125rem]">
+    <div className="grid gap-4 p-5">
+      <div className="bg-card border-border rounded-shell shadow-sm border p-4">
+        <h2 className="mb-1 text-base font-semibold">Business owners</h2>
+        <p className="text-card-muted mb-3 text-tiny">
           Read-only in v1 — no account suspension or ownership reassignment.
         </p>
 
         {loading ? (
           <OwnersTableSkeleton />
         ) : error !== null ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-destructive text-tiny">
             {error}
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-card-muted py-[2rem]">No users found.</p>
+          <div className="border-border-strong text-muted-foreground rounded-menu border border-dashed p-6 text-center text-sm">
+            No users found.
+          </div>
         ) : (
-          <div className="rounded-[0.5rem] border border-border overflow-x-auto">
+          <div className="rounded-menu border-border overflow-x-auto border">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="text-card-muted text-[0.6875rem] uppercase tracking-[0.05em]">
-                    Name
-                  </TableHead>
-                  <TableHead className="text-card-muted text-right text-[0.6875rem] uppercase tracking-[0.05em]">
-                    Businesses
-                  </TableHead>
-                  <TableHead className="text-card-muted text-[0.6875rem] uppercase tracking-[0.05em]">
-                    Role
-                  </TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className={HEAD_CELL}>Name</TableHead>
+                  <TableHead className={cn(HEAD_CELL, 'text-right')}>Businesses</TableHead>
+                  <TableHead className={HEAD_CELL}>Role</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="[&_tr:last-child>td]:border-b-0">
                 {rows.map((row) => (
                   <TableRow key={row._id}>
-                    <TableCell className="font-[600]">{row.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className={cn(CELL, 'font-semibold')}>{row.name}</TableCell>
+                    <TableCell className={cn(CELL, 'text-right tabular-nums')}>
                       {row.businessCount}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={CELL}>
                       <RoleChip role={row.role} />
                     </TableCell>
                   </TableRow>
@@ -122,11 +130,23 @@ export function OwnersTable({
       </div>
 
       {loading ? null : (
-        <div className="flex items-center gap-[0.5rem]">
-          <Button variant="outline" onClick={onPrevious} disabled={!canGoPrevious}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-input"
+            onClick={onPrevious}
+            disabled={!canGoPrevious}
+          >
             Back
           </Button>
-          <Button variant="outline" onClick={onNext} disabled={!canGoNext}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-input"
+            onClick={onNext}
+            disabled={!canGoNext}
+          >
             Next
           </Button>
         </div>
