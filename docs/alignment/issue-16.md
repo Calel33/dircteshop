@@ -131,7 +131,7 @@ No Critical, High, or Medium DRIFT was found.
 
 Ordered by severity — the work is well aligned; these are accuracy/currency items, not defects.
 
-1. **Low — fix the three index-semantics comments** (#33–#35). Suggested wording:
+1. **Low — fix the three index-semantics comments** (#33–#35). ✅ **Done — applied in the post-review remediation (see the Notes entry, 2026-10-17): the three comments were corrected in `convex/schema.ts` and `convex/adminQueries.ts`. The DRIFT table and counts above preserve the original scan.** Original suggested wording (historical):
    - `schema.ts`: "Rows without a `submittedAt` sit in this index as `undefined` (ordering `undefined < null < all other values`) and are excluded by the range's lower bound, not by absence."
    - `adminQueries.ts`: "`byStatusVerifiedVerifiedAt` is bounded by the `status` + `isVerified` equalities; the index itself holds every business row."
    - `adminQueries.ts`: drop "undated rows are absent from the index".
