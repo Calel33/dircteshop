@@ -6,5 +6,9 @@ import { ApprovalsRoute } from './approvals-route';
  * mounts the client queue shell.
  */
 export default function AdminApprovalsPage() {
-  return <ApprovalsRoute />;
+  return (
+    <div className="p-5">
+      <ApprovalsRoute />
+    </div>
+  );
 }

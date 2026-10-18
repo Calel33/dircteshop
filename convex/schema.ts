@@ -76,6 +76,12 @@ export default defineSchema({
     // scanning unrelated categories. Retains `byStatusSubmittedAt` for the
     // all-category path. Docs: https://docs.convex.dev/database/reading-data/indexes
     .index('byStatusCategorySubmittedAt', ['status', 'categoryId', 'submittedAt'])
+    // B6b (issue #16, Task 1): the /admin overview's "submissions this month"
+    // count ranges on submittedAt alone, and `byStatusSubmittedAt` requires a
+    // status equality first, so it cannot bound the month across statuses.
+    // Rows without submittedAt are indexed with undefined and fall below the
+    // range's gte month-start bound.
+    .index('bySubmittedAt', ['submittedAt'])
     // Landing feed ordering (B4, SPEC §8): approved featured listings by last
     // update, and approved verified listings by verification time. Dot paths
     // index nested fields (https://docs.convex.dev/database/reading-data/indexes).

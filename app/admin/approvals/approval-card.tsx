@@ -2,7 +2,6 @@
 
 import { ImageIcon } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -14,6 +13,13 @@ const PRIORITY_LABELS = {
   high: 'High priority',
   normal: 'Normal priority',
   undated: 'Undated',
+} as const;
+
+/** Prototype chip tones: high priority warns, everything else stays neutral. */
+const PRIORITY_CHIP = {
+  high: 'bg-warning-soft text-warning-strong border-warning-border',
+  normal: 'bg-neutral-chip text-neutral-chip-foreground border-border-strong',
+  undated: 'bg-neutral-chip text-neutral-chip-foreground border-border-strong',
 } as const;
 
 /** Joins the schema address parts into one readable line, skipping blanks. */
@@ -55,7 +61,7 @@ export function ApprovalQueueCard({
   const contact = formatContact(card);
 
   return (
-    <Card className="h-full gap-gap rounded-card py-card">
+    <Card className="h-full gap-gap rounded-shell py-card">
       <CardHeader className="px-card">
         <div className="flex flex-col gap-gap sm:flex-row">
           {/*
@@ -65,7 +71,7 @@ export function ApprovalQueueCard({
           */}
           <div
             aria-hidden="true"
-            className="bg-muted text-muted-foreground flex aspect-square size-20 shrink-0 items-center justify-center rounded-card border"
+            className="bg-panel text-muted-foreground rounded-control flex aspect-square size-20 shrink-0 items-center justify-center border"
           >
             <ImageIcon className="size-8" />
           </div>
@@ -73,10 +79,12 @@ export function ApprovalQueueCard({
             <CardTitle className="font-display text-lg">{card.name}</CardTitle>
             <p className="text-card-muted text-sm">{card.categoryName ?? 'Uncategorized'}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={priority === 'high' ? 'default' : 'secondary'}>
+              <span
+                className={`rounded-pill inline-flex items-center border px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${PRIORITY_CHIP[priority]}`}
+              >
                 {PRIORITY_LABELS[priority]}
-              </Badge>
-              <span className="text-card-muted font-label text-xs">
+              </span>
+              <span className="text-card-muted text-micro">
                 {formatSubmittedAge(card.submittedAt, now)}
               </span>
             </div>
@@ -86,27 +94,44 @@ export function ApprovalQueueCard({
       <CardContent className="px-card">
         <dl className="grid grid-cols-1 gap-gap sm:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <dt className="text-card-muted font-label text-xs uppercase">Owner</dt>
+            <dt className="text-card-muted text-micro tracking-label uppercase">Owner</dt>
             <dd className="text-sm">{card.ownerLabel ?? 'Unknown owner'}</dd>
           </div>
           <div className="flex flex-col gap-1">
-            <dt className="text-card-muted font-label text-xs uppercase">Address</dt>
+            <dt className="text-card-muted text-micro tracking-label uppercase">Address</dt>
             <dd className="text-sm">{address || 'No address provided'}</dd>
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2">
-            <dt className="text-card-muted font-label text-xs uppercase">Contact</dt>
+            <dt className="text-card-muted text-micro tracking-label uppercase">Contact</dt>
             <dd className="text-sm">{contact || 'No contact details provided'}</dd>
           </div>
         </dl>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2 px-card">
-        <Button type="button" onClick={() => onAction?.(card, 'approve')}>
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-input"
+          onClick={() => onAction?.(card, 'approve')}
+        >
           Approve
         </Button>
-        <Button type="button" variant="outline" onClick={() => onAction?.(card, 'requestChanges')}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="rounded-input"
+          onClick={() => onAction?.(card, 'requestChanges')}
+        >
           Request changes
         </Button>
-        <Button type="button" variant="destructive" onClick={() => onAction?.(card, 'reject')}>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="rounded-input"
+          onClick={() => onAction?.(card, 'reject')}
+        >
           Reject
         </Button>
       </CardFooter>

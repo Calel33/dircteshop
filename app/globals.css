@@ -49,6 +49,41 @@
   --sidebar-border: #374151;
   --sidebar-ring: #2563eb;
 
+  /* Admin workspace status language — values from the accepted
+     `screens/wayfinder/prototype/admin-workspace.html` `:root` (Variant B,
+     issue #22). Every role ships a soft fill, a hairline border, and a dark
+     text colour, so a chip always pairs fill + text + border (never colour
+     alone). `--brand-*` is the prototype's blue triple, distinct from
+     `--secondary` (design.md #dbeafe) which predates it. */
+  --brand-soft: #eff6ff;
+  --brand-border: #bfdbfe;
+  --brand-strong: #1e40af;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --success-border: #86efac;
+  --success-strong: #166534;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --warning-border: #fcd34d;
+  --warning-strong: #92400e;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --danger-border: #fca5a5;
+  --danger-strong: #991b1b;
+  --info: #0284c7;
+  --info-soft: #e0f2fe;
+  --info-border: #7dd3fc;
+  --info-strong: #075985;
+  --neutral-chip: #e2e8f0;
+  --neutral-chip-foreground: #475569;
+  --star: #f59e0b;
+  /* Prototype `--surface-2` (rail, table header, consequence block) and
+     `--border-strong` (segmented control, search field, dashed empty block).
+     Kept separate from `--muted` (#f8fafc) and `--border` (#e2e8f0) so the
+     admin deck's layering matches the accepted prototype. */
+  --panel: #f1f5f9;
+  --border-strong: #cbd5e1;
+
   --shadow-color: #111827;
   --shadow-2xs: 0 1px 3px 0px rgb(from var(--shadow-color) r g b / 0.05);
   --shadow-xs: 0 1px 3px 0px rgb(from var(--shadow-color) r g b / 0.05);
@@ -109,6 +144,29 @@
   --sidebar-border: #334155;
   --sidebar-ring: #2563eb;
 
+  /* Admin status language, dark equivalents. Soft fills drop to the 800 band
+     and the text role flips to the 300 band so every chip keeps AA contrast
+     on the dark panel surfaces. */
+  --brand-soft: #172554;
+  --brand-border: #1e40af;
+  --brand-strong: #bfdbfe;
+  --success-soft: #052e16;
+  --success-border: #166534;
+  --success-strong: #86efac;
+  --warning-soft: #451a03;
+  --warning-border: #92400e;
+  --warning-strong: #fcd34d;
+  --danger-soft: #450a0a;
+  --danger-border: #7f1d1d;
+  --danger-strong: #fca5a5;
+  --info-soft: #082f49;
+  --info-border: #075985;
+  --info-strong: #7dd3fc;
+  --neutral-chip: #1e293b;
+  --neutral-chip-foreground: #cbd5e1;
+  --panel: #1e293b;
+  --border-strong: #475569;
+
   --shadow-color: #000000;
 }
 
@@ -131,6 +189,15 @@
   --text-label: 0.75rem;
   --text-label--line-height: 1.2;
   --text-label--font-weight: 600;
+  /* Admin prototype sub-label scale: `.k` / `.rail h3` / `.tbl th` are
+     0.6875rem, `.tiny` / buttons are 0.8125rem, `.stat .v` is 2rem. */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.25;
+  --text-tiny: 0.8125rem;
+  --text-tiny--line-height: 1.5;
+  --text-stat: 2rem;
+  --text-stat--line-height: 1.1;
+  --tracking-label: 0.06em;
 
   --radius-sm: 0.5rem;
   --radius-md: 0.5rem;
@@ -140,11 +207,30 @@
   --radius-card: 1rem;
   --radius-control: 0.5rem;
   --radius-pill: 62.5rem;
+  /* Admin prototype radii (`--radius-sm` 0.375rem, `--radius` 0.625rem,
+     `--radius-lg` 0.875rem). Named by role so the owner surfaces keep
+     `--radius-card` (design.md 1rem) untouched. */
+  --radius-shell: 0.875rem;
+  --radius-input: 0.375rem;
+  --radius-menu: 0.625rem;
   /* Spacing scale — design.md: base 8px, gap 16px, card padding 24px, section 80px. */
   --spacing-base: 0.5rem;
   --spacing-gap: 1rem;
   --spacing-card: 1.5rem;
   --spacing-section: 5rem;
+  /* Admin deck layout — `.deck` is 14rem rail / fluid data / 20rem inspector. */
+  --grid-admin-deck: 14rem minmax(0, 1fr) 20rem;
+  --grid-admin-deck-tablet: minmax(0, 1fr) 17rem;
+  --grid-admin-cards: repeat(auto-fill, minmax(16rem, 1fr));
+  --grid-detail: 6rem minmax(0, 1fr);
+  --width-admin-sheet: 34rem;
+  --max-height-admin-sheet: 88vh;
+  --width-admin-rail: 14rem;
+  --width-admin-inspector: 20rem;
+  --min-height-admin-deck: 44rem;
+  /* Real-window breakpoints from the prototype's media queries. */
+  --breakpoint-deck: 52rem;
+  --breakpoint-deck-sm: 34rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
@@ -164,8 +250,33 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-panel: var(--panel);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Admin status language (prototype `.chip` variants). */
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-border: var(--brand-border);
+  --color-brand-strong: var(--brand-strong);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
+  --color-success-strong: var(--success-strong);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+  --color-warning-strong: var(--warning-strong);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-danger-strong: var(--danger-strong);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+  --color-info-strong: var(--info-strong);
+  --color-neutral-chip: var(--neutral-chip);
+  --color-neutral-chip-foreground: var(--neutral-chip-foreground);
+  --color-star: var(--star);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

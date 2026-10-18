@@ -7,15 +7,109 @@ import { DirectoryTable } from './directory-table';
 import { DirectoryInspector } from './directory-inspector';
 import { DirectoryBulkBar } from './directory-bulk-bar';
 import { DirectoryBulkConfirm } from './directory-bulk-confirm';
+import { DirectoryFilters as DirectoryFilterControls } from './directory-filters';
 import { AddBusinessForm } from './add-business-form';
 import { DirectoryGrid } from './directory-grid';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+
+/** One button inside the prototype `.seg` control. */
+function SegButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={cn(
+        'px-3 py-1 text-tiny transition-colors',
+        active
+          ? 'bg-primary text-primary-foreground font-semibold'
+          : 'text-muted-foreground hover:text-foreground',
+        disabled && 'cursor-not-allowed opacity-60'
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Dataset toolbar: search, narrow-width filters, view switch, bulk + add. */
+function DatasetToolbar({
+  filters,
+  onFiltersChange,
+  categories,
+  viewMode,
+  onChangeView,
+  pendingCount,
+  onApprovePending,
+  onAddBusiness,
+}: {
+  filters: DirectoryFilters;
+  onFiltersChange: (f: DirectoryFilters) => void;
+  categories: { _id: string; name: string }[];
+  viewMode: 'grid' | 'table';
+  onChangeView: (view: 'grid' | 'table') => void;
+  pendingCount: number;
+  onApprovePending: () => void;
+  onAddBusiness: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        type="search"
+        placeholder="Search businesses…"
+        aria-label="Search businesses"
+        value={filters.search ?? ''}
+        onChange={(event) => onFiltersChange({ ...filters, search: event.target.value })}
+        className="rounded-input bg-card h-8 min-w-52 text-tiny"
+      />
+      <div className="deck:hidden flex flex-wrap items-center gap-2">
+        <DirectoryFilterControls filters={filters} onUpdate={onFiltersChange} categories={categories} />
+      </div>
+
+      <div className="border-border-strong bg-card rounded-menu inline-flex overflow-hidden border">
+        <SegButton active={viewMode === 'grid'} onClick={() => onChangeView('grid')}>
+          Grid
+        </SegButton>
+        <SegButton active={viewMode === 'table'} onClick={() => onChangeView('table')}>
+          Table
+        </SegButton>
+        <SegButton disabled>Map · soon</SegButton>
+      </div>
+
+      <span className="flex-1" />
+
+      {pendingCount === 0 ? null : (
+        <Button size="sm" className="rounded-input" onClick={onApprovePending}>
+          Approve {pendingCount} pending
+        </Button>
+      )}
+      <Button size="sm" variant="outline" className="rounded-input" onClick={onAddBusiness}>
+        Add business
+      </Button>
+    </div>
+  );
+}
 
 /**
- * Directory presentation shell (issue #15, Tasks 8-13). Purely presentational
- * state (view mode, selection, open panels) over the wired page result; Grid
- * and Table render the same current page, and switching views preserves the
- * query, filters, cursor position and selected row.
+ * Directory presentation shell (issue #15, Tasks 8-13), shaped as the accepted
+ * prototype's Variant B `.deck`: a 14rem filter rail, a fluid dataset column,
+ * and a persistent 20rem inspector. Grid and Table render the same current
+ * page, and switching views preserves the query, filters, cursor position and
+ * selected row.
  *
  * Pagination is a manual cursor stack (Back/Next), never accumulated
  * load-more: the server rejects `numItems > 25`, so a growing client window
@@ -66,7 +160,7 @@ export function DirectoryRoute({
   isMobile?: boolean;
   splitNotice?: string | null;
 }) {
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const updateSelectedIds = (updater: (prev: Set<string>) => Set<string>) => {
@@ -83,135 +177,134 @@ export function DirectoryRoute({
     setBulkConfirmOpen(false);
   }, [rows]);
 
-  const selectedRow = rows.find((r) => r._id === selectedId) ?? null;
+  const selectedRow = rows.find((row) => row._id === selectedId) ?? null;
+  const pendingOnPage = rows.filter((row) => row.status === 'pendingReview');
+
+  // Prototype `bulk-open-visible`: one control selects every pending listing
+  // on the visible page and opens the inline bulk confirm.
+  const approveAllPending = () => {
+    updateSelectedIds(() => new Set(pendingOnPage.map((row) => row._id)));
+    setBulkConfirmOpen(true);
+  };
 
   return (
-    <div className="flex h-full flex-col lg:flex-row">
-      <DirectoryRail filters={filters} onUpdate={onFiltersChange} categories={categories} shownCount={rows.length} />
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Command Bar Area */}
-        <header className="border-b">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-6">
-              <span className="font-bold text-lg">Command Deck / localhub admin</span>
-              <nav className="flex gap-2">
-                {['Overview', 'Directory', 'Owners', 'Audit', 'Categories'].map(tab => (
-                  <Button 
-                    key={tab} 
-                    variant={tab === 'Directory' ? 'default' : 'ghost'} 
-                    size="sm"
-                    disabled={!['Directory'].includes(tab)}
-                  >
-                    {tab}
-                  </Button>
-                ))}
-              </nav>
-            </div>
-            <div className="flex items-center gap-4">
-              <input 
-                type="search" 
-                placeholder="Search..." 
-                className="border rounded-md px-3 py-1 text-sm"
-                value={filters.search}
-                onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-              />
-              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>+ Add Business</Button>
-              <Button variant="outline" size="sm" disabled>Export CSV</Button>
-              <div className="w-8 h-8 rounded-full bg-muted" />
-            </div>
-          </div>
-        </header>
+    <div className="bg-card border-border rounded-shell shadow-sm grid deck:grid-cols-(--grid-admin-deck) md:grid-cols-(--grid-admin-deck-tablet) min-h-(--min-height-admin-deck) grid-cols-1 overflow-hidden border">
+      <DirectoryRail
+        filters={filters}
+        onUpdate={onFiltersChange}
+        categories={categories}
+        shownCount={rows.length}
+      />
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Dataset Toolbar */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex gap-2">
-              <Button size="sm" variant={viewMode === 'grid' ? 'secondary' : 'ghost'} onClick={() => setViewMode('grid')}>
-                Grid
-              </Button>
-              <Button size="sm" variant={viewMode === 'table' ? 'secondary' : 'ghost'} onClick={() => setViewMode('table')}>
-                Table
-              </Button>
+      <section className="flex min-w-0 flex-col">
+        <div className="grid content-start gap-4 p-5">
+          <DatasetToolbar
+            filters={filters}
+            onFiltersChange={onFiltersChange}
+            categories={categories}
+            viewMode={viewMode}
+            onChangeView={setViewMode}
+            pendingCount={pendingOnPage.length}
+            onApprovePending={approveAllPending}
+            onAddBusiness={() => setAddOpen(true)}
+          />
+
+          {addOpen ? (
+            <AddBusinessForm
+              categories={categories}
+              onSubmit={async (d) => {
+                try {
+                  await onSubmitAdd(d);
+                  setAddOpen(false);
+                } catch {
+                  // `onSubmitAdd` stores the failure in `addState.error` and
+                  // rethrows; swallow it here so the form stays open with the
+                  // error visible and the rejection is never unhandled.
+                }
+              }}
+              onCancel={() => setAddOpen(false)}
+              isPending={addState.isPending}
+              error={addState.error}
+            />
+          ) : null}
+
+          {bulkConfirmOpen ? (
+            <DirectoryBulkConfirm
+              count={selectedIds.size}
+              onConfirm={() => onApproveSelected(Array.from(selectedIds))}
+              onCancel={() => setBulkConfirmOpen(false)}
+              isPending={bulkState.isPending}
+              error={bulkState.error}
+            />
+          ) : null}
+
+          {error === null ? null : (
+            <div
+              role="alert"
+              className="border-danger-border bg-danger-soft text-danger-strong rounded-menu border p-3 text-tiny"
+            >
+              {error}
             </div>
-            {selectedIds.size > 0 && (
-              <DirectoryBulkBar
-                selectedCount={selectedIds.size}
-                eligibleCount={eligibleCount}
-                onRequestConfirm={() => setBulkConfirmOpen(true)}
-                isPending={bulkState.isPending}
-              />
-            )}
-          </div>
-
-              {addOpen ? (
-                <AddBusinessForm
-                  categories={categories}
-                  onSubmit={async (d) => {
-                    await onSubmitAdd(d);
-                    setAddOpen(false);
-                  }}
-                  onCancel={() => setAddOpen(false)}
-                  isPending={addState.isPending}
-                  error={addState.error}
-                />
-              ) : null}
-
-              {error && (
-                <div role="alert" className="text-destructive p-4 border rounded mb-4">
-                  {error}
-                </div>
-              )}
+          )}
 
           {loading ? (
-            <div>Loading...</div>
+            <div className="space-y-2" aria-busy="true" aria-label="Loading directory listings">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
           ) : (
             <>
+              <span className="text-muted-foreground text-tiny" role="status">
+                {rows.length} {rows.length === 1 ? 'listing' : 'listings'}
+              </span>
+
               {rows.length === 0 ? (
-                <p className="text-card-muted py-8">No listings match these filters.</p>
+                <div className="border-border-strong text-muted-foreground rounded-menu border border-dashed p-6 text-center text-sm">
+                  No listings match those filters. Clear a filter or search term to see more.
+                </div>
+              ) : viewMode === 'grid' ? (
+                <DirectoryGrid rows={rows} selectedId={selectedId} onSelect={setSelectedId} />
               ) : (
-                <>
-                  {viewMode === 'grid' ? (
-                    <DirectoryGrid rows={rows} selectedId={selectedId} onSelect={setSelectedId} />
-                  ) : (
-                    <DirectoryTable
-                      rows={rows}
-                      selectedIds={selectedIds}
-                      onToggleSelectBulk={updateSelectedIds}
-                      onSelect={setSelectedId}
-                    />
-                  )}
-                  {bulkConfirmOpen && (
-                    <DirectoryBulkConfirm
-                      count={selectedIds.size}
-                      onConfirm={() => onApproveSelected(Array.from(selectedIds))}
-                      onCancel={() => setBulkConfirmOpen(false)}
-                      isPending={bulkState.isPending}
-                      error={bulkState.error}
-                    />
-                  )}
-                </>
+                <DirectoryTable
+                  rows={rows}
+                  selectedIds={selectedIds}
+                  onToggleSelectBulk={updateSelectedIds}
+                  onSelect={setSelectedId}
+                />
               )}
 
-              <div className="mt-4 flex items-center gap-2">
-                <Button variant="outline" onClick={onPrevious} disabled={!canGoPrevious}>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-input"
+                  onClick={onPrevious}
+                  disabled={!canGoPrevious}
+                >
                   Back
                 </Button>
-                <Button variant="outline" onClick={onNext} disabled={!canGoNext}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-input"
+                  onClick={onNext}
+                  disabled={!canGoNext}
+                >
                   Next
                 </Button>
-                {splitNotice ? (
-                  <span role="status" className="text-sm text-card-muted">
+                {splitNotice === null ? null : (
+                  <span role="status" className="text-muted-foreground text-xs">
                     {splitNotice}
                   </span>
-                ) : null}
+                )}
               </div>
             </>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className="w-80 border-l h-full overflow-y-auto">
+      <aside className="border-border bg-card hidden flex-col border-l md:flex">
         <DirectoryInspector
           row={selectedRow}
           onClose={() => setSelectedId(null)}
@@ -222,7 +315,16 @@ export function DirectoryRoute({
           error={actionState.error}
           isMobile={isMobile}
         />
-      </div>
+      </aside>
+
+      {selectedIds.size === 0 ? null : (
+        <DirectoryBulkBar
+          selectedCount={selectedIds.size}
+          eligibleCount={eligibleCount}
+          onRequestConfirm={() => setBulkConfirmOpen(true)}
+          isPending={bulkState.isPending}
+        />
+      )}
     </div>
   );
 }
