@@ -10,6 +10,9 @@ import { DirectoryBulkConfirm } from './directory-bulk-confirm';
 import { AddBusinessForm } from './add-business-form';
 import { DirectoryGrid } from './directory-grid';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { exportBusinessesCsv } from '@/app/admin/export-actions';
 
 /**
  * Directory presentation shell (issue #15, Tasks 8-13). Purely presentational
@@ -74,6 +77,43 @@ export function DirectoryRoute({
   };
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [exportState, setExportState] = useState<{
+    isPending: boolean;
+    error: string | null;
+    status: string | null;
+  }>({ isPending: false, error: null, status: null });
+
+  // The Server Action returns the serialized CSV (it cannot set
+  // Content-Disposition), so the download is triggered here with a Blob and an
+  // object URL. One export at a time: the button disables while pending.
+  const handleExport = async () => {
+    setExportState({ isPending: true, error: null, status: null });
+    try {
+      const result = await exportBusinessesCsv();
+      if (!result.ok) {
+        setExportState({ isPending: false, error: result.error, status: null });
+        return;
+      }
+
+      const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = result.fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+
+      setExportState({
+        isPending: false,
+        error: null,
+        status: `Exported ${result.rowCount} ${
+          result.rowCount === 1 ? 'row' : 'rows'
+        } → ${result.fileName}`,
+      });
+    } catch {
+      setExportState({ isPending: false, error: 'The export failed. Try again.', status: null });
+    }
+  };
 
   // Selection hygiene (contract §G5): whenever the visible page changes
   // identity — filter/search apply, Back/Next, post-mutation reactive refresh
@@ -91,32 +131,26 @@ export function DirectoryRoute({
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Command Bar Area */}
         <header className="border-b">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-6">
-              <span className="font-bold text-lg">Command Deck / localhub admin</span>
-              <nav className="flex gap-2">
-                {['Overview', 'Directory', 'Owners', 'Audit', 'Categories'].map(tab => (
-                  <Button 
-                    key={tab} 
-                    variant={tab === 'Directory' ? 'default' : 'ghost'} 
-                    size="sm"
-                    disabled={!['Directory'].includes(tab)}
-                  >
-                    {tab}
-                  </Button>
-                ))}
-              </nav>
-            </div>
-            <div className="flex items-center gap-4">
-              <input 
-                type="search" 
-                placeholder="Search..." 
-                className="border rounded-md px-3 py-1 text-sm"
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <span className="font-bold text-lg">Command Deck / localhub admin</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                type="search"
+                placeholder="Search businesses…"
+                aria-label="Search businesses"
                 value={filters.search}
                 onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+                className="w-full sm:w-52"
               />
               <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>+ Add Business</Button>
-              <Button variant="outline" size="sm" disabled>Export CSV</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={exportState.isPending}
+              >
+                Export CSV
+              </Button>
               <div className="w-8 h-8 rounded-full bg-muted" />
             </div>
           </div>
@@ -158,17 +192,38 @@ export function DirectoryRoute({
               ) : null}
 
               {error && (
-                <div role="alert" className="text-destructive p-4 border rounded mb-4">
+                <div role="alert" className="mb-4 rounded-control border border-destructive/40 p-4 text-sm text-destructive">
                   {error}
                 </div>
               )}
 
+              {exportState.error && (
+                <div role="alert" className="mb-4 rounded-control border border-destructive/40 p-4 text-sm text-destructive">
+                  {exportState.error}
+                </div>
+              )}
+
+              {exportState.status && (
+                <div
+                  role="status"
+                  className="fixed bottom-4 left-4 z-50 max-w-md rounded-control bg-surface px-3 py-2 text-sm text-surface-foreground shadow-lg"
+                >
+                  {exportState.status}
+                </div>
+              )}
+
           {loading ? (
-            <div>Loading...</div>
+            <div className="space-y-2" aria-busy="true" aria-label="Loading directory listings">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full bg-muted-foreground/20" />
+              ))}
+            </div>
           ) : (
             <>
               {rows.length === 0 ? (
-                <p className="text-card-muted py-8">No listings match these filters.</p>
+                <div className="rounded-control border border-dashed border-border p-6 text-center text-sm text-card-muted">
+                  No listings match these filters. Clear a filter or a search term to see more.
+                </div>
               ) : (
                 <>
                   {viewMode === 'grid' ? (

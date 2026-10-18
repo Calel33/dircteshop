@@ -12,12 +12,19 @@ import type { ListingStatus } from './businesses/helpers';
 // query handler in `./auditLogs.ts` (`listAuditLogs`) is a thin shell: it
 // authorizes, paginates `byCreatedAt` descending, and maps the page.
 //
+// B6b (issue #16) adds the optional local date range: the UI's local
+// `from`/`through` calendar dates become an inclusive start / exclusive
+// next-day `createdAt` window that the handler applies to `byCreatedAt`
+// before pagination, so the date filter composes with the existing filters
+// without scanning outside the window.
+//
 // Rows survive target deletion by design: `targetName` prefers the stored
 // snapshot (B6a delete rows REQUIRE one) and only then falls back to the live
 // business name, so a deleted listing stays readable in the audit feed.
 //
 // Contract: tasks/issue-15-contracts.md §B3/§B4.
-// Docs: https://docs.convex.dev/database/pagination
+// Docs: https://docs.convex.dev/database/pagination · https://docs.convex.dev/database/reading-data/indexes
+// B6b: https://github.com/Calel33/dircteshop/issues/16
 
 /** The frozen audit page size (contract §B3; mirrors the directory page cap). */
 export const AUDIT_PAGE_SIZE = 25;
@@ -75,6 +82,101 @@ export function assertAuditPageSize(numItems: number): void {
 export function normalizeAuditFilter(value: string | undefined): string | undefined {
   const trimmed = (value ?? '').trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+/**
+ * The local calendar-date range the audit UI submits (B6b, issue #16):
+ * `YYYY-MM-DD` strings in the admin's local timezone. A blank/absent bound
+ * stays open; `through` is inclusive, so its exclusive upper bound is the
+ * local start of the following day.
+ */
+export type AuditDateRange = {
+  from?: string;
+  through?: string;
+};
+
+/** The half-open `createdAt` window handed to `byCreatedAt` (epoch ms). */
+export type AuditCreatedAtBounds = {
+  /** Inclusive lower bound: the local start of `from`. */
+  createdAtFrom?: number;
+  /** Exclusive upper bound: the local start of the day after `through`. */
+  createdAtBefore?: number;
+};
+
+/**
+ * Parses one `YYYY-MM-DD` local calendar date to local-midnight epoch ms,
+ * shifted by `dayOffset` days. The Date constructor resolves the local day
+ * boundary and rolls month/year over (the same local-midnight math as
+ * `localMonthRange` in `./adminProjections.ts`), so DST transitions stay
+ * correct. Malformed strings and impossible calendar days (e.g. `2026-02-31`)
+ * throw instead of silently matching the whole feed.
+ */
+function localDayStartMs(date: string, dayOffset = 0): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (match === null) {
+    throw new ConvexError(`Invalid audit date "${date}"; expected YYYY-MM-DD.`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const resolved = new Date(year, month - 1, day);
+  if (
+    resolved.getFullYear() !== year ||
+    resolved.getMonth() !== month - 1 ||
+    resolved.getDate() !== day
+  ) {
+    throw new ConvexError(`Invalid audit date "${date}"; that calendar day does not exist.`);
+  }
+
+  return new Date(year, month - 1, day + dayOffset).getTime();
+}
+
+/**
+ * Converts the UI's local `from`/`through` dates to the half-open `createdAt`
+ * window (B6b): `from` is the inclusive local start of that day and `through`
+ * is the exclusive local start of the next day, so a row at any local time on
+ * the `through` day stays visible. An inverted range (`from` after `through`)
+ * throws rather than silently returning the unfiltered feed.
+ */
+export function resolveAuditCreatedAtBounds(range: AuditDateRange): AuditCreatedAtBounds {
+  const from = normalizeAuditFilter(range.from);
+  const through = normalizeAuditFilter(range.through);
+
+  const bounds: AuditCreatedAtBounds = {};
+
+  if (from !== undefined) {
+    bounds.createdAtFrom = localDayStartMs(from);
+  }
+
+  if (through !== undefined) {
+    const throughStart = localDayStartMs(through);
+    if (bounds.createdAtFrom !== undefined && bounds.createdAtFrom > throughStart) {
+      throw new ConvexError('Invalid audit date range: "from" is after "through".');
+    }
+    bounds.createdAtBefore = localDayStartMs(through, 1);
+  }
+
+  return bounds;
+}
+
+/**
+ * The server-side guard for the numeric window (contract §B3): a client could
+ * still send an inverted or empty window directly, and that must fail loudly
+ * instead of silently returning every row. One-sided bounds are legitimate.
+ */
+export function assertAuditCreatedAtBounds(bounds: {
+  createdAtFrom?: number;
+  createdAtBefore?: number;
+}): void {
+  const { createdAtFrom, createdAtBefore } = bounds;
+  if (
+    createdAtFrom !== undefined &&
+    createdAtBefore !== undefined &&
+    createdAtFrom >= createdAtBefore
+  ) {
+    throw new ConvexError('Invalid audit date range: the start bound is not before the end bound.');
+  }
 }
 
 /** The structural fields the audit matcher reads off one enriched row. */

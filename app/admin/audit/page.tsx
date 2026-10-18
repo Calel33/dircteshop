@@ -2,9 +2,31 @@
 
 import { Component, Fragment, useEffect, useState, type ReactNode } from 'react';
 import { useConvexAuth, useQuery } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { api } from '@/convex/_generated/api';
+import { resolveAuditCreatedAtBounds, type AuditCreatedAtBounds } from '@/convex/auditProjections';
 import { Button } from '@/components/ui/button';
 import { AuditRoute } from './audit-route';
+
+/**
+ * Resolves the local date inputs to the query's `createdAt` window. An invalid
+ * range (from after through, or a missing calendar day) returns the reason
+ * instead of bounds, so the route shows it and the query is skipped rather
+ * than silently running unfiltered.
+ */
+function resolveAuditDateBounds(dates: { from: string; through: string }): {
+  bounds: AuditCreatedAtBounds;
+  error?: string;
+} {
+  try {
+    return { bounds: resolveAuditCreatedAtBounds({ from: dates.from, through: dates.through }) };
+  } catch (error) {
+    if (error instanceof ConvexError && typeof error.data === 'string') {
+      return { bounds: {}, error: error.data };
+    }
+    return { bounds: {}, error: 'Choose a valid audit date range.' };
+  }
+}
 
 interface AuditLoadBoundaryProps {
   children: ReactNode;
@@ -71,15 +93,20 @@ function AuditPageContent() {
   // `filters` holds the applied values the query runs with; the text inputs
   // render from the draft state below so keystrokes stay responsive.
   const [filters, setFilters] = useState<{ action?: string; actor?: string; search?: string }>({});
+  const [dates, setDates] = useState({ from: '', through: '' });
   const [actorInput, setActorInput] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const cursor = cursorStack[cursorStack.length - 1];
+  const { bounds: dateBounds, error: dateError } = resolveAuditDateBounds(dates);
 
   const result = useQuery(
     api.auditLogs.listAuditLogs,
-    isAuthenticated ? { paginationOpts: { numItems: 25, cursor }, ...filters } : 'skip'
+    isAuthenticated && dateError === undefined
+      ? { paginationOpts: { numItems: 25, cursor }, ...filters, ...dateBounds }
+      : 'skip'
   );
+  const pageIncomplete = result?.pageStatus === 'SplitRequired';
 
   // The actor/target inputs stay responsive through the draft state while the
   // query arguments follow 300ms after the last keystroke; applying a changed
@@ -107,9 +134,15 @@ function AuditPageContent() {
     return () => clearTimeout(timer);
   }, [searchInput, filters.search]);
 
-  function handleFiltersChange(next: { action?: string; actor?: string; search?: string }) {
-    // The text fields are debounced separately; only a real action change
-    // applies immediately and restarts the cursor traversal.
+  function handleFiltersChange(next: {
+    action?: string;
+    actor?: string;
+    search?: string;
+    from?: string;
+    through?: string;
+  }) {
+    // The text fields are debounced separately; real action and date changes
+    // apply immediately and restart the cursor traversal.
     const nextActor = next.actor ?? '';
     if (nextActor !== actorInput) {
       setActorInput(nextActor);
@@ -117,6 +150,13 @@ function AuditPageContent() {
     const nextSearch = next.search ?? '';
     if (nextSearch !== searchInput) {
       setSearchInput(nextSearch);
+    }
+
+    const nextFrom = next.from ?? '';
+    const nextThrough = next.through ?? '';
+    if (nextFrom !== dates.from || nextThrough !== dates.through) {
+      setDates({ from: nextFrom, through: nextThrough });
+      setCursorStack([null]);
     }
 
     if (next.action !== filters.action) {
@@ -127,11 +167,23 @@ function AuditPageContent() {
 
   return (
     <AuditRoute
-      rows={result?.page ?? []}
+      rows={pageIncomplete ? [] : (result?.page ?? [])}
       loading={result === undefined}
-      filters={{ action: filters.action, actor: actorInput, search: searchInput }}
+      filters={{
+        action: filters.action,
+        actor: actorInput,
+        search: searchInput,
+        from: dates.from,
+        through: dates.through,
+      }}
+      dateError={dateError}
+      paginationError={
+        pageIncomplete
+          ? 'This audit page exceeded the database read budget. Narrow the date range or filters; no partial rows are shown.'
+          : undefined
+      }
       onFiltersChange={handleFiltersChange}
-      canGoNext={result?.isDone === false}
+      canGoNext={!pageIncomplete && result?.isDone === false}
       canGoPrevious={cursorStack.length > 1}
       onNext={() => {
         const page = result;

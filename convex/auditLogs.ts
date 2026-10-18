@@ -7,14 +7,16 @@ import type { Doc } from './_generated/dataModel';
 import { requireSuperAdmin } from './authz';
 import {
   AUDIT_MAXIMUM_ROWS_READ,
+  assertAuditCreatedAtBounds,
   assertAuditPageSize,
   matchesAuditLogFilters,
   toAuditLogRow,
   type AuditLogFilters,
 } from './auditProjections';
 
-// B6a read-only audit feed (issue #15, Task 2). Super Admin only; there is no
-// write path here — every row is written by its owning mutation's transaction.
+// B6a read-only audit feed (issue #15, Task 2); B6b adds the local date range
+// (issue #16). Super Admin only; there is no write path here — every row is
+// written by its owning mutation's transaction.
 // Contract: tasks/issue-15-contracts.md §B3/§B4.
 // Docs: https://docs.convex.dev/database/pagination · https://docs.convex.dev/auth/functions-auth
 
@@ -45,19 +47,22 @@ async function resolveLiveBusinessName(
 }
 
 /**
- * Super Admin audit feed (B6a): a cursor-paginated, newest-first page of at
- * most 25 audit rows, filterable by action (exact), actor (case-insensitive
- * substring over the joined actor name), and target/reason search
- * (case-insensitive substring over the resolved target name, target id, or
- * reason).
+ * Super Admin audit feed (B6a, extended by B6b): a cursor-paginated,
+ * newest-first page of at most 25 audit rows, filterable by action (exact),
+ * actor (case-insensitive substring over the joined actor name), target/reason
+ * search (case-insensitive substring over the resolved target name, target id,
+ * or reason), and an optional `createdAt` window — `createdAtFrom` inclusive,
+ * `createdAtBefore` exclusive, the bounds the UI's local from/through dates
+ * become.
  *
  * The read is one `.paginate` on `byCreatedAt` descending (the runtime allows
  * one paginated query per invocation) with a server-owned row-read cap; the
- * filters refine the scanned window
- * in-function and the returned page is every match from that window, so a
- * short page with a valid `continueCursor` is legitimate and no row is ever
- * skipped or silently dropped. Rows survive target deletion (snapshot-first
- * target names). Read-only: no mutation path is exposed here.
+ * date bounds constrain the index range before pagination and the remaining
+ * filters refine the scanned window in-function, so the returned page is every
+ * match from that window — a short page with a valid `continueCursor` is
+ * legitimate and no row is ever skipped or silently dropped. Rows survive
+ * target deletion (snapshot-first target names). Read-only: no mutation path
+ * is exposed here.
  */
 export const listAuditLogs = query({
   args: {
@@ -65,10 +70,16 @@ export const listAuditLogs = query({
     action: v.optional(v.string()),
     actor: v.optional(v.string()),
     search: v.optional(v.string()),
+    createdAtFrom: v.optional(v.number()),
+    createdAtBefore: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireSuperAdmin(ctx);
     assertAuditPageSize(args.paginationOpts.numItems);
+    assertAuditCreatedAtBounds({
+      createdAtFrom: args.createdAtFrom,
+      createdAtBefore: args.createdAtBefore,
+    });
 
     const filters: AuditLogFilters = {
       action: args.action,
@@ -78,7 +89,22 @@ export const listAuditLogs = query({
 
     const page = await ctx.db
       .query('auditLogs')
-      .withIndex('byCreatedAt')
+      // B6b: the local date range sits on the index so the window is
+      // constrained before pagination; one-sided bounds stay open-ended and
+      // an absent range keeps the full-feed behaviour.
+      .withIndex('byCreatedAt', (q) => {
+        const { createdAtFrom, createdAtBefore } = args;
+        if (createdAtFrom !== undefined && createdAtBefore !== undefined) {
+          return q.gte('createdAt', createdAtFrom).lt('createdAt', createdAtBefore);
+        }
+        if (createdAtFrom !== undefined) {
+          return q.gte('createdAt', createdAtFrom);
+        }
+        if (createdAtBefore !== undefined) {
+          return q.lt('createdAt', createdAtBefore);
+        }
+        return q;
+      })
       .order('desc')
       // Spread first so the client's cursor/endCursor (and split fields)
       // survive; the server-owned read cap always wins over a client value.

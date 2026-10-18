@@ -23,4 +23,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   feature: 'Feature pin',
   delete: 'Hard delete',
   createDraft: 'Create draft',
+  // B6b (issue #16). Keys are the stored action names: CATEGORY_AUDIT_ACTIONS
+  // in convex/categoryAdminPolicy.ts, EXPORT_COMPLETION_ACTION in
+  // convex/adminExportPolicy.ts.
+  createCategory: 'Create category',
+  updateCategory: 'Update category',
+  deleteCategory: 'Delete category',
+  reorderCategory: 'Reorder category',
+  exportBusinessesCsv: 'CSV export',
 };

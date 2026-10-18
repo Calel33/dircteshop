@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as adminExportPolicy from "../adminExportPolicy.js";
+import type * as adminExports from "../adminExports.js";
+import type * as adminProjections from "../adminProjections.js";
+import type * as adminQueries from "../adminQueries.js";
 import type * as auditLogs from "../auditLogs.js";
 import type * as auditProjections from "../auditProjections.js";
 import type * as authz from "../authz.js";
@@ -30,6 +34,7 @@ import type * as businesses_queries from "../businesses/queries.js";
 import type * as businesses_seed from "../businesses/seed.js";
 import type * as businesses_seedFixtures from "../businesses/seedFixtures.js";
 import type * as categories from "../categories.js";
+import type * as categoryAdminPolicy from "../categoryAdminPolicy.js";
 import type * as http from "../http.js";
 import type * as notificationHelpers from "../notificationHelpers.js";
 import type * as notifications from "../notifications.js";
@@ -44,6 +49,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  adminExportPolicy: typeof adminExportPolicy;
+  adminExports: typeof adminExports;
+  adminProjections: typeof adminProjections;
+  adminQueries: typeof adminQueries;
   auditLogs: typeof auditLogs;
   auditProjections: typeof auditProjections;
   authz: typeof authz;
@@ -66,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   "businesses/seed": typeof businesses_seed;
   "businesses/seedFixtures": typeof businesses_seedFixtures;
   categories: typeof categories;
+  categoryAdminPolicy: typeof categoryAdminPolicy;
   http: typeof http;
   notificationHelpers: typeof notificationHelpers;
   notifications: typeof notifications;
