@@ -213,8 +213,14 @@ export function DirectoryRoute({
             <AddBusinessForm
               categories={categories}
               onSubmit={async (d) => {
-                await onSubmitAdd(d);
-                setAddOpen(false);
+                try {
+                  await onSubmitAdd(d);
+                  setAddOpen(false);
+                } catch {
+                  // `onSubmitAdd` stores the failure in `addState.error` and
+                  // rethrows; swallow it here so the form stays open with the
+                  // error visible and the rejection is never unhandled.
+                }
               }}
               onCancel={() => setAddOpen(false)}
               isPending={addState.isPending}
