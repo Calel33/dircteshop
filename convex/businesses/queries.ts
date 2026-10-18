@@ -28,6 +28,7 @@ import {
   toPendingApprovalDetails,
 } from './moderationProjections';
 import { toOwnerEditorDocument, toOwnerSummary } from './ownerProjections';
+import { resolvePhotoUrls } from './photoStorage';
 import { createOpenNowEvaluator, type OpenStatus } from './publicHours';
 import { toPublicDirectoryCard, type PublicDirectoryResult } from './publicProjections';
 
@@ -36,8 +37,9 @@ import { toPublicDirectoryCard, type PublicDirectoryResult } from './publicProje
 // here by construction, never by trusting a client-supplied status.
 // Docs: https://docs.convex.dev/text-search · https://docs.convex.dev/database/reading-data
 /**
- * Public profile read for `/business/[id]`: the business plus its category, or
- * `null` unless the listing is `approved`.
+ * Public profile read for `/business/[id]`: the business, its category, and a
+ * storageId -> URL map for its photos, or `null` unless the listing is
+ * `approved`.
  *
  * `id` is `v.string()` on purpose. A malformed URL segment must yield `null`
  * (which the route renders as a 404), not an argument-validation error.
@@ -69,7 +71,10 @@ export const getPublic = query({
     // and search-maintenance fields (`searchText`, `keywords`) that must not
     // reach a client. Public visibility is defined by `status` (SPEC §5), not by
     // exposing them. `verifiedBy`/`verifiedAt` are admin-only; the badge keeps
-    // only `isVerified`.
+    // only `isVerified`. `photoUrls` sits beside `business` so the frozen
+    // `PublicBusiness` shape stays unchanged.
+    const photoUrls = await resolvePhotoUrls(ctx, business.photos);
+
     return {
       business: {
         _id: business._id,
@@ -89,6 +94,7 @@ export const getPublic = query({
         lastUpdatedAt: business.lastUpdatedAt,
       },
       category,
+      photoUrls,
     };
   },
 });
@@ -460,7 +466,10 @@ export const getMine = query({
       return null;
     }
 
-    return toOwnerEditorDocument(business);
+    return {
+      ...toOwnerEditorDocument(business),
+      photoUrls: await resolvePhotoUrls(ctx, business.photos),
+    };
   },
 });
 

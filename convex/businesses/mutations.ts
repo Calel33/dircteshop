@@ -41,6 +41,7 @@ import {
   providedEditableFields,
 } from './ownerSavePolicy';
 import { assertPhotosCount, normalizePhotos } from './photoPolicy';
+import { assertPhotoAttachmentsValid, reconcilePhotoStorage } from './photoStorage';
 
 // Owner + admin writes for the listing lifecycle. Mutations accept an ACTION,
 // never a client-supplied status (SPEC §5); the target status is resolved
@@ -141,15 +142,24 @@ export const saveDraft = mutation({
 
     const provided = providedEditableFields(EDITABLE_FIELD_CLASS, patch);
     const persistFields = persistableSaveFields(mode, EDITABLE_FIELD_CLASS, provided);
+    const normalizedPatch = withNormalizedName(patch);
+    // Validate new attachments before the patch so a rejected file never leaves
+    // a half-saved photo list behind. What is persisted runs through
+    // `photosPatchEntry` -> `normalizePhotos`, which is authoritative: ordering
+    // is re-stamped, alt text is trimmed/capped and blank alt collapses to
+    // absent, duplicates are dropped.
+    const persistedPhotos = persistedPhotoList(persistFields, normalizedPatch);
+    await assertPhotoAttachmentsValid(ctx, business.photos, persistedPhotos);
+
     const now = Date.now();
     const searchChanged =
       persistFields.includes('name') ||
       persistFields.includes('description') ||
       persistFields.includes('keywords');
-    const normalizedPatch = withNormalizedName(patch);
 
     await ctx.db.patch(businessId, {
       ...buildEditablePatch(normalizedPatch, persistFields),
+      ...photosPatchEntry(persistedPhotos),
       lastSavedAt: now,
       lastUpdatedAt: now,
       ...(searchChanged
@@ -162,6 +172,10 @@ export const saveDraft = mutation({
           }
         : {}),
     });
+
+    // Storage deletes are outside the database transaction; run them only after
+    // the patch above has been accepted (see photoStorage.ts).
+    await reconcilePhotoStorage(ctx, business.photos, persistedPhotos);
   },
 });
 
@@ -511,9 +525,15 @@ export const saveAndResubmit = mutation({
 
     const now = Date.now();
     const normalizedPatch = withNormalizedName(patch);
+    // Same photo contract as `saveDraft`: attach validation first, then persist
+    // the normalized list (ordering re-stamped, alt trimmed/capped, duplicates
+    // dropped), and only then reconcile storage.
+    const persistedPhotos = persistedPhotoList(provided, normalizedPatch);
+    await assertPhotoAttachmentsValid(ctx, business.photos, persistedPhotos);
 
     await ctx.db.patch(businessId, {
       ...buildEditablePatch(normalizedPatch, provided),
+      ...photosPatchEntry(persistedPhotos),
       searchText: buildSearchText(
         normalizedPatch.name ?? business.name,
         normalizedPatch.keywords ?? business.keywords,
@@ -544,6 +564,10 @@ export const saveAndResubmit = mutation({
         createdAt: now,
       }
     );
+
+    // Runs after every database write (including notifications) so a rolled
+    // back transaction can never point at an already-deleted file.
+    await reconcilePhotoStorage(ctx, business.photos, persistedPhotos);
   },
 });
 
@@ -661,4 +685,32 @@ function buildEditablePatch(
   }
 
   return result as Partial<Doc<'businesses'>>;
+}
+
+/**
+ * The photo list a save persists, or `null` when the patch does not touch
+ * photos (omitted, or filtered out by the status save mode). Normalization is
+ * applied here so every persisted photo list is authoritative: `ordering` is
+ * re-stamped to the array index, alt text is trimmed, capped at
+ * `PHOTO_LIMITS.maxAltLength` and blank alt collapses to absent, and duplicate
+ * storage ids are dropped (the documented B7 save contract).
+ */
+function persistedPhotoList(
+  fields: readonly EditableBusinessField[],
+  patch: EditablePatch
+): Doc<'businesses'>['photos'] | null {
+  if (!fields.includes('photos') || patch.photos === undefined) {
+    return null;
+  }
+  return normalizePhotos(patch.photos);
+}
+
+/**
+ * The spreadable patch entry for the normalized photo list: `{ photos: [...] }`
+ * when the save persists photos, otherwise nothing.
+ */
+function photosPatchEntry(
+  persistedPhotos: Doc<'businesses'>['photos'] | null
+): Partial<Doc<'businesses'>> {
+  return persistedPhotos === null ? {} : { photos: persistedPhotos };
 }
