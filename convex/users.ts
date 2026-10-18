@@ -2,6 +2,7 @@ import { internalMutation, query, QueryCtx } from './_generated/server';
 import { UserJSON } from '@clerk/backend';
 import { v, Validator } from 'convex/values';
 import { configuredSuperAdminIds } from './authz';
+import { clerkDisplayName } from './userName';
 
 export const current = query({
   args: {},
@@ -36,7 +37,12 @@ export const upsertFromClerk = internalMutation({
   args: { data: v.any() as Validator<UserJSON> }, // no runtime validation, trust Clerk
   async handler(ctx, { data }) {
     const userAttributes = {
-      name: `${data.first_name} ${data.last_name}`,
+      name: clerkDisplayName({
+        firstName: data.first_name,
+        lastName: data.last_name,
+        username: data.username,
+        emails: data.email_addresses?.map((address) => address.email_address) ?? [],
+      }),
       externalId: data.id,
       role: configuredSuperAdminIds().has(data.id) ? ('superAdmin' as const) : ('user' as const),
     };

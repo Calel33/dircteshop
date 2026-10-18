@@ -34,6 +34,7 @@ import {
   assertOwnersPageSize,
   toOwnerRow,
 } from '../convex/adminProjections.ts';
+import { UNKNOWN_USER_NAME } from '../convex/userName.ts';
 
 /** A schema-shaped users document, including the fields a client must not receive. */
 function userFixture(overrides: Partial<Doc<'users'>> = {}): Doc<'users'> {
@@ -108,4 +109,12 @@ test('the row withholds the Clerk external id and any email', () => {
   for (const withheld of ['externalId', 'email']) {
     assert.equal(keys.includes(withheld), false, `row must not carry ${withheld}`);
   }
+});
+
+test('a legacy "null null" stored name renders as the unknown label', () => {
+  assert.equal(toOwnerRow(userFixture({ name: 'null null' }), 0).name, UNKNOWN_USER_NAME);
+});
+
+test('a blank stored name renders as the unknown label', () => {
+  assert.equal(toOwnerRow(userFixture({ name: '   ' }), 0).name, UNKNOWN_USER_NAME);
 });

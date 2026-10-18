@@ -1,6 +1,7 @@
 import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from './_generated/dataModel';
+import { storedDisplayName } from './userName.ts';
 
 // B6b `/admin` projections (issue #16, Tasks 1–2).
 //
@@ -102,11 +103,13 @@ export function assertOwnersPageSize(numItems: number): void {
  * frozen row. The count itself is measured by the handler through the
  * `businesses.byOwnerId` index range (see `listOwners` in
  * `./adminQueries.ts`) — this projection only enforces the boundary shape.
+ * The name is normalized here so rows written by the old Clerk sync (for
+ * example the literal `"null null"`) still render a readable label.
  */
 export function toOwnerRow(user: Doc<'users'>, businessCount: number): OwnerRow {
   return {
     _id: user._id,
-    name: user.name,
+    name: storedDisplayName(user.name),
     role: user.role,
     businessCount,
   };
