@@ -7,8 +7,9 @@ import type { Doc, Id } from './_generated/dataModel';
  * B6b audited business CSV export (issue #16, Task 6) — pure policy.
  *
  * The single source of truth for the export's frozen contract: the exact
- * header, UTC ISO 8601 date rendering, RFC 4180 field escaping, the server
- * page bound, and the one completion audit event. It imports only types from
+ * header, UTC ISO 8601 date rendering, RFC 4180 field escaping, spreadsheet
+ * formula neutralization, the server page bound, and the one completion audit
+ * event. It imports only types from
  * generated Convex modules (plus `ConvexError`), so
  * `scripts/admin-export-policy.test.ts` asserts it under plain `node --test`
  * without a live deployment.
@@ -111,16 +112,38 @@ export function escapeCsvField(value: string): string {
   return value;
 }
 
+/**
+ * Spreadsheet formula triggers (OWASP CSV injection): a cell whose first
+ * significant character is `=`, `+`, `-`, or `@` — or whose first character
+ * is a tab/CR — opens as a live formula in Excel/Sheets. Leading whitespace
+ * and control characters do not disarm the sequence, so they are skipped
+ * before the trigger check.
+ */
+const FORMULA_TRIGGER = /^[\s\p{Cc}]*[=+\-@\t\r]/u;
+
+/**
+ * OWASP CSV-injection guard for the string-sourced columns (`name`,
+ * `category`, `owner`): a value that would open as a spreadsheet formula is
+ * prefixed with a single quote so spreadsheet apps render it as literal text.
+ * Numeric (rating) and ISO-date columns never pass through this guard.
+ */
+export function neutralizeFormula(value: string): string {
+  if (FORMULA_TRIGGER.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 /** Assembles the full CSV: header first, CRLF record separators (RFC 4180 §2.1–§2.2). */
 export function buildBusinessExportCsv(rows: readonly BusinessExportRow[]): string {
   const lines = [EXPORT_CSV_HEADER];
   for (const row of rows) {
     lines.push(
       [
-        escapeCsvField(row.name),
-        escapeCsvField(row.category),
+        escapeCsvField(neutralizeFormula(row.name)),
+        escapeCsvField(neutralizeFormula(row.category)),
         escapeCsvField(row.status),
-        escapeCsvField(row.owner),
+        escapeCsvField(neutralizeFormula(row.owner)),
         escapeCsvField(String(row.rating)),
         escapeCsvField(formatExportDate(row.createdAt)),
         escapeCsvField(formatExportDate(row.submittedAt)),

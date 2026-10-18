@@ -8,6 +8,10 @@
  *   not the epoch, not a locale string).
  * - CSV escaping follows RFC 4180: values carrying a comma, a quote, or a line
  *   break are quoted, and quotes inside a value are doubled.
+ * - String-sourced cells (`name`, `category`, `owner`) that could open as a
+ *   spreadsheet formula (`=`, `+`, `-`, `@`, tab, or CR — including after
+ *   leading whitespace/control characters) are neutralized with a single
+ *   quote (OWASP CSV-injection guard). Numeric and ISO-date columns are not.
  * - The pure page-size policy rejects requests larger than 25 rows.
  * - The completion-audit builder produces the frozen event shape: action
  *   `exportBusinessesCsv`, targetType `businesses`, targetId `all`.
@@ -36,6 +40,7 @@ import {
   collectExportPages,
   escapeCsvField,
   formatExportDate,
+  neutralizeFormula,
   reduceExportPageSize,
   type BusinessExportRow,
 } from '../convex/adminExportPolicy.ts';
@@ -175,6 +180,53 @@ test('escaping follows RFC 4180: quote on comma/quote/newline, double the quotes
   assert.equal(escapeCsvField('"'), '""""');
   assert.equal(escapeCsvField('Line1\nLine2'), '"Line1\nLine2"');
   assert.equal(escapeCsvField('Carriage\r\nReturn'), '"Carriage\r\nReturn"');
+});
+
+test('formula triggers are neutralized with a leading single quote', () => {
+  assert.equal(neutralizeFormula('=1+1'), "'=1+1");
+  assert.equal(neutralizeFormula('@SUM'), "'@SUM");
+  assert.equal(neutralizeFormula('-5'), "'-5");
+  assert.equal(neutralizeFormula('+cmd'), "'+cmd");
+  assert.equal(
+    neutralizeFormula('=HYPERLINK("https://evil.example","Click")'),
+    '\'=HYPERLINK("https://evil.example","Click")'
+  );
+});
+
+test('leading whitespace or control characters do not disarm a formula trigger', () => {
+  assert.equal(neutralizeFormula('  =1+1'), "'  =1+1");
+  assert.equal(neutralizeFormula(' +cmd'), "' +cmd");
+  assert.equal(neutralizeFormula('\t@SUM'), "'\t@SUM");
+  assert.equal(neutralizeFormula('\r=1+1'), "'\r=1+1");
+  assert.equal(neutralizeFormula('\tanything'), "'\tanything");
+});
+
+test('safe text passes the formula guard unchanged', () => {
+  assert.equal(neutralizeFormula('Acme Coffee'), 'Acme Coffee');
+  assert.equal(neutralizeFormula('Cedar & Sage'), 'Cedar & Sage');
+  assert.equal(neutralizeFormula('  Acme Coffee  '), '  Acme Coffee  ');
+  assert.equal(neutralizeFormula(''), '');
+});
+
+test('formula-triggering name/category/owner cells round-trip as literal text', () => {
+  const csv = buildBusinessExportCsv([
+    exportRowFixture({
+      name: '=HYPERLINK("https://evil.example","Click")',
+      category: '@SUM',
+      owner: ' -5',
+      rating: -5,
+    }),
+  ]);
+
+  const [, row] = parseCsv(csv);
+  assert.equal(row[0], '\'=HYPERLINK("https://evil.example","Click")');
+  assert.equal(row[1], "'@SUM");
+  assert.equal(row[3], "' -5");
+  // Numeric and ISO-date columns are never neutralized.
+  assert.equal(row[2], 'approved');
+  assert.equal(row[4], '-5');
+  assert.equal(row[5], '2023-11-14T22:13:20.000Z');
+  assert.equal(row[7], '2023-11-14T22:13:24.000Z');
 });
 
 test('one clean row serializes exactly: header, CRLF separators, column order', () => {
