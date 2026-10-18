@@ -183,7 +183,7 @@ export function CategoriesRoute({
         <h2 className="mb-1 text-base font-semibold">Categories</h2>
         <p className="text-card-muted mb-3 text-tiny">
           Super Admin only. Ordering persists as a category{' '}
-          <code className="font-mono">order</code> field; delete is blocked while any business
+          <code className="font-mono">ordering</code> field; delete is blocked while any business
           references the category.
         </p>
 
