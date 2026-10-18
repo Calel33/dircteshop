@@ -61,8 +61,16 @@ export function AdminCommandBar() {
       const anchor = document.createElement('a');
       anchor.href = url;
       anchor.download = result.fileName;
+      // Older Firefox ignores click() on a detached anchor, so the hidden
+      // anchor is attached for the click and removed right after. The object
+      // URL is revoked on a later tick: a browser can start the download
+      // asynchronously, and a URL revoked in the same tick can cancel it or
+      // produce an empty file (FileSaver.js delays the revoke for this reason).
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
       anchor.click();
-      URL.revokeObjectURL(url);
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       setExportState({
         isPending: false,
