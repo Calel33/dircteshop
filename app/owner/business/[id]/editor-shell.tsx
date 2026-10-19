@@ -92,8 +92,10 @@ function buildPreviewState(
       business: toPreviewBusiness(business, form),
       category,
       vertical: getVerticalConfig(category.slug),
-      // Saved photos already have URLs; the preview resolves only the unsaved
-      // uploads missing from this map.
+      // `business.photoUrls` is keyed by saved photo ids only, and
+      // `toPreviewBusiness` projects `source.photos` (the saved document), so
+      // Live Preview intentionally shows the saved photo set until Save.
+      // Unsaved-upload parity lands in the stacked follow-up (#62).
       photoUrls: business.photoUrls,
     },
   };
