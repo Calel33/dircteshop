@@ -100,6 +100,7 @@ export function PhotosPanel({
   onPhotosChange,
   readOnly,
   tool,
+  onBusyChange,
 }: {
   businessId: Id<'businesses'>;
   section: EditorSection;
@@ -108,6 +109,8 @@ export function PhotosPanel({
   onPhotosChange: (photos: FormPhoto[]) => void;
   readOnly: boolean;
   tool: ReactNode;
+  /** Notifies the mounting layer when an upload batch is in flight. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const generateUploadUrl = useMutation(api.businesses.photoUploads.generateUploadUrl);
   // Owner-gated resolution for both saved photos and unsaved uploads.
@@ -155,6 +158,40 @@ export function PhotosPanel({
     return storageId;
   }
 
+  /** Uploads an accepted batch; always clears the busy signal when it settles. */
+  async function runUploadBatch(files: readonly File[], nextErrors: string[]): Promise<number> {
+    // The parent disables Reset Section while this batch runs so a reset cannot
+    // be overwritten by this handler's stale local `next`.
+    onBusyChange?.(true);
+    const next = [...photos];
+    let added = 0;
+
+    try {
+      for (const file of files) {
+        setUploadingName(file.name);
+        try {
+          const storageId = await uploadPhoto(file);
+          // Blank alt text stays absent so the public gallery falls back to the
+          // business name; storing `''` would render an informative photo as
+          // decorative `<img alt="">` (WCAG SC 1.1.1).
+          next.push({ storageId, ordering: next.length });
+          onPhotosChange(stampOrdering(next));
+          added += 1;
+        } catch (uploadError) {
+          nextErrors.push(
+            `${file.name}: ${messageForError(uploadError, 'the upload failed. Try again.')}`
+          );
+          setErrors([...nextErrors]);
+        }
+      }
+    } finally {
+      setUploadingName(null);
+      onBusyChange?.(false);
+    }
+
+    return added;
+  }
+
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
@@ -173,28 +210,7 @@ export function PhotosPanel({
       return;
     }
 
-    const next = [...photos];
-    let added = 0;
-
-    for (const file of selection.accepted) {
-      setUploadingName(file.name);
-      try {
-        const storageId = await uploadPhoto(file);
-        // Blank alt text stays absent so the public gallery falls back to the
-        // business name; storing `''` would render an informative photo as
-        // decorative `<img alt="">` (WCAG SC 1.1.1).
-        next.push({ storageId, ordering: next.length });
-        onPhotosChange(stampOrdering(next));
-        added += 1;
-      } catch (uploadError) {
-        nextErrors.push(
-          `${file.name}: ${messageForError(uploadError, 'the upload failed. Try again.')}`
-        );
-        setErrors([...nextErrors]);
-      }
-    }
-
-    setUploadingName(null);
+    const added = await runUploadBatch(selection.accepted, nextErrors);
     if (added > 0) {
       setAnnouncement(added === 1 ? 'Photo added.' : `${added} photos added.`);
     }
