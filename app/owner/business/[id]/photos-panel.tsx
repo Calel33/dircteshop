@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { InlineConfirm } from '@/components/ui/inline-confirm';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api } from '@/convex/_generated/api';
@@ -121,6 +122,7 @@ export function PhotosPanel({
   const [errors, setErrors] = useState<string[]>([]);
   const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
+  const [pendingRemoveId, setPendingRemoveId] = useState<Id<'_storage'> | null>(null);
   const moveButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const isBusy = uploadingName !== null;
@@ -258,23 +260,30 @@ export function PhotosPanel({
     focusMoveButton(moved.storageId, focusDirection);
   }
 
-  function removePhoto(index: number) {
-    const photo = photos[index];
+  function removePhoto(photo: FormPhoto) {
+    const index = photos.findIndex((item) => item.storageId === photo.storageId);
+    if (index === -1) {
+      return;
+    }
+
     if (savedStorageIds.has(photo.storageId)) {
-      const confirmed = window.confirm(
-        'Remove this photo? It will be deleted from storage when you save.'
-      );
-      if (!confirmed) {
-        return;
-      }
+      setPendingRemoveId(photo.storageId);
+      return;
     }
 
     onPhotosChange(stampOrdering(photos.filter((_, position) => position !== index)));
-    setAnnouncement(
-      savedStorageIds.has(photo.storageId)
-        ? 'Photo removed. Save to delete it from storage.'
-        : 'Photo removed.'
-    );
+    setAnnouncement('Photo removed. This upload was never saved, so the file remains in storage.');
+  }
+
+  function confirmRemovePhoto(storageId: Id<'_storage'>) {
+    const index = photos.findIndex((photo) => photo.storageId === storageId);
+    setPendingRemoveId(null);
+    if (index === -1) {
+      return;
+    }
+
+    onPhotosChange(stampOrdering(photos.filter((_, position) => position !== index)));
+    setAnnouncement('Photo removed. Save to delete it from storage.');
   }
 
   return (
@@ -396,7 +405,7 @@ export function PhotosPanel({
                               className="text-destructive"
                               aria-label={`Remove photo ${position}`}
                               disabled={isBusy}
-                              onClick={() => removePhoto(index)}
+                              onClick={() => removePhoto(photo)}
                             >
                               <span aria-hidden="true">✕</span>
                             </Button>
@@ -417,6 +426,21 @@ export function PhotosPanel({
                           Describe what the photo shows. Screen readers read this text; avoid file
                           names.
                         </p>
+                        {savedStorageIds.has(photo.storageId) ? null : (
+                          <p className="text-card-muted text-xs">
+                            Not saved yet — removing this upload leaves the file in storage.
+                          </p>
+                        )}
+                        {pendingRemoveId === photo.storageId ? (
+                          <InlineConfirm
+                            message="Remove this photo? It will be deleted from storage when you save."
+                            confirmLabel="Remove photo"
+                            destructive
+                            onConfirm={() => confirmRemovePhoto(photo.storageId)}
+                            onCancel={() => setPendingRemoveId(null)}
+                            confirmDisabled={isBusy}
+                          />
+                        ) : null}
                       </div>
                     </li>
                   );

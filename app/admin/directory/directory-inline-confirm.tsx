@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { InlineConfirm } from '@/components/ui/inline-confirm';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -34,31 +34,23 @@ function Consequence({
   targetName,
   targetStatus,
   isDelete,
-  isDestructive,
 }: {
   targetName: string;
   targetStatus: string | undefined;
   isDelete: boolean;
-  isDestructive: boolean;
 }) {
   if (isDelete) {
     return (
-      <div className="border-danger-border bg-danger-soft text-danger-strong rounded-menu border p-3 text-tiny">
+      <>
         This permanently deletes <b>{targetName}</b> and every child record (photos, hours,
         notifications, reviews). It cannot be undone. An{' '}
         <code className="font-mono">auditLogs</code> row is written first.
-      </div>
+      </>
     );
   }
 
   return (
-    <div
-      className={
-        isDestructive
-          ? 'border-danger-border bg-danger-soft text-danger-strong rounded-menu border p-3 text-tiny'
-          : 'border-border bg-panel text-muted-foreground rounded-menu border p-3 text-tiny'
-      }
-    >
+    <>
       <b>{targetName}</b>{' '}
       {targetStatus === undefined ? (
         <>
@@ -70,7 +62,7 @@ function Consequence({
         </>
       )}{' '}
       An <code className="font-mono">auditLogs</code> row records who, what, and when.
-    </div>
+    </>
   );
 }
 
@@ -135,14 +127,27 @@ export function DirectoryInlineConfirm({
   const nameMismatch = isDelete && !canConfirmDelete(targetName, confirmName);
 
   return (
-    <>
-      <Consequence
-        targetName={targetName}
-        targetStatus={TARGET_STATUS[typedAction]}
-        isDelete={isDelete}
-        isDestructive={isDestructive}
-      />
-
+    <InlineConfirm
+      message={
+        <Consequence
+          targetName={targetName}
+          targetStatus={TARGET_STATUS[typedAction]}
+          isDelete={isDelete}
+        />
+      }
+      neutral={!isDestructive}
+      destructive={isDestructive}
+      confirmLabel={isDelete ? `Delete ${targetName}` : LABEL[typedAction]}
+      onConfirm={() =>
+        onConfirm({
+          reason: requiresReason ? reason : undefined,
+          confirmName: isDelete ? confirmName : undefined,
+        })
+      }
+      onCancel={onCancel}
+      isPending={isPending}
+      confirmDisabled={reasonMissing || nameMismatch}
+    >
       {isDelete ? (
         <div className="grid gap-1">
           <label htmlFor="confirm-name" className="text-muted-foreground text-xs font-semibold">
@@ -166,34 +171,6 @@ export function DirectoryInlineConfirm({
           {error}
         </div>
       )}
-
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="rounded-input"
-          onClick={onCancel}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={isDestructive ? 'destructive' : 'default'}
-          className="rounded-input"
-          onClick={() =>
-            onConfirm({
-              reason: requiresReason ? reason : undefined,
-              confirmName: isDelete ? confirmName : undefined,
-            })
-          }
-          disabled={reasonMissing || nameMismatch || isPending}
-        >
-          {isPending ? 'Working…' : isDelete ? `Delete ${targetName}` : LABEL[typedAction]}
-        </Button>
-      </div>
-    </>
+    </InlineConfirm>
   );
 }
