@@ -23,10 +23,12 @@ type BusinessPhoto = Doc<'businesses'>['photos'][number];
 export async function resolvePhotoUrls(
   ctx: QueryCtx,
   photos: readonly BusinessPhoto[]
-): Promise<Record<string, string>> {
-  const resolved = await resolveStorageUrls(ctx, uniqueStorageIds(photos));
-  const urls: Record<string, string> = {};
-  for (const [storageId, url] of Object.entries(resolved)) {
+): Promise<Record<Id<'_storage'>, string>> {
+  const storageIds = uniqueStorageIds(photos);
+  const resolved = await resolveStorageUrls(ctx, storageIds);
+  const urls: Record<Id<'_storage'>, string> = {};
+  for (const storageId of storageIds) {
+    const url = resolved[storageId];
     if (url !== null) {
       urls[storageId] = url;
     }
@@ -36,9 +38,11 @@ export async function resolvePhotoUrls(
 
 /**
  * Owner-gated preview resolution for storage ids that are not persisted on the
- * business yet (the editor's unsaved uploads). Returns `null` for a missing
- * file. The input is deduplicated and capped at `PHOTO_LIMITS.maxPhotos`, so a
- * caller cannot turn it into an unbounded storage read.
+ * business yet (the editor's unsaved uploads). Ids registered to another owner
+ * or business map to `null` without a `getUrl` call, so the result is uniform
+ * for "not yours" and "does not exist" and cannot be used as an existence
+ * oracle. The input is deduplicated and capped at `PHOTO_LIMITS.maxPhotos`, so
+ * a caller cannot turn it into an unbounded storage read.
  */
 export const photoUrls = query({
   args: {
@@ -46,9 +50,15 @@ export const photoUrls = query({
     storageIds: v.array(v.id('_storage')),
   },
   handler: async (ctx, { businessId, storageIds }) => {
-    await requireBusinessOwner(ctx, businessId);
+    const business = await requireBusinessOwner(ctx, businessId);
     const capped = [...new Set(storageIds)].slice(0, PHOTO_LIMITS.maxPhotos);
-    return await resolveStorageUrls(ctx, capped);
+    const urls: Record<Id<'_storage'>, string | null> = {};
+    for (const storageId of capped) {
+      urls[storageId] = (await isUploadOwnedBy(ctx, storageId, business))
+        ? await ctx.storage.getUrl(storageId)
+        : null;
+    }
+    return urls;
   },
 });
 
@@ -63,6 +73,7 @@ export const photoUrls = query({
  */
 export async function assertPhotoAttachmentsValid(
   ctx: MutationCtx,
+  business: Pick<Doc<'businesses'>, '_id' | 'ownerId'>,
   before: readonly BusinessPhoto[],
   after: readonly BusinessPhoto[] | null
 ): Promise<void> {
@@ -83,6 +94,14 @@ export async function assertPhotoAttachmentsValid(
     if (metadata === null) {
       throw new ConvexError(
         'One of the selected photos is no longer available. Upload it again and save.'
+      );
+    }
+
+    // Ownership is checked before the size/type delete: a foreign id that fails
+    // validation must never be deleted by the wrong listing.
+    if (!(await isUploadOwnedBy(ctx, storageId, business))) {
+      throw new ConvexError(
+        'One of the selected photos was not uploaded for this listing. Upload it again and save.'
       );
     }
 
@@ -109,14 +128,17 @@ export async function assertPhotoAttachmentsValid(
  * delete leaves an orphan (bounded by `PHOTO_LIMITS.maxBytes`, dashboard
  * cleanable), which is safer than reporting a save that actually persisted.
  *
- * The admin cascade's assumption (`adminDeletion.ts:66-73`) stands: an id in
- * this business's photos is owned by this business. No cross-business sharing
- * is possible here because ids arrive only through this owner's attach saves.
+ * Deletes only ids registered to this owner + business by the upload action.
+ * An unregistered or foreign id is never deleted: the attach gate is what makes
+ * "an id in this listing's photos is owned by this listing" true, and the
+ * pre-registry backfill registers legacy photos. A skipped delete leaves an
+ * orphan, which is safer than deleting another tenant's file.
  * `after` is `null` when the save does not persist photos, in which case
  * nothing is reconciled.
  */
 export async function reconcilePhotoStorage(
   ctx: MutationCtx,
+  business: Pick<Doc<'businesses'>, '_id' | 'ownerId'>,
   before: readonly BusinessPhoto[],
   after: readonly BusinessPhoto[] | null
 ): Promise<void> {
@@ -128,12 +150,34 @@ export async function reconcilePhotoStorage(
   const droppedIds = uniqueStorageIds(before).filter((storageId) => !afterIds.has(storageId));
 
   for (const storageId of droppedIds) {
+    if (!(await isUploadOwnedBy(ctx, storageId, business))) {
+      continue;
+    }
     const metadata = await ctx.db.system.get('_storage', storageId);
     if (metadata === null) {
       continue;
     }
     await deleteStorageFileQuietly(ctx, storageId);
   }
+}
+
+/**
+ * True when `storageId` was uploaded for this exact owner + business. Company
+ * boundaries are compared, not just the owner: an id uploaded for another of
+ * the same owner's listings must not be attachable or deletable from here.
+ */
+async function isUploadOwnedBy(
+  ctx: QueryCtx | MutationCtx,
+  storageId: Id<'_storage'>,
+  business: Pick<Doc<'businesses'>, '_id' | 'ownerId'>
+): Promise<boolean> {
+  const upload = await ctx.db
+    .query('storageUploads')
+    .withIndex('byStorageId', (q) => q.eq('storageId', storageId))
+    .unique();
+  return (
+    upload !== null && upload.businessId === business._id && upload.ownerId === business.ownerId
+  );
 }
 
 function uniqueStorageIds(photos: readonly BusinessPhoto[]): Id<'_storage'>[] {
@@ -143,8 +187,8 @@ function uniqueStorageIds(photos: readonly BusinessPhoto[]): Id<'_storage'>[] {
 async function resolveStorageUrls(
   ctx: QueryCtx,
   storageIds: readonly Id<'_storage'>[]
-): Promise<Record<string, string | null>> {
-  const urls: Record<string, string | null> = {};
+): Promise<Record<Id<'_storage'>, string | null>> {
+  const urls: Record<Id<'_storage'>, string | null> = {};
   await Promise.all(
     storageIds.map(async (storageId) => {
       urls[storageId] = await ctx.storage.getUrl(storageId);

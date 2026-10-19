@@ -144,10 +144,16 @@ test('saveDraft refuses unauthenticated and non-owner callers', async () => {
  */
 async function storePhotoFile(
   t: ReturnType<typeof convexTest>,
+  businessId: Id<'businesses'>,
   body: string,
   contentType = 'image/png'
 ): Promise<Id<'_storage'>> {
   return await t.run(async (ctx) => {
+    const business = await ctx.db.get(businessId);
+    if (business === null) {
+      throw new Error('fixture business is missing');
+    }
+
     const storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
     await (
       ctx.db as unknown as {
@@ -158,14 +164,26 @@ async function storePhotoFile(
         ): Promise<void>;
       }
     ).patch('_storage', storageId, { contentType });
+    // Mirror the authenticated upload action: the new id is registered to the
+    // listing that uploaded it.
+    await ctx.db.insert('storageUploads', {
+      storageId,
+      ownerId: business.ownerId,
+      businessId,
+      createdAt: Date.now(),
+    });
     return storageId;
   });
 }
 
-async function storePhotos(t: ReturnType<typeof convexTest>, count: number) {
+async function storePhotos(
+  t: ReturnType<typeof convexTest>,
+  businessId: Id<'businesses'>,
+  count: number
+) {
   const ids: Id<'_storage'>[] = [];
   for (let index = 0; index < count; index += 1) {
-    ids.push(await storePhotoFile(t, `photo-${index}`));
+    ids.push(await storePhotoFile(t, businessId, `photo-${index}`));
   }
   return ids;
 }
@@ -177,7 +195,7 @@ function photo(storageId: Id<'_storage'>, altText?: string, ordering = 0) {
 test('saveDraft rejects more than twelve unique photos and persists nothing', async () => {
   const t = convexTest(schema, modules);
   const { businessId } = await seed(t);
-  const ids = await storePhotos(t, 13);
+  const ids = await storePhotos(t, businessId, 13);
 
   await expect(
     t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
@@ -193,7 +211,7 @@ test('saveDraft rejects more than twelve unique photos and persists nothing', as
 test('saveDraft normalizes before counting: 13 raw entries with a duplicate persist 12', async () => {
   const t = convexTest(schema, modules);
   const { businessId } = await seed(t);
-  const ids = await storePhotos(t, 12);
+  const ids = await storePhotos(t, businessId, 12);
   const patch = [...ids.map((storageId) => photo(storageId, undefined, 9)), photo(ids[0], 'Duplicate')];
 
   await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
@@ -209,7 +227,7 @@ test('saveDraft normalizes before counting: 13 raw entries with a duplicate pers
 test('saveDraft caps alt text, re-stamps ordering, and dedupes storage ids', async () => {
   const t = convexTest(schema, modules);
   const { businessId } = await seed(t);
-  const [first, second] = await storePhotos(t, 2);
+  const [first, second] = await storePhotos(t, businessId, 2);
 
   await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
     businessId,
@@ -232,7 +250,7 @@ test('saveDraft caps alt text, re-stamps ordering, and dedupes storage ids', asy
 test('a later save that omits photos leaves the persisted list untouched', async () => {
   const t = convexTest(schema, modules);
   const { businessId, retailId } = await seed(t);
-  const [first] = await storePhotos(t, 1);
+  const [first] = await storePhotos(t, businessId, 1);
 
   await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
     businessId,
@@ -252,7 +270,7 @@ test('saveAndResubmit rejects more than twelve unique photos and persists nothin
   const t = convexTest(schema, modules);
   const { businessId } = await seed(t);
   await t.run((ctx) => ctx.db.patch(businessId, { status: 'approved' }));
-  const ids = await storePhotos(t, 13);
+  const ids = await storePhotos(t, businessId, 13);
 
   await expect(
     t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveAndResubmit, {
@@ -274,7 +292,7 @@ test('saveAndResubmit normalizes and counts through the same photo policy', asyn
   const t = convexTest(schema, modules);
   const { businessId } = await seed(t);
   await t.run((ctx) => ctx.db.patch(businessId, { status: 'approved' }));
-  const ids = await storePhotos(t, 12);
+  const ids = await storePhotos(t, businessId, 12);
   const photos = [
     ...ids.map((storageId) => photo(storageId, undefined, 9)),
     photo(ids[0], 'Duplicate'),

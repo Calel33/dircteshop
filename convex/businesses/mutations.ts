@@ -149,7 +149,7 @@ export const saveDraft = mutation({
     // is re-stamped, alt text is trimmed/capped and blank alt collapses to
     // absent, duplicates are dropped.
     const persistedPhotos = persistedPhotoList(persistFields, normalizedPatch);
-    await assertPhotoAttachmentsValid(ctx, business.photos, persistedPhotos);
+    await assertPhotoAttachmentsValid(ctx, business, business.photos, persistedPhotos);
 
     const now = Date.now();
     const searchChanged =
@@ -175,7 +175,7 @@ export const saveDraft = mutation({
 
     // Storage deletes are outside the database transaction; run them only after
     // the patch above has been accepted (see photoStorage.ts).
-    await reconcilePhotoStorage(ctx, business.photos, persistedPhotos);
+    await reconcilePhotoStorage(ctx, business, business.photos, persistedPhotos);
   },
 });
 
@@ -529,7 +529,7 @@ export const saveAndResubmit = mutation({
     // the normalized list (ordering re-stamped, alt trimmed/capped, duplicates
     // dropped), and only then reconcile storage.
     const persistedPhotos = persistedPhotoList(provided, normalizedPatch);
-    await assertPhotoAttachmentsValid(ctx, business.photos, persistedPhotos);
+    await assertPhotoAttachmentsValid(ctx, business, business.photos, persistedPhotos);
 
     await ctx.db.patch(businessId, {
       ...buildEditablePatch(normalizedPatch, provided),
@@ -567,7 +567,7 @@ export const saveAndResubmit = mutation({
 
     // Runs after every database write (including notifications) so a rolled
     // back transaction can never point at an already-deleted file.
-    await reconcilePhotoStorage(ctx, business.photos, persistedPhotos);
+    await reconcilePhotoStorage(ctx, business, business.photos, persistedPhotos);
   },
 });
 

@@ -4,6 +4,11 @@ import { internal } from './_generated/api';
 import type { WebhookEvent } from '@clerk/backend';
 import { Webhook } from 'svix';
 import { transformWebhookData } from './paymentAttemptTypes';
+import {
+  UPLOAD_PATH,
+  uploadPhoto,
+  uploadPhotoOptions,
+} from './businesses/photoUploads';
 
 const http = httpRouter();
 
@@ -49,6 +54,12 @@ http.route({
     return new Response(null, { status: 200 });
   }),
 });
+
+// B7 (issue #7): the only path that mints an ownership row for a storage id.
+// `generateUploadUrl` was removed because a raw POST to its URL bypasses the
+// registry and would only produce ids the attach gate must reject.
+http.route({ path: UPLOAD_PATH, method: 'POST', handler: uploadPhoto });
+http.route({ path: UPLOAD_PATH, method: 'OPTIONS', handler: uploadPhotoOptions });
 
 async function validateRequest(req: Request): Promise<WebhookEvent | null> {
   const payloadString = await req.text();

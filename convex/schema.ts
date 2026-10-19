@@ -98,6 +98,17 @@ export default defineSchema({
       filterFields: ['status', 'categoryId'],
     }),
 
+  // B7 (issue #7) upload ownership. A storage id may only be attached to the
+  // listing it was uploaded for, and delete-on-remove may only touch ids this
+  // listing owns. Rows are written by the authenticated upload HTTP action;
+  // pre-registry photos are registered by the one-time backfill.
+  storageUploads: defineTable({
+    storageId: v.id('_storage'),
+    ownerId: v.id('users'),
+    businessId: v.id('businesses'),
+    createdAt: v.number(),
+  }).index('byStorageId', ['storageId']),
+
   menuGroups: defineTable({
     businessId: v.id('businesses'),
     name: v.string(),
