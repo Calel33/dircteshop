@@ -46,6 +46,7 @@ import {
   type EditorFormState,
 } from './editor-form';
 import { toPreviewBusiness } from './preview-adapter';
+import { messageForError } from './photos-panel-helpers';
 import {
   canRedo,
   canUndo,
@@ -91,13 +92,13 @@ function buildPreviewState(
       business: toPreviewBusiness(business, form),
       category,
       vertical: getVerticalConfig(category.slug),
+      // `business.photoUrls` is keyed by saved photo ids only, and
+      // `toPreviewBusiness` projects `source.photos` (the saved document), so
+      // Live Preview intentionally shows the saved photo set until Save.
+      // Unsaved-upload parity lands in the stacked follow-up (#62).
+      photoUrls: business.photoUrls,
     },
   };
-}
-
-/** Normalises a thrown mutation error into a user-facing message. */
-function messageFromError(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
 }
 
 /** The editable fields each primary action persists. Submit and Publish save the
@@ -178,7 +179,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     coreStaged,
   });
   const historyEntries = deriveHistoryEntries(business);
-  const navCompletion = deriveNavCompletion(form, business.photos.length);
+  const navCompletion = deriveNavCompletion(form);
 
   const isBusy = isSaving || isSubmitting;
   // Validate only what will be persisted. Approved core identity (e.g. a staged
@@ -243,7 +244,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     try {
       await persistSavable();
     } catch (saveError) {
-      setError(messageFromError(saveError, 'Could not save the listing.'));
+      setError(messageForError(saveError, 'Could not save the listing.'));
     } finally {
       setIsSaving(false);
     }
@@ -261,7 +262,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       }
       await transition({ businessId: business._id, action: 'submitForReview' });
     } catch (submitError) {
-      setError(messageFromError(submitError, 'Could not submit the listing.'));
+      setError(messageForError(submitError, 'Could not submit the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -284,7 +285,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       }));
       setBaseline((previous) => mergeSavedFields(previous, canonical, dirty));
     } catch (resubmitError) {
-      setError(messageFromError(resubmitError, 'Could not resubmit the listing.'));
+      setError(messageForError(resubmitError, 'Could not resubmit the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -297,7 +298,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     try {
       await transition({ businessId: business._id, action: 'reopenAsDraft' });
     } catch (reviseError) {
-      setError(messageFromError(reviseError, 'Could not revise the listing.'));
+      setError(messageForError(reviseError, 'Could not revise the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -321,7 +322,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       try {
         await persistSavable();
       } catch (publishError) {
-        setError(messageFromError(publishError, 'Could not publish the changes.'));
+        setError(messageForError(publishError, 'Could not publish the changes.'));
       } finally {
         setIsSubmitting(false);
       }
@@ -398,7 +399,10 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
           readOnly={readOnly}
           categories={toCategoryOptions(categories)}
           historyEntries={historyEntries}
-          photoCount={business.photos.length}
+          businessId={business._id}
+          photos={form.photos}
+          savedPhotos={baseline.photos}
+          onPhotosChange={(photos) => handleFieldChange('photos', photos)}
           showResetSection={showResetSection}
           canResetSection={canResetSection}
           onResetSection={handleResetSection}

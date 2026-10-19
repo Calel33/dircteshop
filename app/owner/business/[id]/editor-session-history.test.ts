@@ -62,7 +62,20 @@ function form(overrides: Partial<EditorFormState> = {}): EditorFormState {
     website: '',
     tags: [],
     amenities: [],
+    photos: [],
     ...overrides,
+  };
+}
+
+function photo(
+  storageId: string,
+  altText: string,
+  ordering: number
+): EditorFormState['photos'][number] {
+  return {
+    storageId: storageId as EditorFormState['photos'][number]['storageId'],
+    altText,
+    ordering,
   };
 }
 
@@ -100,6 +113,17 @@ test('undo and redo move one frame at a time', () => {
   const redone = redoHistory(undone);
   assert.equal(redone.present, b);
   assert.equal(canRedo(redone), false);
+});
+
+test('undo and redo frames carry photo array changes', () => {
+  const initial = form();
+  const edited = form({ photos: [photo('storage_a', 'Cover', 0)] });
+
+  const undone = undoHistory(pushHistory(createHistory(initial), edited));
+  assert.deepStrictEqual(undone.present.photos, []);
+
+  const redone = redoHistory(undone);
+  assert.deepStrictEqual(redone.present.photos, edited.photos);
 });
 
 test('undo at the start and redo at the end are no-ops', () => {
@@ -192,18 +216,33 @@ test('an edit typed during an in-flight save stays undoable', () => {
   assert.equal(undone.present.name, 'First');
 });
 
-test('only the six editable sections have reset fields', () => {
+test('only the editable sections have reset fields', () => {
   assert.equal(isEditableSectionKey('hours'), true);
+  assert.equal(isEditableSectionKey('photos-media'), true);
   assert.equal(isEditableSectionKey('analytics'), false);
   assert.equal(isEditableSectionKey('change-history'), false);
   assert.equal(sectionResetFields('analytics').length, 0);
   assert.deepStrictEqual(sectionResetFields('contact'), ['phone', 'email', 'website']);
+  assert.deepStrictEqual(sectionResetFields('photos-media'), ['photos']);
   assert.deepStrictEqual(sectionResetFields('basic-info'), [
     'name',
     'categoryId',
     'description',
     'keywords',
   ]);
+});
+
+test('a photos reset restores alt text and ordering from the baseline', () => {
+  const current = form({ photos: [photo('storage_new', 'Staged alt', 0)] });
+  const baseline = form({
+    photos: [photo('storage_saved_a', 'Cover', 0), photo('storage_saved_b', 'Patio', 1)],
+  });
+
+  const restored = restoreFieldsFromBaseline(current, baseline, sectionResetFields('photos-media'));
+
+  assert.deepStrictEqual(restored.photos, baseline.photos);
+  assert.equal(restored.photos[0].altText, 'Cover');
+  assert.equal(restored.photos[1].ordering, 1);
 });
 
 test('restoreFieldsFromBaseline copies only the section fields, from a fresh object', () => {

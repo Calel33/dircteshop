@@ -100,6 +100,12 @@ export function EditorSaveBar({
             Core identity changes apply when this listing is resubmitted for review.
           </p>
         ) : null}
+        {canUndo ? (
+          <p className="text-card-foreground/80 text-xs">
+            Undo can restore a deleted photo, but the next save says it is no longer available.
+            Remove it or upload it again.
+          </p>
+        ) : null}
         {error === null ? null : (
           <p role="alert" className="text-destructive text-sm">
             {error}

@@ -15,6 +15,18 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { createEditorForm } from './editor-form.ts';
 import { toPreviewBusiness, type PreviewSource } from './preview-adapter.ts';
 
+const SAVED_PHOTO = {
+  storageId: 'storage_saved' as Id<'_storage'>,
+  altText: 'Original storefront',
+  ordering: 0,
+};
+
+const REMOVED_PHOTO = {
+  storageId: 'storage_removed' as Id<'_storage'>,
+  altText: 'Old patio',
+  ordering: 1,
+};
+
 const DOC = {
   name: 'Acme Coffee',
   categoryId: 'categories_1',
@@ -26,11 +38,12 @@ const DOC = {
   website: 'https://acme.test',
   tags: ['coffee'],
   amenities: ['wifi'],
+  photos: [SAVED_PHOTO, REMOVED_PHOTO],
 };
 
 const SOURCE: PreviewSource = {
   _id: 'businesses_1' as Id<'businesses'>,
-  photos: [],
+  photos: [SAVED_PHOTO, REMOVED_PHOTO],
   verification: { isVerified: true },
   rating: 4.5,
   ratingCount: 10,
@@ -56,13 +69,29 @@ test('carries non-edited fields through from the owned document', () => {
   const preview = toPreviewBusiness(SOURCE, createEditorForm(DOC));
 
   assert.equal(preview._id, SOURCE._id);
-  assert.deepStrictEqual(preview.photos, []);
+  assert.deepStrictEqual(preview.photos, SOURCE.photos);
   assert.deepStrictEqual(preview.verification, { isVerified: true });
   assert.equal(preview.rating, 4.5);
   assert.equal(preview.ratingCount, 10);
   assert.deepStrictEqual(preview.services, ['espresso']);
   assert.deepStrictEqual(preview.credentials, []);
   assert.equal(preview.lastUpdatedAt, SOURCE.lastUpdatedAt);
+});
+
+test('preview reflects unsaved photo edits before save', () => {
+  const added = {
+    storageId: 'storage_added' as Id<'_storage'>,
+    altText: 'New patio',
+    ordering: 0,
+  };
+  const form = {
+    ...createEditorForm(DOC),
+    photos: [added, { ...SAVED_PHOTO, altText: 'Renamed storefront', ordering: 1 }],
+  };
+
+  const preview = toPreviewBusiness(SOURCE, form);
+
+  assert.deepStrictEqual(preview.photos, form.photos);
 });
 
 test('cleared contact fields become absent instead of empty strings', () => {

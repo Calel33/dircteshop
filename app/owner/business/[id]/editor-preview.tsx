@@ -1,7 +1,9 @@
 'use client';
 
 import type { RefObject } from 'react';
+import { useQuery } from 'convex/react';
 
+import { api } from '@/convex/_generated/api';
 import { BusinessProfile } from '@/components/profile/BusinessProfile';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
 import {
@@ -30,16 +32,61 @@ interface EditorPreviewProps {
 
 const UNRESOLVED_MESSAGE = 'Choose a category in Basic Info to preview.';
 
+/**
+ * Merges owner-resolved URLs for unsaved uploads over the saved map. `null`
+ * entries (missing files) are dropped so the gallery keeps its placeholder.
+ */
+function mergePhotoUrls(
+  saved: Readonly<Record<string, string>> | undefined,
+  resolved: Record<string, string | null> | undefined
+): Readonly<Record<string, string>> | undefined {
+  if (resolved === undefined) {
+    return saved;
+  }
+
+  const urls: Record<string, string> = { ...saved };
+  for (const [storageId, url] of Object.entries(resolved)) {
+    if (url !== null) {
+      urls[storageId] = url;
+    }
+  }
+  return urls;
+}
+
 /** Renders the preview body for whichever state it is in. */
 function PreviewContent({ state, className }: { state: PreviewState; className?: string }) {
-  if (state.status === 'ready') {
-    return <BusinessProfile data={state.data} />;
+  const data = state.status === 'ready' ? state.data : null;
+  // Unsaved uploads have no entry in the saved map yet; resolve them in ONE
+  // owner-gated query rather than one subscription per photo.
+  const missingStorageIds =
+    data === null
+      ? []
+      : [
+          ...new Set(
+            data.business.photos
+              .map((photo) => photo.storageId)
+              .filter((storageId) => data.photoUrls?.[storageId] === undefined)
+          ),
+        ];
+  const resolvedPhotoUrls = useQuery(
+    api.businesses.photoStorage.photoUrls,
+    data !== null && missingStorageIds.length > 0
+      ? { businessId: data.business._id, storageIds: missingStorageIds }
+      : 'skip'
+  );
+
+  if (data === null) {
+    return (
+      <p className={className ?? 'text-muted-foreground text-sm'}>
+        {state.status === 'loading' ? 'Loading preview…' : UNRESOLVED_MESSAGE}
+      </p>
+    );
   }
 
   return (
-    <p className={className ?? 'text-muted-foreground text-sm'}>
-      {state.status === 'loading' ? 'Loading preview…' : UNRESOLVED_MESSAGE}
-    </p>
+    <BusinessProfile
+      data={{ ...data, photoUrls: mergePhotoUrls(data.photoUrls, resolvedPhotoUrls) }}
+    />
   );
 }
 

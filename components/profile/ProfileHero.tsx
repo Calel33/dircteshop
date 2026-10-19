@@ -14,7 +14,7 @@ export type ProfileHeroProps = {
 
 function resolvePhotoUrl(
   photo: BusinessPhoto,
-  photoUrls: Readonly<Record<string, string>> | undefined,
+  photoUrls: Readonly<Record<string, string>> | undefined
 ): string | undefined {
   if (photoUrls === undefined) {
     return undefined;
@@ -41,7 +41,7 @@ export function ProfileHero({ businessName, photos, photoUrls }: ProfileHeroProp
 
   return (
     <div className={gridClassName}>
-      {ordered.map((photo) => {
+      {ordered.map((photo, index) => {
         const url = resolvePhotoUrl(photo, photoUrls);
 
         return (
@@ -54,9 +54,15 @@ export function ProfileHero({ businessName, photos, photoUrls }: ProfileHeroProp
                 <ImageIcon aria-hidden className="size-6" />
               </div>
             ) : (
+              // Raw <img> is deliberate (issue #7): bearer URLs on the
+              // per-deployment Convex host with unknown intrinsic dimensions
+              // would need remotePatterns plus explicit sizing. Optimization of
+              // multi-MB originals is the real deferred win — tracked on #7.
               <img
                 src={url}
                 alt={photo.altText ?? businessName}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
                 className="size-full object-cover"
               />
             )}

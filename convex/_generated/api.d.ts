@@ -28,6 +28,9 @@ import type * as businesses_moderationProjections from "../businesses/moderation
 import type * as businesses_mutations from "../businesses/mutations.js";
 import type * as businesses_ownerProjections from "../businesses/ownerProjections.js";
 import type * as businesses_ownerSavePolicy from "../businesses/ownerSavePolicy.js";
+import type * as businesses_photoPolicy from "../businesses/photoPolicy.js";
+import type * as businesses_photoStorage from "../businesses/photoStorage.js";
+import type * as businesses_photoUploads from "../businesses/photoUploads.js";
 import type * as businesses_publicHours from "../businesses/publicHours.js";
 import type * as businesses_publicProjections from "../businesses/publicProjections.js";
 import type * as businesses_queries from "../businesses/queries.js";
@@ -70,6 +73,9 @@ declare const fullApi: ApiFromModules<{
   "businesses/mutations": typeof businesses_mutations;
   "businesses/ownerProjections": typeof businesses_ownerProjections;
   "businesses/ownerSavePolicy": typeof businesses_ownerSavePolicy;
+  "businesses/photoPolicy": typeof businesses_photoPolicy;
+  "businesses/photoStorage": typeof businesses_photoStorage;
+  "businesses/photoUploads": typeof businesses_photoUploads;
   "businesses/publicHours": typeof businesses_publicHours;
   "businesses/publicProjections": typeof businesses_publicProjections;
   "businesses/queries": typeof businesses_queries;

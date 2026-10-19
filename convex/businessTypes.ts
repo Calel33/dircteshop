@@ -85,16 +85,18 @@ export type ContentField =
   | 'website'
   | 'tags'
   | 'amenities'
-  | 'keywords';
+  | 'keywords'
+  | 'photos';
 
 /** Every B3a owner-editable field. */
 export type EditableBusinessField = CoreIdentityField | ContentField;
 
 /**
- * The frozen core-vs-content classification for every B3a editable field.
- * Server-derived values (`status`, `ownerId`, timestamps, moderation) and
- * out-of-scope vertical/photo fields are deliberately absent, so they can
- * never be patched. Optional `tags`/`amenities` are content.
+ * The frozen core-vs-content classification for every owner-editable field
+ * (B3a plus the B7 gallery). Server-derived values (`status`, `ownerId`,
+ * timestamps, moderation) and out-of-scope vertical fields are deliberately
+ * absent, so they can never be patched. Optional `tags`/`amenities` and
+ * `photos` are content.
  */
 export const EDITABLE_FIELD_CLASS = {
   name: 'core',
@@ -108,12 +110,13 @@ export const EDITABLE_FIELD_CLASS = {
   tags: 'content',
   amenities: 'content',
   keywords: 'content',
+  photos: 'content',
 } as const satisfies Record<EditableBusinessField, 'core' | 'content'>;
 
 /**
- * The B3a owner-editable field surface (issue #12). Its keys must mirror
+ * The owner-editable field surface (issues #12 and #7). Its keys must mirror
  * `EDITABLE_FIELD_CLASS`; server-owned fields (`status`, `ownerId`, `searchText`,
- * moderation, timestamps, vertical/photo fields) are deliberately absent. Convex
+ * moderation, timestamps, vertical fields) are deliberately absent. Convex
  * object validation throws on undeclared keys before the handler runs, so a
  * client can never patch them
  * (https://docs.convex.dev/functions/validation.md). The save mutations call
@@ -132,4 +135,5 @@ export const editableBusinessFieldsValidator = v.object({
   tags: v.array(v.string()),
   amenities: v.array(v.string()),
   keywords: v.array(v.string()),
+  photos: v.array(photoValidator),
 });

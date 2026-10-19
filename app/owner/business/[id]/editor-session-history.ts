@@ -95,10 +95,11 @@ export function resetHistory(present: EditorFormState): HistoryState {
 // (undoable) form change, never a refetch or a restore of product defaults.
 // ---------------------------------------------------------------------------
 
-/** The six editable sections, keyed by their editor section id. */
+/** The sections whose fields a Reset Section restores, keyed by their editor section id. */
 export type EditorFormSectionKey =
   | 'basic-info'
   | 'hours'
+  | 'photos-media'
   | 'contact'
   | 'location'
   | 'categories-tags'
@@ -108,13 +109,14 @@ export type EditorFormSectionKey =
 const SECTION_RESET_FIELDS: Record<EditorFormSectionKey, readonly EditableBusinessField[]> = {
   ['basic-info']: ['name', 'categoryId', 'description', 'keywords'],
   hours: ['hours'],
+  ['photos-media']: ['photos'],
   contact: ['phone', 'email', 'website'],
   location: ['address'],
   ['categories-tags']: ['tags'],
   ['features-amenities']: ['amenities'],
 };
 
-/** Whether an editor section id is one of the six editable sections. */
+/** Whether an editor section id is one of the reset-capable sections. */
 export function isEditableSectionKey(sectionId: string): sectionId is EditorFormSectionKey {
   return sectionId in SECTION_RESET_FIELDS;
 }

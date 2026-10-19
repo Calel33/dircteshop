@@ -27,7 +27,7 @@ test('classifies the SPEC §5 core identity fields as "core"', () => {
 });
 
 test('classifies the remaining editable fields as "content"', () => {
-  const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities', 'keywords'] as const;
+  const contentFields = ['hours', 'phone', 'email', 'website', 'tags', 'amenities', 'keywords', 'photos'] as const;
 
   for (const field of contentFields) {
     assert.equal(classification[field], 'content', `${field} must be content`);
@@ -47,6 +47,7 @@ test('pins the exact editable allowlist and its classes', () => {
     tags: 'content',
     amenities: 'content',
     keywords: 'content',
+    photos: 'content',
   });
 });
 
@@ -80,7 +81,6 @@ test('excludes non-editable and out-of-scope B3a fields', () => {
     'verification',
     'rating',
     'ratingCount',
-    'photos',
     'services',
     'credentials',
     'timezone',
