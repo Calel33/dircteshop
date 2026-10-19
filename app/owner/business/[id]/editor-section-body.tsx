@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -110,13 +112,15 @@ export function EditorSectionBody({
   canResetSection: boolean;
   onResetSection: () => void;
 }) {
+  const [panelBusy, setPanelBusy] = useState(false);
+
   const resetTool = showResetSection ? (
     <Button
       type="button"
       variant="outline"
       size="sm"
       onClick={onResetSection}
-      disabled={!canResetSection}
+      disabled={!canResetSection || panelBusy}
     >
       Reset Section
     </Button>
@@ -134,6 +138,7 @@ export function EditorSectionBody({
         photos={photos}
         savedPhotos={savedPhotos}
         onPhotosChange={onPhotosChange}
+        onBusyChange={setPanelBusy}
         readOnly={readOnly}
         tool={resetTool}
       />
