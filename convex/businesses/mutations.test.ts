@@ -131,14 +131,43 @@ test('saveDraft refuses unauthenticated and non-owner callers', async () => {
   expect(untouched?.categoryId).not.toBe(retailId);
 });
 
-async function storePhotos(t: ReturnType<typeof convexTest>, count: number) {
+/**
+ * Stores one fixture file the way the real backend sees an upload: bytes plus
+ * the POST's Content-Type.
+ *
+ * convex-test 0.0.62's `storage/storeBlob` mock records only `{ size, sha256 }`
+ * in the `_storage` system doc, while the real backend also records the
+ * Content-Type. The attach gate reads `metadata.contentType`, so a fixture that
+ * only sets `Blob.type` still looks like an upload sent without a Content-Type
+ * and is correctly rejected. Patch the mock's system doc to match the real
+ * backend; `_storage` is not schema-validated, so the write is allowed.
+ */
+async function storePhotoFile(
+  t: ReturnType<typeof convexTest>,
+  body: string,
+  contentType = 'image/png'
+): Promise<Id<'_storage'>> {
   return await t.run(async (ctx) => {
-    const ids: Id<'_storage'>[] = [];
-    for (let index = 0; index < count; index += 1) {
-      ids.push(await ctx.storage.store(new Blob([`photo-${index}`])));
-    }
-    return ids;
+    const storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
+    await (
+      ctx.db as unknown as {
+        patch(
+          table: string,
+          id: Id<'_storage'>,
+          value: { contentType: string }
+        ): Promise<void>;
+      }
+    ).patch('_storage', storageId, { contentType });
+    return storageId;
   });
+}
+
+async function storePhotos(t: ReturnType<typeof convexTest>, count: number) {
+  const ids: Id<'_storage'>[] = [];
+  for (let index = 0; index < count; index += 1) {
+    ids.push(await storePhotoFile(t, `photo-${index}`));
+  }
+  return ids;
 }
 
 function photo(storageId: Id<'_storage'>, altText?: string, ordering = 0) {
