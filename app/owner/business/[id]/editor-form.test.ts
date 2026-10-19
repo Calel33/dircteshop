@@ -18,6 +18,7 @@ import {
   dirtyFields,
   EDITOR_FIELD_CLASS,
   EDITOR_FIELDS,
+  FIELD_SIGNATURES,
   mergeSavedFields,
   normalizeAddress,
   normalizeHours,
@@ -26,6 +27,7 @@ import {
   validateForm,
   WEEKDAYS,
 } from './editor-form.ts';
+import type { EditorFormState } from './editor-form.ts';
 
 const SOURCE = {
   name: 'Acme Coffee',
@@ -296,4 +298,76 @@ test('reconcileSavedFields leaves edits to unsaved fields untouched', () => {
 
   assert.equal(reconciled.name, 'Acme');
   assert.equal(reconciled.phone, '555-9999');
+});
+
+function photo(storageId: string, altText?: string, ordering = 0) {
+  return {
+    storageId: storageId as EditorFormState['photos'][number]['storageId'],
+    ...(altText === undefined ? {} : { altText }),
+    ordering,
+  };
+}
+
+test('canonicalise normalizes photos so a saved exotic value stops reading dirty', () => {
+  const form = createEditorForm(SOURCE);
+  const edited = { ...form, photos: [photo('storage_a', 'a'.repeat(250), 7)] };
+
+  assert.deepStrictEqual(dirtyFields(edited, form), ['photos']);
+
+  const canonical = canonicalizeForm(edited, ['photos']);
+  const baseline = mergeSavedFields(form, canonical, ['photos']);
+
+  assert.equal(canonical.photos[0].altText?.length, 200);
+  assert.equal(canonical.photos[0].ordering, 0);
+  assert.deepStrictEqual(dirtyFields(canonical, baseline), []);
+});
+
+test('photo signatures ignore stale ordering between equivalent galleries', () => {
+  const form = createEditorForm(SOURCE);
+  const stale = {
+    ...form,
+    photos: [photo('storage_b', 'B', 7), photo('storage_a', 'A', 3)],
+  };
+  const canonical = {
+    ...form,
+    photos: [photo('storage_b', 'B', 0), photo('storage_a', 'A', 1)],
+  };
+
+  assert.equal(FIELD_SIGNATURES.photos(stale), FIELD_SIGNATURES.photos(canonical));
+  assert.deepStrictEqual(dirtyFields(stale, canonical), []);
+});
+
+test('photo patches and canonical baselines dedupe storage ids', () => {
+  const form = createEditorForm(SOURCE);
+  const duplicated = {
+    ...form,
+    photos: [
+      photo('storage_a', 'First', 4),
+      photo('storage_b', 'Second', 5),
+      photo('storage_a', 'Duplicate', 6),
+    ],
+  };
+
+  const patch = buildEditablePatch(duplicated, ['photos']);
+  assert.deepStrictEqual(patch.photos, [
+    { storageId: 'storage_a', altText: 'First', ordering: 0 },
+    { storageId: 'storage_b', altText: 'Second', ordering: 1 },
+  ]);
+
+  const canonical = canonicalizeForm(duplicated, ['photos']);
+  assert.deepStrictEqual(canonical.photos, patch.photos);
+
+  const baseline = mergeSavedFields(form, canonical, ['photos']);
+  assert.deepStrictEqual(dirtyFields(canonical, baseline), []);
+});
+
+test('untouched photos keep a stable signature and stay clean', () => {
+  const form = createEditorForm({ ...SOURCE, photos: [photo('storage_a', 'Storefront', 12)] });
+  const equivalent = createEditorForm({
+    ...SOURCE,
+    photos: [photo('storage_a', '  Storefront  ', 0)],
+  });
+
+  assert.equal(FIELD_SIGNATURES.photos(equivalent), FIELD_SIGNATURES.photos(form));
+  assert.deepStrictEqual(dirtyFields(equivalent, form), []);
 });

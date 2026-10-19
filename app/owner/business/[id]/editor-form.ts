@@ -1,5 +1,9 @@
 import type { EditableBusinessField } from '@/convex/businessTypes';
 import type { Id } from '@/convex/_generated/dataModel';
+// Relative, not the `@/` alias: this is a runtime import, and the `node --test`
+// suite loads this file without the tsconfig path mapping (the `@/` imports above
+// are type-only and erased).
+import { normalizePhotos } from '../../../../convex/businesses/photoPolicy.ts';
 import type { BusinessPhoto } from '@/components/profile/profile-types';
 
 // Pure owner-editor form state for issue #12 / B3a (todo #9).
@@ -292,7 +296,7 @@ const FIELD_PATCH_VALUES = {
   website: (form: EditorFormState) => form.website.trim(),
   tags: (form: EditorFormState) => normalizeStringList(form.tags),
   amenities: (form: EditorFormState) => normalizeStringList(form.amenities),
-  photos: (form: EditorFormState) => form.photos.map((photo) => ({ ...photo })),
+  photos: (form: EditorFormState) => normalizePhotos(form.photos),
 } satisfies Record<EditableBusinessField, (form: EditorFormState) => unknown>;
 
 /** Stable per-field signature for change detection (trimmed/structural). */
@@ -308,7 +312,7 @@ export const FIELD_SIGNATURES = {
   website: (form: EditorFormState) => form.website.trim(),
   tags: (form: EditorFormState) => JSON.stringify(normalizeStringList(form.tags)),
   amenities: (form: EditorFormState) => JSON.stringify(normalizeStringList(form.amenities)),
-  photos: (form: EditorFormState) => JSON.stringify(form.photos),
+  photos: (form: EditorFormState) => JSON.stringify(normalizePhotos(form.photos)),
 } satisfies Record<EditableBusinessField, (form: EditorFormState) => string>;
 
 /**
@@ -329,7 +333,7 @@ const CANONICAL_FIELD_VALUES = {
   website: (form: EditorFormState) => form.website.trim(),
   tags: (form: EditorFormState) => normalizeStringList(form.tags),
   amenities: (form: EditorFormState) => normalizeStringList(form.amenities),
-  photos: (form: EditorFormState) => form.photos.map((photo) => ({ ...photo })),
+  photos: (form: EditorFormState) => normalizePhotos(form.photos),
 } satisfies Record<EditableBusinessField, (form: EditorFormState) => unknown>;
 
 /** Editable fields whose current value differs from the saved baseline. */
