@@ -9,9 +9,10 @@ import { PHOTO_LIMITS, assertPhotosCount, invalidReasonForFile } from './photoPo
 // B7 (issue #7) Convex file-storage plumbing for listing photos. Storage ids are
 // the only persisted handle; URLs are resolved on read and never cached or
 // stored. `getUrl` returns public bearer URLs with no time-based expiry, revoked
-// only by deleting the file. Attach-time `_storage` metadata is the only
-// server-side size/type gate: Convex imposes no per-file cap and
-// `generateUploadUrl` accepts no constraints.
+// only by deleting the file. Attach-time `_storage` metadata is the authoritative
+// size/type gate: Convex imposes no per-file cap and a raw storage POST accepts
+// no constraints. Uploads are additionally pre-checked by the authenticated
+// upload action, and every id is bound to its uploader in `storageUploads`.
 
 type BusinessPhoto = Doc<'businesses'>['photos'][number];
 
@@ -68,8 +69,10 @@ export const photoUrls = query({
  * `contentType`, so a missing type is a rejection, never a soft pass.
  *
  * Runs BEFORE the caller's patch: a rejected file is deleted and the save
- * throws, so a half-valid photo list is never written. `after` is `null` when
- * the save does not persist photos, in which case nothing is validated.
+ * throws, so a half-valid photo list is never written. Every new id must also
+ * be registered to this owner + business by the upload action; unregistered
+ * and foreign ids throw and are never deleted. `after` is `null` when the save
+ * does not persist photos, in which case nothing is validated.
  */
 export async function assertPhotoAttachmentsValid(
   ctx: MutationCtx,

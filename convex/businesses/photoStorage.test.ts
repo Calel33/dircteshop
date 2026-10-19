@@ -11,8 +11,10 @@ import { expect, test } from 'vitest';
 import { convexTest } from 'convex-test';
 
 import schema from '../schema';
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import type { ListingStatus } from './helpers';
+import { assertPhotoAttachmentsValid } from './photoStorage';
 
 // Rebuild `import.meta.glob` keys as convex-root-relative, the shape a
 // root-level test's glob produces (see mutations.test.ts).
@@ -143,6 +145,20 @@ async function storeFile(
 
 async function fileExists(t: ReturnType<typeof convexTest>, storageId: Id<'_storage'>) {
   return await t.run(async (ctx) => (await ctx.db.system.get('_storage', storageId)) !== null);
+}
+
+async function uploadPhoto(
+  t: ReturnType<typeof convexTest>,
+  subject: string | null,
+  businessId: Id<'businesses'>,
+  body: string
+) {
+  const client = subject === null ? t : t.withIdentity({ subject });
+  return await client.fetch(`${UPLOAD_PATH}?businessId=${businessId}`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png' },
+    body: new Blob([body], { type: 'image/png' }),
+  });
 }
 
 test('the authenticated upload action registers the id to the listing', async () => {
@@ -286,4 +302,144 @@ test('a foreign id that fails type validation is not deleted', async () => {
   ).rejects.toThrow('was not uploaded for this listing');
 
   expect(await fileExists(t, foreignId)).toBe(true);
+});
+
+test('reconcile deletes exactly the dropped ids and keeps the retained ones', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+  const keptId = await storeFile(t, { businessId: businessA, body: 'kept' });
+  const droppedId = await storeFile(t, { businessId: businessA, body: 'dropped' });
+
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [photo(keptId), photo(droppedId, 1)] },
+  });
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [photo(keptId)] },
+  });
+
+  expect(await fileExists(t, droppedId)).toBe(false);
+  expect(await fileExists(t, keptId)).toBe(true);
+  const saved = await t.run((ctx) => ctx.db.get(businessA));
+  expect(saved?.photos.map((stored) => stored.storageId)).toEqual([keptId]);
+});
+
+test('clearing every photo cascades deletes for all of them', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+  const firstId = await storeFile(t, { businessId: businessA, body: 'first' });
+  const secondId = await storeFile(t, { businessId: businessA, body: 'second' });
+
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [photo(firstId), photo(secondId, 1)] },
+  });
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [] },
+  });
+
+  expect(await fileExists(t, firstId)).toBe(false);
+  expect(await fileExists(t, secondId)).toBe(false);
+  const cleared = await t.run((ctx) => ctx.db.get(businessA));
+  expect(cleared?.photos).toEqual([]);
+});
+
+test('an own file that fails type validation is rejected and deleted', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+  const invalidId = await storeFile(t, {
+    businessId: businessA,
+    contentType: 'text/plain',
+  });
+  const business = await t.run((ctx) => ctx.db.get(businessA));
+  if (business === null) {
+    throw new Error('fixture business is missing');
+  }
+
+  // The real backend deletes storage outside the database transaction, so a
+  // throw after the delete leaves the file gone. convex-test rolls the storage
+  // delete back with the throwing transaction. Catch the rejection inside the
+  // transaction so the delete commit is observable, and assert both halves of
+  // the contract: the invalid attach throws and the file is deleted.
+  await t.run(async (ctx) => {
+    await expect(
+      assertPhotoAttachmentsValid(ctx, business, [], [photo(invalidId)])
+    ).rejects.toThrow('Photos must be a JPEG, PNG or WebP image');
+  });
+
+  expect(await fileExists(t, invalidId)).toBe(false);
+});
+
+test('an unknown storage id is rejected as no longer available', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+  const ghostId = await storeFile(t, { businessId: businessA });
+  await t.run((ctx) => ctx.storage.delete(ghostId));
+
+  await expect(
+    t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+      businessId: businessA,
+      patch: { photos: [photo(ghostId)] },
+    })
+  ).rejects.toThrow('no longer available');
+});
+
+test('the upload action refuses read-only statuses and allows editable ones', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+
+  const matrix: Array<[ListingStatus, number]> = [
+    ['draft', 200],
+    ['changesRequested', 200],
+    ['approved', 200],
+    ['pendingReview', 403],
+    ['suspended', 403],
+    ['rejected', 403],
+  ];
+
+  for (const [status, expected] of matrix) {
+    await t.run((ctx) => ctx.db.patch(businessA, { status }));
+    const response = await uploadPhoto(t, 'user_a', businessA, `body-${status}`);
+    expect(response.status, `status ${status}`).toBe(expected);
+  }
+});
+
+test('the upload action refuses anonymous and non-owner callers', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA } = await seed(t);
+
+  expect((await uploadPhoto(t, null, businessA, 'anonymous')).status).toBe(401);
+  expect((await uploadPhoto(t, 'user_b', businessA, 'not-owner')).status).toBe(403);
+});
+
+test('the backfill registers legacy photos and restores good-path deletion', async () => {
+  const t = convexTest(schema, modules);
+  const { ownerA, businessA } = await seed(t);
+  const legacyId = await storeFile(t);
+
+  await t.run((ctx) => ctx.db.patch(businessA, { photos: [photo(legacyId)] }));
+
+  const first = await t.mutation(internal.businesses.photoUploads.backfillStorageUploads, {});
+  expect(first).toEqual({ registered: 1, skipped: 0 });
+
+  const upload = await t.run((ctx) =>
+    ctx.db
+      .query('storageUploads')
+      .withIndex('byStorageId', (q) => q.eq('storageId', legacyId))
+      .unique()
+  );
+  expect(upload?.businessId).toBe(businessA);
+  expect(upload?.ownerId).toBe(ownerA);
+
+  const second = await t.mutation(internal.businesses.photoUploads.backfillStorageUploads, {});
+  expect(second).toEqual({ registered: 0, skipped: 1 });
+
+  // Once registered, the pre-existing good path deletes the dropped file.
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [] },
+  });
+  expect(await fileExists(t, legacyId)).toBe(false);
 });
