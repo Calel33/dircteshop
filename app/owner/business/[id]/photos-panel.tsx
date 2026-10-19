@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { ConvexError } from 'convex/values';
 import { useMutation, useQuery } from 'convex/react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -17,11 +16,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { PHOTO_LIMITS, invalidReasonForFile } from '@/convex/businesses/photoPolicy';
+import { PHOTO_LIMITS } from '@/convex/businesses/photoPolicy';
 import { cn } from '@/lib/utils';
 
-import type { EditorFormState } from './editor-form';
 import type { EditorSection } from './editor-types';
+import {
+  messageForError,
+  readStorageId,
+  stampOrdering,
+  validateSelection,
+  type FormPhoto,
+} from './photos-panel-helpers';
 
 // B7 (issue #7): the real Photos & Media panel. Uploads follow the documented
 // Convex flow — the owner-gated `generateUploadUrl` mutation, a browser POST of
@@ -30,63 +35,11 @@ import type { EditorSection } from './editor-types';
 // re-stamps `ordering` to the array index. Reordering uses buttons (WCAG 2.2
 // SC 2.5.7) rather than drag, with live-region announcements and retained focus.
 
-type FormPhoto = EditorFormState['photos'][number];
 type MoveDirection = 'up' | 'down';
 
 const MAX_PHOTOS = PHOTO_LIMITS.maxPhotos;
 const MAX_MEGABYTES = PHOTO_LIMITS.maxBytes / (1024 * 1024);
 const ACCEPTED_TYPES = PHOTO_LIMITS.types.join(',');
-
-/** Re-stamps `ordering` to the array index; the save path does the same server-side. */
-function stampOrdering(photos: readonly FormPhoto[]): FormPhoto[] {
-  return photos.map((photo, index) => ({ ...photo, ordering: index }));
-}
-
-/** Reads `{ storageId }` from an upload response; `null` when the body is unusable. */
-function readStorageId(payload: unknown): Id<'_storage'> | null {
-  if (typeof payload !== 'object' || payload === null) {
-    return null;
-  }
-
-  const storageId = (payload as { storageId?: unknown }).storageId;
-  return typeof storageId === 'string' && storageId.length > 0
-    ? (storageId as Id<'_storage'>)
-    : null;
-}
-
-function messageForError(error: unknown, fallback: string): string {
-  // The backend sends owner-facing text as the ConvexError payload; the wrapper
-  // the client rebuilds carries the internal function path in `.message`
-  // (https://docs.convex.dev/functions/error-handling/application-errors).
-  if (error instanceof ConvexError && typeof error.data === 'string' && error.data.trim().length > 0) {
-    return error.data;
-  }
-  return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
-}
-
-/** Validates a picked batch before any byte leaves the browser. */
-function validateSelection(
-  files: readonly File[],
-  remaining: number
-): { accepted: File[]; errors: string[] } {
-  const accepted: File[] = [];
-  const errors: string[] = [];
-
-  for (const file of files) {
-    const reason = invalidReasonForFile({ name: file.name, size: file.size, type: file.type });
-    if (reason !== null) {
-      errors.push(`${file.name}: ${reason}`);
-    } else if (accepted.length >= remaining) {
-      errors.push(
-        `${file.name}: listings can have up to ${MAX_PHOTOS} photos. Remove one before adding another.`
-      );
-    } else {
-      accepted.push(file);
-    }
-  }
-
-  return { accepted, errors };
-}
 
 function PhotoThumbnail({
   altText,
