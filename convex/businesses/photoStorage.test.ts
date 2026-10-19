@@ -118,11 +118,7 @@ async function storeFile(
     // mirror the real backend's Content-Type (see mutations.test.ts).
     await (
       ctx.db as unknown as {
-        patch(
-          table: string,
-          id: Id<'_storage'>,
-          value: { contentType: string }
-        ): Promise<void>;
+        patch(table: string, id: Id<'_storage'>, value: { contentType: string }): Promise<void>;
       }
     ).patch('_storage', storageId, { contentType });
 
@@ -182,11 +178,7 @@ test('the authenticated upload action registers the id to the listing', async ()
   await t.run(async (ctx) => {
     await (
       ctx.db as unknown as {
-        patch(
-          table: string,
-          id: Id<'_storage'>,
-          value: { contentType: string }
-        ): Promise<void>;
+        patch(table: string, id: Id<'_storage'>, value: { contentType: string }): Promise<void>;
       }
     ).patch('_storage', storageId, { contentType: 'image/png' });
   });
