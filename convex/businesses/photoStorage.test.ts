@@ -245,6 +245,31 @@ test('an unregistered id is rejected and never deleted', async () => {
   expect(untouched?.photos).toEqual([]);
 });
 
+test('photoUrls resolves only ids registered to the queried listing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessA, businessB } = await seed(t);
+
+  const ownUnsavedId = await storeFile(t, { businessId: businessA });
+  const persistedId = await storeFile(t, { businessId: businessA });
+  const foreignId = await storeFile(t, { businessId: businessB });
+
+  await t.withIdentity({ subject: 'user_a' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId: businessA,
+    patch: { photos: [photo(persistedId)] },
+  });
+
+  const urls = await t
+    .withIdentity({ subject: 'user_a' })
+    .query(api.businesses.photoStorage.photoUrls, {
+      businessId: businessA,
+      storageIds: [ownUnsavedId, persistedId, foreignId],
+    });
+
+  expect(urls[ownUnsavedId]).toMatch(/^https:\/\//);
+  expect(urls[persistedId]).toMatch(/^https:\/\//);
+  expect(urls[foreignId]).toBeNull();
+});
+
 test('a foreign id that fails type validation is not deleted', async () => {
   const t = convexTest(schema, modules);
   const { businessA, businessB } = await seed(t);
