@@ -53,7 +53,7 @@ test('accepts jpeg, png and webp files up to the byte limit', () => {
   }
 });
 
-test('rejects a file over the byte limit and names the limit', () => {
+test('rejects a file over the byte limit and names the limit in MiB', () => {
   const reason = invalidReasonForFile({
     name: 'large.jpg',
     size: PHOTO_LIMITS.maxBytes + 1,
@@ -61,7 +61,41 @@ test('rejects a file over the byte limit and names the limit', () => {
   });
 
   assert.ok(reason !== null);
-  assert.match(reason, /5 MB/);
+  assert.match(reason, /5\.0 MB/);
+});
+
+test('formats a non-whole-MiB limit with one decimal instead of floating noise', () => {
+  const reason = invalidReasonForFile(
+    { name: 'large.jpg', size: 5_000_001, type: 'image/jpeg' },
+    { ...PHOTO_LIMITS, maxBytes: 5_000_000 }
+  );
+
+  assert.ok(reason !== null);
+  assert.match(reason, /4\.8 MB/);
+  assert.doesNotMatch(reason, /4\.768/);
+});
+
+test('rejects a non-finite size instead of soft-passing it', () => {
+  for (const size of [NaN, -Infinity]) {
+    const reason = invalidReasonForFile({ name: 'photo.jpg', size, type: 'image/jpeg' });
+
+    assert.ok(reason !== null, `size ${String(size)} must be rejected`);
+    assert.match(reason, /empty/i);
+  }
+
+  const infinite = invalidReasonForFile({ name: 'photo.jpg', size: Infinity, type: 'image/jpeg' });
+  assert.ok(infinite !== null);
+  assert.match(infinite, /5\.0 MB/);
+});
+
+test('caps alt text on code points so an emoji at the boundary is never split', () => {
+  const [capped] = normalizePhotos([
+    storedPhoto('storage_emoji', 'x'.repeat(PHOTO_LIMITS.maxAltLength - 1) + '🎉'),
+  ]);
+
+  assert.equal(Array.from(capped.altText ?? '').length, PHOTO_LIMITS.maxAltLength);
+  assert.ok(capped.altText?.isWellFormed(), 'no lone surrogate may survive the cap');
+  assert.equal(JSON.parse(JSON.stringify(capped.altText)), capped.altText);
 });
 
 test('rejects a disallowed MIME type', () => {

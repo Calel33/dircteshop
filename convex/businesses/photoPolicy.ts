@@ -48,11 +48,11 @@ export function invalidReasonForFile(
   if (!limits.types.includes(type)) {
     return 'Photos must be a JPEG, PNG or WebP image.';
   }
-  if (file.size <= 0) {
+  if (Number.isNaN(file.size) || file.size <= 0) {
     return 'This file is empty. Choose a different photo.';
   }
   if (file.size > limits.maxBytes) {
-    return `Photos must be ${limits.maxBytes / (1024 * 1024)} MB or smaller.`;
+    return `Photos must be ${(limits.maxBytes / (1024 * 1024)).toFixed(1)} MB or smaller.`;
   }
   return null;
 }
@@ -106,5 +106,5 @@ function normalizeAltText(altText: string | undefined): string | undefined {
   if (trimmed.length === 0) {
     return undefined;
   }
-  return trimmed.slice(0, PHOTO_LIMITS.maxAltLength);
+  return Array.from(trimmed).slice(0, PHOTO_LIMITS.maxAltLength).join('');
 }
