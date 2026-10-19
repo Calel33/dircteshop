@@ -40,6 +40,7 @@ import {
   persistableSaveFields,
   providedEditableFields,
 } from './ownerSavePolicy';
+import { assertPhotosCount, normalizePhotos } from './photoPolicy';
 
 // Owner + admin writes for the listing lifecycle. Mutations accept an ACTION,
 // never a client-supplied status (SPEC §5); the target status is resolved
@@ -646,5 +647,18 @@ function buildEditablePatch(
   for (const field of fields) {
     result[field] = record[field];
   }
+
+  // B7 server-side photo policy: `validateForm` is bypassable by calling the
+  // mutation directly, so normalize before counting (dedupe can shrink 13 -> 12)
+  // and persist only the normalized list, mirroring `withNormalizedName`.
+  if (fields.includes('photos') && patch.photos !== undefined) {
+    const normalized = normalizePhotos(patch.photos);
+    const reason = assertPhotosCount(normalized);
+    if (reason !== null) {
+      throw new ConvexError(reason);
+    }
+    result.photos = normalized;
+  }
+
   return result as Partial<Doc<'businesses'>>;
 }

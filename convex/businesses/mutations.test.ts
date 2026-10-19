@@ -12,6 +12,7 @@ import { convexTest } from 'convex-test';
 
 import schema from '../schema';
 import { api } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 
 // `import.meta.glob` keys are relative to THIS file, so files under
 // `convex/businesses/` come back as './x.ts' while everything above comes back
@@ -128,4 +129,138 @@ test('saveDraft refuses unauthenticated and non-owner callers', async () => {
   // Nothing was persisted by the refused attempts.
   const untouched = await t.run((ctx) => ctx.db.get(businessId));
   expect(untouched?.categoryId).not.toBe(retailId);
+});
+
+async function storePhotos(t: ReturnType<typeof convexTest>, count: number) {
+  return await t.run(async (ctx) => {
+    const ids: Id<'_storage'>[] = [];
+    for (let index = 0; index < count; index += 1) {
+      ids.push(await ctx.storage.store(new Blob([`photo-${index}`])));
+    }
+    return ids;
+  });
+}
+
+function photo(storageId: Id<'_storage'>, altText?: string, ordering = 0) {
+  return { storageId, ...(altText === undefined ? {} : { altText }), ordering };
+}
+
+test('saveDraft rejects more than twelve unique photos and persists nothing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const ids = await storePhotos(t, 13);
+
+  await expect(
+    t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
+      businessId,
+      patch: { photos: ids.map((storageId) => photo(storageId)) },
+    })
+  ).rejects.toThrow('Listings can have up to 12 photos');
+
+  const untouched = await t.run((ctx) => ctx.db.get(businessId));
+  expect(untouched?.photos).toEqual([]);
+});
+
+test('saveDraft normalizes before counting: 13 raw entries with a duplicate persist 12', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const ids = await storePhotos(t, 12);
+  const patch = [...ids.map((storageId) => photo(storageId, undefined, 9)), photo(ids[0], 'Duplicate')];
+
+  await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId,
+    patch: { photos: patch },
+  });
+
+  const saved = await t.run((ctx) => ctx.db.get(businessId));
+  expect(saved?.photos.map((stored) => stored.storageId)).toEqual(ids);
+  expect(saved?.photos.map((stored) => stored.ordering)).toEqual(ids.map((_, index) => index));
+});
+
+test('saveDraft caps alt text, re-stamps ordering, and dedupes storage ids', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const [first, second] = await storePhotos(t, 2);
+
+  await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId,
+    patch: {
+      photos: [
+        photo(second, '  Entrance  ', 7),
+        photo(first, 'a'.repeat(250), 3),
+        photo(second, 'Duplicate', 4),
+      ],
+    },
+  });
+
+  const saved = await t.run((ctx) => ctx.db.get(businessId));
+  expect(saved?.photos).toEqual([
+    { storageId: second, altText: 'Entrance', ordering: 0 },
+    { storageId: first, altText: 'a'.repeat(200), ordering: 1 },
+  ]);
+});
+
+test('a later save that omits photos leaves the persisted list untouched', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, retailId } = await seed(t);
+  const [first] = await storePhotos(t, 1);
+
+  await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId,
+    patch: { photos: [photo(first, 'Storefront')] },
+  });
+  await t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveDraft, {
+    businessId,
+    patch: { categoryId: retailId },
+  });
+
+  const saved = await t.run((ctx) => ctx.db.get(businessId));
+  expect(saved?.categoryId).toBe(retailId);
+  expect(saved?.photos).toEqual([{ storageId: first, altText: 'Storefront', ordering: 0 }]);
+});
+
+test('saveAndResubmit rejects more than twelve unique photos and persists nothing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  await t.run((ctx) => ctx.db.patch(businessId, { status: 'approved' }));
+  const ids = await storePhotos(t, 13);
+
+  await expect(
+    t.withIdentity({ subject: 'user_owner' }).mutation(api.businesses.mutations.saveAndResubmit, {
+      businessId,
+      patch: {
+        description: 'Updated description',
+        photos: ids.map((storageId) => photo(storageId)),
+      },
+    })
+  ).rejects.toThrow('Listings can have up to 12 photos');
+
+  const untouched = await t.run((ctx) => ctx.db.get(businessId));
+  expect(untouched?.status).toBe('approved');
+  expect(untouched?.description).toBe('');
+  expect(untouched?.photos).toEqual([]);
+});
+
+test('saveAndResubmit normalizes and counts through the same photo policy', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  await t.run((ctx) => ctx.db.patch(businessId, { status: 'approved' }));
+  const ids = await storePhotos(t, 12);
+  const photos = [
+    ...ids.map((storageId) => photo(storageId, undefined, 9)),
+    photo(ids[0], 'Duplicate'),
+  ];
+
+  await t.withIdentity({ subject: 'user_owner' }).mutation(
+    api.businesses.mutations.saveAndResubmit,
+    {
+      businessId,
+      patch: { description: 'Updated description', photos },
+    }
+  );
+
+  const saved = await t.run((ctx) => ctx.db.get(businessId));
+  expect(saved?.status).toBe('pendingReview');
+  expect(saved?.photos.map((stored) => stored.storageId)).toEqual(ids);
+  expect(saved?.photos.map((stored) => stored.ordering)).toEqual(ids.map((_, index) => index));
 });

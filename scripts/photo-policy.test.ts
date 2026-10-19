@@ -98,6 +98,16 @@ test('caps alt text on code points so an emoji at the boundary is never split', 
   assert.equal(JSON.parse(JSON.stringify(capped.altText)), capped.altText);
 });
 
+test('checks the count after dedupe, so 13 raw entries with a duplicate are allowed', () => {
+  const raw = [...storedPhotos(12), storedPhoto('storage_0', 'Duplicate')];
+  const normalized = normalizePhotos(raw);
+
+  assert.equal(normalized.length, 12);
+  assert.equal(assertPhotosCount(normalized), null);
+  // Counting before dedupe would falsely reject a legitimate 12-photo listing.
+  assert.ok(assertPhotosCount(raw) !== null);
+});
+
 test('rejects a disallowed MIME type', () => {
   const reason = invalidReasonForFile({ name: 'animation.gif', size: 1024, type: 'image/gif' });
 
