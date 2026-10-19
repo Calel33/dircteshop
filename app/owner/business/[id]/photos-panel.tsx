@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { ConvexError } from 'convex/values';
 import { useMutation, useQuery } from 'convex/react';
 
@@ -251,24 +251,35 @@ export function PhotosPanel({
         if (photo.storageId !== storageId) {
           return photo;
         }
-        // Collapse blank to absent (never `''`), but keep the raw string while
-        // typing so spaces survive a controlled input; the save path trims and
-        // caps server-side via `normalizePhotos`.
-        return { ...photo, ...(altText.trim().length === 0 ? {} : { altText }) };
+        // Keep the raw string while typing so spaces survive a controlled input
+        // and clearing the field can remove the key; the save path trims,
+        // caps, and collapses blank to absent via `normalizePhotos`.
+        const { altText: _previousAltText, ...rest } = photo;
+        void _previousAltText; // Omitted from `rest`; the next value is `altText`.
+        return { ...rest, altText };
       })
     );
   }
 
-  function registerMoveButton(storageId: Id<'_storage'>, direction: MoveDirection) {
-    const key = `${storageId}:${direction}`;
-    return (element: HTMLButtonElement | null) => {
-      if (element === null) {
+  // One stable ref callback for every move button. The data attribute carries
+  // the map key; React 19 runs the returned cleanup when that button unmounts,
+  // so no entry outlives its element. A per-render factory would instead
+  // detach and re-attach every button ref on each render.
+  const setMoveButtonRef = useCallback((element: HTMLButtonElement | null) => {
+    if (element === null) {
+      return;
+    }
+    const key = element.dataset.moveKey;
+    if (key === undefined) {
+      return;
+    }
+    moveButtonRefs.current.set(key, element);
+    return () => {
+      if (moveButtonRefs.current.get(key) === element) {
         moveButtonRefs.current.delete(key);
-      } else {
-        moveButtonRefs.current.set(key, element);
       }
     };
-  }
+  }, []);
 
   function focusMoveButton(storageId: Id<'_storage'>, direction: MoveDirection) {
     requestAnimationFrame(() => {
@@ -402,7 +413,8 @@ export function PhotosPanel({
                           </p>
                           <div className="flex items-center gap-1">
                             <Button
-                              ref={registerMoveButton(photo.storageId, 'up')}
+                              ref={setMoveButtonRef}
+                              data-move-key={`${photo.storageId}:up`}
                               type="button"
                               variant="outline"
                               size="icon"
@@ -413,7 +425,8 @@ export function PhotosPanel({
                               <span aria-hidden="true">↑</span>
                             </Button>
                             <Button
-                              ref={registerMoveButton(photo.storageId, 'down')}
+                              ref={setMoveButtonRef}
+                              data-move-key={`${photo.storageId}:down`}
                               type="button"
                               variant="outline"
                               size="icon"
