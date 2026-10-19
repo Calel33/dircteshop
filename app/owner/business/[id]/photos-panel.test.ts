@@ -11,11 +11,14 @@ import { test } from 'node:test';
 
 import { ConvexError } from 'convex/values';
 
+import { normalizePhotos } from '../../../../convex/businesses/photoPolicy.ts';
+
 import {
   messageForError,
   readStorageId,
   stampOrdering,
   validateSelection,
+  withAltText,
   type FormPhoto,
 } from './photos-panel-helpers.ts';
 
@@ -41,6 +44,22 @@ test('stampOrdering re-stamps ordering to the array index without mutating the i
     photos.map((item) => item.ordering),
     [7, 3]
   );
+});
+
+test('withAltText clears a previous value and keeps typed spaces', () => {
+  const existing = photo('s1', 0, 'Storefront');
+
+  const cleared = withAltText(existing, '');
+
+  assert.equal(cleared.altText, '');
+  assert.equal(cleared.storageId, existing.storageId);
+  assert.equal(withAltText(existing, ' ').altText, ' ');
+});
+
+test('a cleared alt text collapses to absent on the save path', () => {
+  const cleared = withAltText(photo('s1', 0, 'Storefront'), '');
+
+  assert.deepStrictEqual(normalizePhotos([cleared]), [{ storageId: 's1', ordering: 0 }]);
 });
 
 test('readStorageId rejects non-object response bodies', () => {

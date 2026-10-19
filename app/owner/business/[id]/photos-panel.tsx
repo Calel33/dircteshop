@@ -26,6 +26,7 @@ import {
   readStorageId,
   stampOrdering,
   validateSelection,
+  withAltText,
   type FormPhoto,
 } from './photos-panel-helpers';
 
@@ -225,9 +226,7 @@ export function PhotosPanel({
         // Keep the raw string while typing so spaces survive a controlled input
         // and clearing the field can remove the key; the save path trims,
         // caps, and collapses blank to absent via `normalizePhotos`.
-        const { altText: _previousAltText, ...rest } = photo;
-        void _previousAltText; // Omitted from `rest`; the next value is `altText`.
-        return { ...rest, altText };
+        return withAltText(photo, altText);
       })
     );
   }

@@ -16,6 +16,17 @@ export function stampOrdering(photos: readonly FormPhoto[]): FormPhoto[] {
   return photos.map((photo, index) => ({ ...photo, ordering: index }));
 }
 
+/**
+ * Replaces a photo's alt text, dropping the previous key so clearing the field
+ * really clears it. Blank stays `''` in form state while typing; the save path
+ * collapses it to absent via `normalizePhotos`.
+ */
+export function withAltText(photo: FormPhoto, altText: string): FormPhoto {
+  const { altText: _previousAltText, ...rest } = photo;
+  void _previousAltText; // Omitted from `rest`; the next value is `altText`.
+  return { ...rest, altText };
+}
+
 /** Reads `{ storageId }` from an upload response; `null` when the body is unusable. */
 export function readStorageId(payload: unknown): Id<'_storage'> | null {
   if (typeof payload !== 'object' || payload === null) {
