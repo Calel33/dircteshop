@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ConvexError } from 'convex/values';
 import { useMutation, useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
@@ -47,6 +46,7 @@ import {
   type EditorFormState,
 } from './editor-form';
 import { toPreviewBusiness } from './preview-adapter';
+import { messageForError } from './photos-panel-helpers';
 import {
   canRedo,
   canUndo,
@@ -97,17 +97,6 @@ function buildPreviewState(
       photoUrls: business.photoUrls,
     },
   };
-}
-
-/** Normalises a thrown mutation error into a user-facing message. */
-function messageFromError(error: unknown, fallback: string): string {
-  // The backend sends owner-facing text as the ConvexError payload; the wrapper
-  // the client rebuilds carries the internal function path in `.message`
-  // (https://docs.convex.dev/functions/error-handling/application-errors).
-  if (error instanceof ConvexError && typeof error.data === 'string' && error.data.trim().length > 0) {
-    return error.data;
-  }
-  return error instanceof Error ? error.message : fallback;
 }
 
 /** The editable fields each primary action persists. Submit and Publish save the
@@ -253,7 +242,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     try {
       await persistSavable();
     } catch (saveError) {
-      setError(messageFromError(saveError, 'Could not save the listing.'));
+      setError(messageForError(saveError, 'Could not save the listing.'));
     } finally {
       setIsSaving(false);
     }
@@ -271,7 +260,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       }
       await transition({ businessId: business._id, action: 'submitForReview' });
     } catch (submitError) {
-      setError(messageFromError(submitError, 'Could not submit the listing.'));
+      setError(messageForError(submitError, 'Could not submit the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -294,7 +283,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       }));
       setBaseline((previous) => mergeSavedFields(previous, canonical, dirty));
     } catch (resubmitError) {
-      setError(messageFromError(resubmitError, 'Could not resubmit the listing.'));
+      setError(messageForError(resubmitError, 'Could not resubmit the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -307,7 +296,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     try {
       await transition({ businessId: business._id, action: 'reopenAsDraft' });
     } catch (reviseError) {
-      setError(messageFromError(reviseError, 'Could not revise the listing.'));
+      setError(messageForError(reviseError, 'Could not revise the listing.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -331,7 +320,7 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
       try {
         await persistSavable();
       } catch (publishError) {
-        setError(messageFromError(publishError, 'Could not publish the changes.'));
+        setError(messageForError(publishError, 'Could not publish the changes.'));
       } finally {
         setIsSubmitting(false);
       }
