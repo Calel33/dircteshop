@@ -371,3 +371,16 @@ test('untouched photos keep a stable signature and stay clean', () => {
   assert.equal(FIELD_SIGNATURES.photos(equivalent), FIELD_SIGNATURES.photos(form));
   assert.deepStrictEqual(dirtyFields(equivalent, form), []);
 });
+
+test('canonicalise drops blank alt text from the photo baseline', () => {
+  const form = createEditorForm(SOURCE);
+  const edited = {
+    ...form,
+    photos: [photo('storage_blank', ''), photo('storage_spaces', '   ')],
+  };
+
+  const canonical = canonicalizeForm(edited, ['photos']);
+
+  assert.equal('altText' in canonical.photos[0], false);
+  assert.equal('altText' in canonical.photos[1], false);
+});
