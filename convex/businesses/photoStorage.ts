@@ -169,7 +169,7 @@ export async function reconcilePhotoStorage(
  * boundaries are compared, not just the owner: an id uploaded for another of
  * the same owner's listings must not be attachable or deletable from here.
  */
-async function isUploadOwnedBy(
+export async function isUploadOwnedBy(
   ctx: QueryCtx | MutationCtx,
   storageId: Id<'_storage'>,
   business: Pick<Doc<'businesses'>, '_id' | 'ownerId'>
@@ -187,7 +187,7 @@ function uniqueStorageIds(photos: readonly BusinessPhoto[]): Id<'_storage'>[] {
   return [...new Set(photos.map((photo) => photo.storageId))];
 }
 
-async function resolveStorageUrls(
+export async function resolveStorageUrls(
   ctx: QueryCtx,
   storageIds: readonly Id<'_storage'>[]
 ): Promise<Record<Id<'_storage'>, string | null>> {
@@ -200,7 +200,7 @@ async function resolveStorageUrls(
   return urls;
 }
 
-async function deleteStorageFileQuietly(
+export async function deleteStorageFileQuietly(
   ctx: MutationCtx,
   storageId: Id<'_storage'>
 ): Promise<void> {
