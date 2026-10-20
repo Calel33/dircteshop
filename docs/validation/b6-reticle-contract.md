@@ -74,11 +74,20 @@ overview boundary renders “Could not load the overview counts. An admin sessio
 1. Add Business first: navigate `/admin/directory` → open `Add Business` → create
    “Reticle Delete Probe <ms-timestamp>” with owner email → wait for it in the grid.
 2. Open the listing → inspector → `reticle_act { steps: [
-  { target: { role: "button", name: "Hard delete" }, action: "click", expect: { kind: "text", contains: "Confirm action: Hard delete" } },
-  { target: { role: "textbox" } (the typed-name field), action: "fill", value: "WRONG NAME", expect: { kind: "element", query: { role: "button", name: "Hard delete" } } /* confirm stays disabled */ },
-  { action: "fill", value: "<exact business name>", expect: { kind: "element", query: { role: "button", name: "Hard delete" } } /* now enabled */ },
-  { target: { role: "button", name: "Hard delete" }, action: "click", expect: { kind: "not", ...: { kind: "text", contains: "Reticle Delete Probe" } } } ] }`
+  { target: { role: "button", name: "Hard delete" }, action: "click", args: { confirmDangerous: true }, expect: { kind: "allOf", predicates: [
+    { kind: "text", contains: "Hard delete" },
+    { kind: "text", contains: "This permanently deletes" } ] } },
+  { target: { role: "textbox" } (the typed-name field), action: "fill", value: "WRONG NAME", expect: { kind: "element", query: { role: "button", name: "Delete <probe name>" }, state: "disabled" } },
+  { target: { role: "textbox" } (the same field), action: "fill", value: "<probe name>" (the exact name created in step 1), expect: { kind: "element", query: { role: "button", name: "Delete <probe name>" }, state: "enabled" } },
+  { target: { role: "button", name: "Delete <probe name>" }, action: "click", args: { confirmDangerous: true }, expect: { kind: "text", contains: "Reticle Delete Probe", absent: true } } ] }`
 3. Persist + audit: navigate `/admin/audit`, filter action — the `delete` audit row naming the probe must appear.
+
+The confirm button is named `Delete <probe name>` (`directory-inline-confirm.tsx:L140`); no button
+named `Hard delete` exists after the confirm opens — the action grid is replaced
+(`directory-inspector.tsx:L113-151`). The confirm step's copy is the bold `Hard delete` title plus
+“This permanently deletes …” (`directory-inspector.tsx:L141`, `directory-inline-confirm.tsx:L42-49`).
+`confirmDangerous` is Reticle's permission gate for a control it judges destructive; without it the
+click is refused rather than dispatched.
 
 ### F3 — Directory grid/table parity + filters preserve state (#15)
 
