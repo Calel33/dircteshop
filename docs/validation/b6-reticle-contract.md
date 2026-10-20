@@ -91,9 +91,16 @@ overview boundary renders “Could not load the overview counts. An admin sessio
 
 ### F4 — Every action confirms + writes its audit row (#15)
 
-For each available action on a suitable listing, the inspector opens the inline confirm first
-(`Confirm action: <label>` per `getConsequenceCopy`). Drive on a **scratch** listing, and restore
-state afterward where the action is reversible:
+For each available action on a suitable listing, the inspector opens the inline confirm first.
+The confirm step renders the action title in bold (`<b>{ACTION_LABELS[action]}</b>`,
+`directory-inspector.tsx:L141`) plus the consequence sentence (`Consequence`,
+`directory-inline-confirm.tsx:L33-67`):
+- status actions: `<targetName> will move to <status>. An auditLogs row records who, what, and when.`
+- `Feature pin`: `<targetName> will have its featured pin toggled. An auditLogs row records who, what, and when.`
+
+`Confirm action: <label>` is never rendered — its only producer, `getConsequenceCopy`, has no callers
+(`directory-actions-policy.ts:L45-56`). Drive on a **scratch** listing, and restore state afterward
+where the action is reversible:
 
 | Action          | Pre-state needed        | Expect after confirm                                                     | Revert via        |
 | --------------- | ----------------------- | ------------------------------------------------------------------------ | ----------------- |
@@ -104,8 +111,25 @@ state afterward where the action is reversible:
 | Restore         | `suspended`             | status `approved`                                                        | —                 |
 | Feature pin     | `approved`              | pinned state persists after reload (`reticle_navigate { reload: true }`) | Feature pin again |
 
-General step shape (one `reticle_act { steps: [...] }` per action):
-`click <Action Label> → expect text "Confirm action: <Action Label>" → fill Reason → click confirm → expect new status text`.
+Two step shapes, chosen by `actionRequiresReason` (`directory-actions-policy.ts:L27-29`). One
+`reticle_act { steps: [...] }` per action; the last `expect` is the end state.
+
+Reason actions (`requestChanges`, `reject`, `suspend`):
+`click <Action Label> → expect confirm copy → fill Reason → click <Action Label> → expect status chip <Status label>`
+
+No-reason actions (`approve`, `restore`, `feature`):
+`click <Action Label> → expect confirm copy → click <Action Label> → expect status chip <Status label>`
+
+`expect confirm copy` = `{ kind: "allOf", predicates: [ { kind: "text", contains: "<Action Label>" },
+{ kind: "text", contains: "<consequence sentence>" } ] }`, using the sentence above.
+`<Status label>` is `DIRECTORY_STATUS_LABELS[status]` (`directory-types.ts:L37-44`): `Approved`,
+`Changes requested`, `Rejected`, `Suspended`. After the confirm opens, the action-button grid is
+replaced (`directory-inspector.tsx:L113-151`), so the second `click <Action Label>` targets the
+confirm button, which carries the same label (`directory-inline-confirm.tsx:L140`).
+
+`Feature pin` changes no status: assert the `Approved` chip, then `reticle_navigate { reload: true }`
+and assert the pinned state persists (table row above).
+
 Then `/admin/audit` shows the matching row (actions `approve`, `requestChanges`, `reject`,
 `suspend`, `restore`, `feature` per `convex/businesses/adminPolicy.ts` / `adminDeletion.ts`).
 
