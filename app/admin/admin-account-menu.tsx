@@ -24,19 +24,16 @@ function AccountIdentity({ name, email }: { name: string; email: string }) {
 }
 
 function SignOutLabel({ isSigningOut }: { isSigningOut: boolean }) {
-  if (isSigningOut) {
-    return (
-      <>
-        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-        Signing out…
-      </>
-    );
-  }
-
   return (
     <>
-      <LogOut className="size-4" aria-hidden="true" />
-      Sign out
+      {isSigningOut ? (
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <LogOut className="size-4" aria-hidden="true" />
+      )}
+      {/* Mounted before the text changes, so the pending state is announced even
+          though the disabled menu item may no longer hold focus. */}
+      <span aria-live="polite">{isSigningOut ? 'Signing out…' : 'Sign out'}</span>
     </>
   );
 }
@@ -73,15 +70,29 @@ export function AdminAccountMenu() {
         if (open) setError(null);
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Account menu"
-          className="bg-brand-soft text-brand-strong border-brand-border grid size-8 cursor-pointer place-items-center rounded-full border text-xs font-bold outline-none transition-colors hover:border-brand-strong focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-        >
-          {accountInitials(user)}
-        </button>
-      </DropdownMenuTrigger>
+      <div className="flex items-center">
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="Account menu"
+            className="bg-brand-soft text-brand-strong border-brand-border grid size-8 cursor-pointer place-items-center rounded-full border text-xs font-bold outline-none transition-colors hover:border-brand-strong focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          >
+            {accountInitials(user)}
+          </button>
+        </DropdownMenuTrigger>
+
+        {/* Outside DropdownMenuContent: Radix renders that content as role="menu",
+            which only accepts menu items, groups, and separators. Fixed so the
+            portalled menu cannot cover the alert while it stays open. */}
+        {error ? (
+          <p
+            role="alert"
+            className="bg-card border-border text-destructive fixed right-4 bottom-4 z-50 w-64 rounded-menu border px-3 py-2 text-xs shadow-md"
+          >
+            {error}
+          </p>
+        ) : null}
+      </div>
 
       <DropdownMenuContent align="end" className="w-56">
         <AccountIdentity name={accountName(user)} email={accountEmail(user)} />
@@ -97,12 +108,6 @@ export function AdminAccountMenu() {
         >
           <SignOutLabel isSigningOut={isSigningOut} />
         </DropdownMenuItem>
-
-        {error ? (
-          <p role="alert" className="text-destructive px-2 py-1.5 text-xs">
-            {error}
-          </p>
-        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
