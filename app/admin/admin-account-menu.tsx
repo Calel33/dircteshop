@@ -12,28 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-type AccountUser = ReturnType<typeof useUser>['user'];
-
-function initials(name: string | null | undefined): string {
-  const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  const first = parts[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1] ?? '') : '';
-  const value = last ? `${first.charAt(0)}${last.charAt(0)}` : first.slice(0, 2);
-  return value.toUpperCase() || 'A';
-}
-
-function accountName(user: AccountUser): string {
-  return user?.fullName ?? user?.username ?? 'Super Admin';
-}
-
-function accountEmail(user: AccountUser): string {
-  return user?.primaryEmailAddress?.emailAddress ?? 'Signed in';
-}
-
-function accountInitials(user: AccountUser): string {
-  return initials(user?.fullName ?? user?.username ?? user?.primaryEmailAddress?.emailAddress);
-}
+import { accountEmail, accountInitials, accountName } from './admin-account-menu-helpers';
 
 function AccountIdentity({ name, email }: { name: string; email: string }) {
   return (
