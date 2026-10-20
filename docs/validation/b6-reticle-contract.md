@@ -27,10 +27,22 @@ via the `reticle_*` MCP tools (`reticle_run { tool, args }`). Only `verified: "y
 
 1. `npx convex dev` (terminal 1) + `npm run dev` (terminal 2). Seed: `npm run seed`
    (creates Super Admin + owner + listings; seed fixtures in `convex/businesses/seedFixtures.ts`).
-2. Browser signed in as the **Super Admin** account for all admin flows.
-3. Two-account note: AC “non-superAdmin gets 404” needs a **second browser profile** signed in as a
+2. **Pre-flight before F1 — prove the app and the CLI target the same dev deployment.** Run both
+   checks and do not accept F1 results until both pass:
+   - `npx convex dev` prints the deployment URL. Confirm `.env.local`'s `NEXT_PUBLIC_CONVEX_URL` is
+     that deployment (`CONVEX_DEPLOYMENT` names it: a `dev:<name>` deployment pairs with
+     `https://<name>.convex.cloud`). Next.js reads env at boot — restart `npm run dev` after
+     changing it.
+   - `npx convex function-spec | rg 'adminQueries\.js:overviewStats'` must match. No match means the
+     module has not been pushed to the deployment the CLI targets: wait for `npx convex dev` to
+     finish pushing, then re-run. (`function-spec` inspects the dev deployment by default; deployed
+     identifiers are spelled `adminQueries.js:overviewStats`, not `adminQueries:overviewStats`.)
+     Without this check an undeployed `overviewStats` surfaces only as F1's four labels never
+     rendering.
+3. Browser signed in as the **Super Admin** account for all admin flows.
+4. Two-account note: AC “non-superAdmin gets 404” needs a **second browser profile** signed in as a
    regular user, or sign-out/sign-in mid-flow (marked ⚠ below).
-4. ⚠ **Destructive ordering**: flows `F2` (hard delete) and `F8b` (category delete) consume seeded
+5. ⚠ **Destructive ordering**: flows `F2` (hard delete) and `F8b` (category delete) consume seeded
    data. Run read-only flows (`F3`–`F7`) first, destructive flows last. Every destructive step below
    uses a business/category created earlier in the same flow wherever possible (F2 creates its own).
 
@@ -45,9 +57,15 @@ via the `reticle_*` MCP tools (`reticle_run { tool, args }`). Only `verified: "y
   { kind: "text", contains: "Total businesses" },
   { kind: "text", contains: "Pending approval" },
   { kind: "text", contains: "Verified active" },
-  { kind: "text", contains: "Submissions this month" } ] } }`
+  { kind: "text", contains: "Submissions this month" },
+  { kind: "text", contains: "Could not load the overview counts", absent: true } ] } }`
 3. Negative: `reticle_assert { action: "now", until: { not: { kind: "text", contains: "Revenue" } } }`
 4. Click card → `reticle_act_and_wait { target: { role: "link", name: "Pending approval" } (verify exact role via reticle_look {action:"find"} first), action: "click", until: { kind: "route", pathname: "/admin/approvals" } }`
+
+Step 2's four labels render only after `overviewStats` resolves (`admin-overview-cards.tsx:L134-138`),
+so the `absent` clause names the failure the Setup pre-flight prevents: on a query error the
+overview boundary renders “Could not load the overview counts. An admin session may be required.”
+(`admin-overview-cards.tsx:L41-46`) instead of the four cards.
 
 ### F2 — Hard delete: type-the-name gate + children + audit row (#15) ⚠ DESTRUCTIVE — RUN LAST
 
