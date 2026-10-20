@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { NotificationMenu } from '@/components/notifications/notification-menu';
 import { cn } from '@/lib/utils';
 import { exportBusinessesCsv } from '@/app/admin/export-actions';
+import { AdminAccountMenu } from './admin-account-menu';
 
 /** The prototype's five command-deck tabs, in order. */
 const TABS = [
@@ -32,7 +33,7 @@ const STUBS = [
 
 /**
  * The prototype's `.cmdbar` (Variant B): brand block, five tabs, a spacer, the
- * audited CSV export, and the admin avatar. The header is chrome only — it
+ * audited CSV export, and the admin account menu. The header is chrome only — it
  * reads the pathname and calls the existing export Server Action; no page
  * state crosses into it.
  */
@@ -155,12 +156,7 @@ export function AdminCommandBar() {
         >
           {exportState.isPending ? 'Exporting…' : 'Export CSV'}
         </Button>
-        <span
-          className="bg-brand-soft text-brand-strong border-brand-border grid size-8 place-items-center rounded-full border text-xs font-bold"
-          aria-label="Signed in as a Super Admin"
-        >
-          CA
-        </span>
+        <AdminAccountMenu />
       </div>
 
       {exportState.error === null ? null : (
