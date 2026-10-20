@@ -16,9 +16,10 @@ import type { ModerationAction } from './businesses/moderationPolicy';
 // Docs: https://docs.convex.dev/functions/mutation-functions (atomic writes)
 
 /**
- * The exact `notifications.type` strings B5 writes. `type` stays a persisted
- * string (schema) so B8–B10 can add workflow kinds without a migration; this
- * union is the frozen contract for the kinds implemented today.
+ * The exact `notifications.type` strings implemented here (B5 listing
+ * lifecycle + B8 orders). `type` stays a persisted string (schema) so later
+ * workflow kinds need no migration; this union is the frozen contract for the
+ * kinds implemented today.
  */
 export const NOTIFICATION_EVENT_TYPES = [
   'listing_submitted',
@@ -26,6 +27,7 @@ export const NOTIFICATION_EVENT_TYPES = [
   'listing_changes_requested',
   'listing_rejected',
   'listing_suspended',
+  'new_order',
 ] as const;
 
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
@@ -67,6 +69,8 @@ function notificationMessage(type: NotificationEventType, businessName: string):
       return `"${businessName}" was rejected.`;
     case 'listing_suspended':
       return `"${businessName}" was suspended.`;
+    case 'new_order':
+      return `New order for "${businessName}".`;
   }
 }
 

@@ -139,6 +139,18 @@ export default defineSchema({
     ),
     ordering: v.number(),
     isAvailable: v.boolean(),
+    // v1 nutrition display contract. Neither SPEC nor
+    // `wayfinder/research/convex-domain-model.md` pins a shape, so this minimal
+    // display-only object is the agreed v1 contract. It is additive: absent means
+    // the owner has not published nutrition values.
+    nutrition: v.optional(
+      v.object({
+        calories: v.optional(v.number()),
+        proteinGrams: v.optional(v.number()),
+        carbohydrateGrams: v.optional(v.number()),
+        fatGrams: v.optional(v.number()),
+      })
+    ),
   })
     .index('byBusinessId', ['businessId'])
     .index('byGroupId', ['groupId'])
@@ -180,6 +192,7 @@ export default defineSchema({
     customerName: v.string(),
     contactPhone: v.optional(v.string()),
     contactEmail: v.optional(v.string()),
+    note: v.optional(v.string()),
     status: v.union(
       v.literal('new'),
       v.literal('accepted'),
