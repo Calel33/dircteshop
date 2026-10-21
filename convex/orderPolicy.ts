@@ -171,3 +171,101 @@ export function validateOrderContact(input: {
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Protocol machine (order protocol §6.1) — added by T3 (issue #75).
+//
+// The legacy 4-state machine above stays frozen for `submitOrder`, the owner
+// board, and `scripts/order-policy.test.ts`. This section is the 8-state
+// protocol vocabulary: the wire actions, the terminal set, and the one pure
+// resolver the S1 commit handler will call. `reuse` is §7.3 documentation
+// vocabulary expressed by the `reused` resolution — it is NOT a wire action.
+// ---------------------------------------------------------------------------
+
+/** Every status the protocol machine can be asked to transition from. */
+export type OrderDbStatus = (typeof ORDER_DB_STATUSES)[number];
+
+export const ORDER_PROTOCOL_ACTIONS = [
+  'submit',
+  'accept',
+  'decline',
+  'cancel',
+  'ready',
+  'complete',
+  'noShow',
+  'expire',
+] as const;
+export type OrderProtocolAction = (typeof ORDER_PROTOCOL_ACTIONS)[number];
+
+/** §6.1 terminal states: every action on one of these is `ORDER_TERMINAL`. */
+export const TERMINAL_ORDER_STATUSES = [
+  'completed',
+  'declined',
+  'cancelled',
+  'expired',
+  'no_show',
+] as const;
+export type TerminalOrderStatus = (typeof TERMINAL_ORDER_STATUSES)[number];
+
+/**
+ * What one protocol action does from the current status:
+ * - `move`   — patch the status to `to`;
+ * - `reused` — the action's target already holds (double-click / OCC retry):
+ *              success with no new event;
+ * - `error`  — reject with the typed protocol code.
+ */
+export type OrderActionResolution =
+  | { kind: 'move'; to: OrderDbStatus }
+  | { kind: 'reused' }
+  | { kind: 'error'; code: 'INVALID_TRANSITION' | 'ORDER_TERMINAL' };
+
+/**
+ * §6.1 mutation rows. A row whose target equals its source encodes the
+ * idempotent repeat (`accept` on `accepted`, `ready` on `ready`), which the
+ * resolver returns as `reused` rather than a no-op `move`.
+ */
+const PROTOCOL_TRANSITIONS: Record<
+  OrderDbStatus,
+  Partial<Record<OrderProtocolAction, OrderDbStatus>>
+> = {
+  new: { accept: 'accepted', decline: 'declined', cancel: 'cancelled', expire: 'expired' },
+  accepted: { accept: 'accepted', ready: 'ready', cancel: 'cancelled' },
+  ready: { ready: 'ready', complete: 'completed', noShow: 'no_show', cancel: 'cancelled' },
+  completed: {},
+  declined: {},
+  cancelled: {},
+  expired: {},
+  no_show: {},
+};
+
+/**
+ * Resolves a protocol action from the order's current status (spec §6.1).
+ *
+ * Terminal statuses reject every action with `ORDER_TERMINAL`, checked before
+ * anything else. `submit` is `placeOrder`'s create step, never a transition,
+ * so it is `INVALID_TRANSITION` from every non-terminal status. Repeating the
+ * action that produced the current status resolves to `{ kind: 'reused' }`;
+ * every pair outside the §6.1 table is `INVALID_TRANSITION`.
+ */
+export function resolveOrderAction(
+  status: OrderDbStatus,
+  action: OrderProtocolAction
+): OrderActionResolution {
+  if ((TERMINAL_ORDER_STATUSES as readonly OrderDbStatus[]).includes(status)) {
+    return { kind: 'error', code: 'ORDER_TERMINAL' };
+  }
+
+  if (action === 'submit') {
+    return { kind: 'error', code: 'INVALID_TRANSITION' };
+  }
+
+  const target = PROTOCOL_TRANSITIONS[status][action];
+  if (target === undefined) {
+    return { kind: 'error', code: 'INVALID_TRANSITION' };
+  }
+  if (target === status) {
+    return { kind: 'reused' };
+  }
+
+  return { kind: 'move', to: target };
+}
