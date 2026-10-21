@@ -244,8 +244,13 @@ function CustomizationEditor({
               })}
             </ul>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm"
-                onClick={() => onChange(addCustomizationOption(groups, groupIndex))}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`Add option to customization group ${groupIndex + 1}`}
+                onClick={() => onChange(addCustomizationOption(groups, groupIndex))}
+              >
                 Add option
               </Button>
               <Button type="button" variant="outline" size="sm" className="text-destructive"
@@ -372,7 +377,14 @@ export function ItemEditor({
       </fieldset>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Cancel item edit"
+          disabled={busy}
+          onClick={onCancel}
+        >
           Cancel
         </Button>
         <Button type="submit" size="sm" disabled={busy || uploading}>

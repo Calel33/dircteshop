@@ -12,6 +12,27 @@
 export const ORDER_STATUSES = ['new', 'accepted', 'ready', 'completed'] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+/**
+ * Every status the expanded `orders.status` column accepts (protocol §6.2.2).
+ * The transition matrix below stays the 4-state legacy machine until T3 adds
+ * the actions that reach the new states.
+ */
+export const ORDER_DB_STATUSES = [
+  'new',
+  'accepted',
+  'ready',
+  'completed',
+  'declined',
+  'cancelled',
+  'expired',
+  'no_show',
+] as const;
+
+/** Narrows a stored status to the legacy transition machine's vocabulary. */
+export function isLegacyOrderStatus(status: string): status is OrderStatus {
+  return (ORDER_STATUSES as readonly string[]).includes(status);
+}
+
 export const ORDER_ACTIONS = ['accept', 'ready', 'complete'] as const;
 export type OrderAction = (typeof ORDER_ACTIONS)[number];
 

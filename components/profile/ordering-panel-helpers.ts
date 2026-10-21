@@ -4,10 +4,13 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '@/convex/_generated/api';
 import {
+  ORDER_DB_STATUSES,
+  isLegacyOrderStatus,
   validateOrderContact,
   validateOrderSelections,
   type OrderCustomizationGroup,
   type OrderSelection,
+  type OrderStatus,
 } from '@/convex/orderPolicy';
 
 // Pure state helpers for the public ordering panel (T5). No React imports, so
@@ -64,6 +67,27 @@ const PRICE_FORMATTER = new Intl.NumberFormat('en-US', {
 
 export function formatPrice(price: number): string {
   return PRICE_FORMATTER.format(price);
+}
+
+/** Statuses outside the 4-step legacy chain: no stepper progress to show. */
+type NonStepStatus = Exclude<(typeof ORDER_DB_STATUSES)[number], OrderStatus>;
+
+const NON_STEP_STATUS_NOTES: Record<NonStepStatus, string> = {
+  declined: 'The business could not accept this order.',
+  cancelled: 'This order was cancelled.',
+  expired: 'This order expired before it was accepted.',
+  no_show: 'The order was not picked up.',
+};
+
+/**
+ * One honest sentence for a receipt status the 4-step stepper cannot show.
+ * Returns an empty string for a legacy step, which the stepper renders.
+ */
+export function nonStepStatusNote(status: (typeof ORDER_DB_STATUSES)[number] | null): string {
+  if (status === null || isLegacyOrderStatus(status)) {
+    return '';
+  }
+  return NON_STEP_STATUS_NOTES[status];
 }
 
 /** `#order-<id>` opens an item, `#order` opens the default builder, else idle. */

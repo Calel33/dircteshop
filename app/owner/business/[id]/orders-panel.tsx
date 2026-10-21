@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 
+import { formatPrice } from '@/components/profile/ordering-panel-helpers';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/convex/_generated/api';
@@ -12,6 +13,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import {
   ORDER_ACTION_TARGET,
+  isLegacyOrderStatus,
   nextOrderStatus,
   type OrderAction,
 } from '../../../../convex/orderPolicy.ts';
@@ -106,6 +108,30 @@ function OrdersEmpty() {
   );
 }
 
+/**
+ * Price honesty for one board row: a backfilled legacy order's historical
+ * price is unrecoverable (§6.2.9), so it never falls back to the live menu
+ * price; an unpriced snapshot row says so; only a known price prints a number.
+ */
+function OrderPrice({ order }: { order: OrdersBoardRow }) {
+  const unpricedLabel =
+    order.pricingSource === 'legacyUnknown' ? 'not recorded · total at pickup' : 'not listed';
+  const label = order.itemPrice === null ? unpricedLabel : formatPrice(order.itemPrice);
+
+  return (
+    <p className="text-tiny flex flex-wrap items-baseline gap-x-1">
+      <span className="text-card-muted">Price</span>
+      <span
+        className={
+          order.itemPrice === null ? 'text-card-muted' : 'text-foreground font-mono font-semibold'
+        }
+      >
+        {label}
+      </span>
+    </p>
+  );
+}
+
 function OrderRow({
   order,
   pending,
@@ -135,6 +161,7 @@ function OrderRow({
             <StatusPill status={order.status} />
           </div>
           <p className="text-sm font-medium break-words">{order.itemName}</p>
+          <OrderPrice order={order} />
           <time
             dateTime={new Date(order.createdAt).toISOString()}
             className="text-card-muted font-label text-micro"
@@ -241,7 +268,9 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
         return;
       }
 
-      const target = nextOrderStatus(order.status, args.action);
+      const target = isLegacyOrderStatus(order.status)
+        ? nextOrderStatus(order.status, args.action)
+        : null;
       if (target === null) {
         return;
       }
@@ -300,8 +329,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
       ) : (
         <ul role="list" className="flex flex-col gap-gap">
           {orders.map((order) => {
-            const rowFailure =
-              failure !== null && failure.orderId === order._id ? failure : null;
+            const rowFailure = failure !== null && failure.orderId === order._id ? failure : null;
             return (
               <OrderRow
                 key={order._id}
@@ -334,10 +362,7 @@ export function OrdersPanel({ businessId }: { businessId: Id<'businesses'> }) {
         <CardDescription>{ORDERS_SECTION.description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <OrdersListBoundary
-          key={retryKey}
-          onRetry={() => setRetryKey((current) => current + 1)}
-        >
+        <OrdersListBoundary key={retryKey} onRetry={() => setRetryKey((current) => current + 1)}>
           <OrdersBoard businessId={businessId} />
         </OrdersListBoundary>
       </CardContent>
