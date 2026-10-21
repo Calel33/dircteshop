@@ -27,6 +27,7 @@ Local-business discovery + management platform, three role-specific surfaces in 
 | `/categories` | Category index | public |
 | `/categories/[slug]` | Category-filtered results | public |
 | `/business/[id]` | Public business profile (module foundation) | public |
+| `/order/[token]` | Order receipt + live status (anonymous order handle) | public, token-gated |
 | `/sign-in`, `/sign-up` | Clerk (starter) | public |
 | `/owner` | Owner home: My Businesses switcher + editor | authed, ownership-derived |
 | `/owner/business/[id]` | LocalHub Editor | authed + `requireBusinessOwner` |
@@ -62,11 +63,11 @@ Full schema proposal: [wayfinder/research/convex-domain-model.md](wayfinder/rese
 
 - `users {name, externalId, role}` — index `byExternalId`.
 - `categories {name, slug, icon?, ordering, parentCategoryId?}` — indexes `bySlug`, `byParentCategoryId`, `byOrdering`.
-- `businesses` — `name, categoryId, description, address{...(+lat/lng optional)}, phone?, email?, website?, photos[{storageId, altText?, ordering}], hours{day → [{opensAt, closesAt}]}, status, verification{isVerified, verifiedAt?, verifiedBy?}, rating, ratingCount, services[], credentials[], keywords[], searchText, ownerId, lastUpdatedAt, submittedAt?, isFeatured, moderationReason?, moderatedAt?, lastSavedAt?`
+- `businesses` — `name, categoryId, description, address{...(+lat/lng optional)}, phone?, email?, website?, photos[{storageId, altText?, ordering}], hours{day → [{opensAt, closesAt}]}, status, acceptingOrders?, acceptingOrdersUntil?, acceptingOrdersNote?, verification{isVerified, verifiedAt?, verifiedBy?}, rating, ratingCount, services[], credentials[], keywords[], searchText, ownerId, lastUpdatedAt, submittedAt?, isFeatured, moderationReason?, moderatedAt?, lastSavedAt?, orderProtocol?: 'legacy' | 'basket'`
   - indexes `byStatus`, `byCategoryId`, `byOwnerId`; `searchIndex('searchText', {searchField: 'searchText', filterFields: ['status', 'categoryId']})`.
   - `searchText` maintained by mutations: `[name, keywords.join(' '), description].join(' ')`.
 - Verticals (separate tables, NOT JSON blobs): `menuGroups`, `menuItems` (with nested `customizationOptions[{name, required, options[{name, priceAdjustment?}]}]`, optional nutrition display fields), `serviceOfferings {price?, durationMinutes?, ...}`, `stylists {serviceOfferingIds[], ...}`.
-- Workflows (T05): `orders {businessId, menuItemId, selections[], customerName, contactPhone?, contactEmail?, status: new|accepted|ready|completed, createdAt}`; `bookings {businessId, serviceOfferingId, stylistId?, customerName, customerPhone, customerEmail, startAt (UTC), cancelToken, status: requested|confirmed|declined|cancelled}`; `quoteRequests {businessId, customerName, customerContact, message, sourceLabel?, status: new|responded|closed, createdAt}`.
+- Workflows (T05; `orders` revised by the order-commitment protocol): `orders {businessId, items[{menuItemId, name, unitPrice?, quantity, selections[{optionName, choiceName, priceAdjustment?}], lineTotal?}], subtotal?, customerName, contactPhone?, contactEmail?, note?, status: new|accepted|ready|completed|declined|cancelled|expired|no_show, statusReason?, statusUpdatedAt?, expiresAt?, customerUserId?, createdAt, menuItemId?, selections?}` — indexes `byBusinessId`, `byBusinessIdStatus`. The access token and human reference live on the `orderAccess` side table (`{orderId, businessId, accessToken, reference, createdAt}`, indexes `byAccessToken`, `byOrderId`, `byBusinessIdReference`) so broad order queries/exports cannot expose the bearer token (protocol §6.2.2/§6.2.3); further side tables `orderIdempotency`, `orderExpiry`, `orderEvents`, `orderThrottle`, `orderBlocks` (see protocol §6.2). `bookings {businessId, serviceOfferingId, stylistId?, customerName, customerPhone, customerEmail, startAt (UTC), cancelToken, status: requested|confirmed|declined|cancelled}`; `quoteRequests {businessId, customerName, customerContact, message, sourceLabel?, status: new|responded|closed, createdAt}`.
 - Admin (T07): `auditLogs {actorUserId, action, targetType, targetId, fromStatus?, toStatus?, reason?, createdAt}`; `notifications {userId, type, businessId?, message, reason?, readAt?, createdAt}` (in-app badge).
 
 ## 5. Listing Approval State Machine (T01)
@@ -117,10 +118,37 @@ const allowedTransitions = {
 
 ## 7. Workflows (T05)
 
-- **Ordering (restaurant):** customize one item → order record → owner in-app notification. No cart, no checkout, no payment. Statuses `new → accepted → ready → completed` (owner transitions).
+- **Ordering (restaurant; revised by the order-commitment protocol):** build a basket of one to twenty customized lines (one business per order) with quantities → submit once, idempotently, with the server recomputing and snapshotting every price (anonymous: name + at least one contact channel (phone or email)) → owner in-app notification → owner verifies and accepts → status board. Still no checkout and no payment: there is no payment step, no account, and no multi-step checkout. Statuses `new → accepted → ready → completed`, plus `new → declined` (owner, from `new`, reason required), `new → cancelled` (visitor only while `new`, via token link), owner cancellation from `new`/`accepted`/`ready` with reason, `new → expired` after 60 minutes, and `ready → no_show` (owner, reason optional, defaulting to `Not picked up`). Pickup only, ASAP.
 - **Booking (salon, vet):** slots derived from business hours + service `durationMinutes`; no per-stylist calendar, naive slot marking. Owner confirms/declines; visitor cancels via tokenized link (anonymous forms). Times stored UTC + business timezone string, rendered local.
 - **Quote (auto/towing, legal, professional):** name + contact + message (+ action-context `sourceLabel`). Statuses `new → responded → closed` (owner transitions; reply is phone/email contact, no in-app thread).
 - All three notify the owner in-app.
+
+### 7.1 Order flow — decision record (Option B)
+
+This is the product record for Option B. The detailed protocol, schema, authz, abuse controls, resolved implementation decisions, and test plan live in [docs/order-commitment-protocol.md](../docs/order-commitment-protocol.md). B12 is prior art, not the source of truth.
+
+B8 shipped an order as **one menu item**. Reviewing it from the visitor's side surfaced failures that are structural, not cosmetic:
+
+- No quantity and no second line, so a family order became four orders, four notifications, four board rows, and four repetitions of the same contact form.
+- The receipt lived in component state: a refresh lost the order. The "keep this code" copy pointed at a code nothing could look up.
+- The owner board showed **no price at all**, and the price it could have shown was the item's current price, so a later menu edit rewrote history. A deleted item degraded to "Unavailable item".
+- There was no decline, no cancellation, and no terminal failure state: a sold-out item or a prank order sat in `new` permanently.
+- A business could toggle single items but could not pause ordering, take a menu group offline, or stop orders arriving outside opening hours.
+- The anonymous mutation was unthrottled.
+
+Decisions taken (full detail in the [order-commitment protocol](../docs/order-commitment-protocol.md)):
+
+1. **An order is a basket, not a line.** `orders.items[]` carries quantity, selections, and a price snapshot per line; one order belongs to one business and holds 1–20 lines. This fixes the modelling error without reintroducing checkout or payment.
+2. **The receipt is durable and token-addressed.** `/order/[token]` survives refresh and bookmarking. This is the same convention as `bookings.cancelToken`; orders were the one anonymous workflow that skipped it.
+3. **Prices are snapshotted server-side; the commit is idempotent.** The client never sends a price; the server recomputes from the live menu and stores name, unit price, adjustments, line total, and subtotal. If any line is unpriced the subtotal is null, never partial. A client-generated idempotency key returns the same order for the same payload; a reused key with different details is rejected.
+4. **Failure branches exist.** `declined` (owner, from `new`, reason required), `cancelled` (visitor only while `new`, via token; owner from `new`/`accepted`/`ready`, reason required), `expired` (`new` after 60 minutes, by sweep), and `no_show` (owner, from `ready`, reason optional, defaulting to `Not picked up`) are terminal alongside `completed`.
+5. **Accept means verified.** The owner's `new → accepted` step is the primary fraud screen: one phone call before cooking. It is a hypothesis to measure, not a proven control. No deposit, no account wall, no captcha in v1.
+6. **Ordering is controllable.** Businesses gain `acceptingOrders` + a customer-visible note; menu groups gain `isAvailable`; per-item `isAvailable` is unchanged. Opening hours gate submissions **only when hours are configured**, so an incomplete profile cannot silently stop trade. All gates are enforced in the mutation, not just hidden in the UI. Rollout is gated by a server-enforced per-business `orderProtocol` flag: `placeOrder` requires `basket`; missing/unknown = `legacy`.
+7. **No visitor role.** Forced account creation is a measurable conversion tax (Baymard: 18% of shoppers cite "I didn't want to create an account" as a reason for abandonment). The earlier 24% figure is unverified and must not be used. The token link meets the real need — returning to an order — without a login.
+8. **Throttling is a transactional fixed-window table, not a component.** The same business row serializes the idempotency check-then-insert, and a failed order must not consume quota. The protocol report records the trade-off against Convex's rate-limiter recommendation and the concurrency test that must pass; revisit if the official component can express the same per-business+contact keys.
+9. **Pickup only, ASAP.** Delivery, scheduled slots, deposits, and customer status notifications are deferred (see §13).
+
+**Standing constraint:** the receipt token is the only capability protecting an order. It must be generated with real entropy and must never be derived from the order id.
 
 ## 8. Public Directory Landing (T08)
 
@@ -163,6 +191,8 @@ Convex file storage; uploads via actions with size/type limits; photos stored as
 - Flagged-content flow (no flag source exists in v1).
 - Analytics definitions (stub shows counts from existing tables: views TBD, orders/bookings/quotes counts real).
 - Full notification trigger matrix.
+- Order flow deferrals (order-commitment protocol): delivery + delivery zones, scheduled pickup slots, deposits/prepayment, SMS/OTP verification, and customer status notifications (email/SMS/push). In v1 order status is visible only on the receipt link; the business still contacts the customer by phone.
+- Order flow cleanup (order-commitment protocol): removing the legacy single-item columns and the superseded id-based public status query is a separate, explicitly approved change.
 - Upload size/type limits.
 - Empty/loading/error/validation/accessibility standards per flow — each build ticket must include its own states (skeletons + hidden-empty-sections + standard empty state per §8).
 
@@ -182,6 +212,7 @@ Ordered build tickets in `wayfinder/build/` — each a thin end-to-end slice, ea
 | B8 | [Restaurant vertical](build/B8-restaurant.md) | Menu modules + customization + order workflow + owner order list | B3, B7 |
 | B9 | [Salon vertical](build/B9-salon.md) | Services/stylists modules + booking workflow + owner booking list + cancel token | B3, B7 |
 | B10 | [Quote workflow + non-exemplar stubs](build/B10-quote-stubs.md) | quoteRequests workflow + vet booking + legal/auto/food-drink/retail/professional vertical configs rendering generic profiles | B9 |
-| B11 | [States + accessibility + tokens pass](build/B11-polish.md) | Empty/loading/error/validation states everywhere, responsive verification, accessibility pass, token audit vs AGENTS.md | B4, B6, B8, B9, B10 |
+| B12 | [Order basket](wayfinder/build/B12-order-basket.md) — prior art; implementation is S1–S6 in the [order-commitment protocol](../docs/order-commitment-protocol.md) | Multi-item basket + quantities + server-side price snapshots + durable token receipt + cancel/decline + ordering controls (pause, group, hours) + throttling | B8 |
+| B11 | [States + accessibility + tokens pass](build/B11-polish.md) | Empty/loading/error/validation states everywhere, responsive verification, accessibility pass, token audit vs AGENTS.md | B4, B6, B8, B9, B10, B12 |
 
 Decision trace: B1←T02/T03, B2←T01/T04/T10, B3←T01/T03/T06/T07, B4←T04/T08, B5←T07/Notes, B6←T07, B7←Notes, B8/B9/B10←T04/T05/T10, B11←T08/AGENTS.

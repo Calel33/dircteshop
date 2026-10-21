@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
-import type { OrderStatus } from '@/convex/orderPolicy';
+import { ORDER_DB_STATUSES, type OrderStatus } from '@/convex/orderPolicy';
 import { cn } from '@/lib/utils';
 
 import {
@@ -18,6 +18,7 @@ import {
   MAX_NOTE_LENGTH,
   adjustmentTotal,
   formatPrice,
+  nonStepStatusNote,
   orderCode,
   totalForSelection,
   type Confirmation,
@@ -39,18 +40,29 @@ const ORDER_STEPS: readonly { status: OrderStatus; label: string }[] = [
   { status: 'completed', label: 'Completed' },
 ];
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
+/** Every stored status; derived from the schema's tuple, never redeclared. */
+type OrderBoardStatus = (typeof ORDER_DB_STATUSES)[number];
+
+const STATUS_LABEL: Record<OrderBoardStatus, string> = {
   new: 'New',
   accepted: 'Accepted',
   ready: 'Ready',
   completed: 'Completed',
+  declined: 'Declined',
+  cancelled: 'Cancelled',
+  expired: 'Expired',
+  no_show: 'No show',
 };
 
-const STATUS_PILL_CLASS: Record<OrderStatus, string> = {
+const STATUS_PILL_CLASS: Record<OrderBoardStatus, string> = {
   new: 'border-info-border bg-info-soft text-info-strong',
   accepted: 'border-warning-border bg-warning-soft text-warning-strong',
   ready: 'border-success-border bg-success-soft text-success-strong',
   completed: 'border-border bg-neutral-chip text-neutral-chip-foreground',
+  declined: 'border-danger-border bg-danger-soft text-danger-strong',
+  cancelled: 'border-border bg-neutral-chip text-neutral-chip-foreground',
+  expired: 'border-warning-border bg-warning-soft text-warning-strong',
+  no_show: 'border-danger-border bg-danger-soft text-danger-strong',
 };
 
 const ERROR_CLASS =
@@ -413,6 +425,7 @@ export function OrderConfirmation({
   const status = statusData === undefined || statusData === null ? null : statusData.status;
   const currentIndex =
     status === null ? -1 : ORDER_STEPS.findIndex((step) => step.status === status);
+  const statusNote = nonStepStatusNote(status);
 
   return (
     <div className="flex flex-col gap-gap">
@@ -442,8 +455,15 @@ export function OrderConfirmation({
           ))}
           <div className="border-border flex items-baseline justify-between gap-2 border-t pt-1.5 text-tiny">
             <dt className="text-card-muted">Total at order</dt>
-            <dd className="text-right font-mono font-semibold">
-              {confirmation.total === null ? 'Price not listed' : formatPrice(confirmation.total)}
+            <dd
+              className={cn(
+                'text-right',
+                confirmation.total === null ? 'text-card-muted' : 'font-mono font-semibold'
+              )}
+            >
+              {confirmation.total === null
+                ? 'Price not recorded · total at pickup'
+                : formatPrice(confirmation.total)}
             </dd>
           </div>
         </dl>
@@ -453,6 +473,7 @@ export function OrderConfirmation({
           <p className="text-tiny font-semibold">Status</p>
           {status === null ? null : (
             <span
+              data-testid={`order-status-${status}`}
               className={cn(
                 'rounded-pill border px-2 py-0.5 text-micro font-semibold',
                 STATUS_PILL_CLASS[status]
@@ -468,7 +489,7 @@ export function OrderConfirmation({
           <p className="text-micro text-card-muted">
             Status is unavailable right now. Keep your order code and contact the business.
           </p>
-        ) : (
+        ) : currentIndex >= 0 ? (
           <ol aria-label="Order status" className="grid grid-cols-4 gap-2 @max-[44rem]:grid-cols-2">
             {ORDER_STEPS.map((step, index) => {
               const reached = currentIndex >= index;
@@ -496,6 +517,8 @@ export function OrderConfirmation({
               );
             })}
           </ol>
+        ) : (
+          <p className="text-micro text-card-muted">{statusNote}</p>
         )}
       </div>
       <Button type="button" variant="outline" onClick={onReset}>

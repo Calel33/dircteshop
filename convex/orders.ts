@@ -5,7 +5,12 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireBusinessOwner } from './authz';
 import { insertNotification } from './notificationHelpers';
-import { nextOrderStatus, validateOrderContact, validateOrderSelections } from './orderPolicy';
+import {
+  isLegacyOrderStatus,
+  nextOrderStatus,
+  validateOrderContact,
+  validateOrderSelections,
+} from './orderPolicy';
 
 // B8 (issue #8) anonymous order workflow. The visitor submits one item with its
 // customization selections and a name + contact channel (no Clerk account);
@@ -128,12 +133,51 @@ export const submitOrder = mutation({
 });
 
 /**
+ * Projects one board row from either order shape. A committed `items[]`
+ * snapshot wins; a `legacyUnknown` row never borrows the live price, and a
+ * legacy-only row keeps the live-join fallback (protocol §6.2.9).
+ */
+function projectOrderRow(order: Doc<'orders'>, legacyItem: Doc<'menuItems'> | null) {
+  const snapshot = order.items?.[0];
+
+  let itemPrice: number | null;
+  if (order.pricingSource === 'legacyUnknown') {
+    itemPrice = null;
+  } else if (snapshot !== undefined) {
+    itemPrice = snapshot.unitPrice ?? null;
+  } else {
+    itemPrice = legacyItem?.price ?? null;
+  }
+
+  return {
+    _id: order._id,
+    itemName: snapshot?.name ?? legacyItem?.name ?? 'Unavailable item',
+    itemPrice,
+    pricingSource: order.pricingSource ?? null,
+    // Always defined: the board renders `selections.length` and `.map`.
+    selections: (snapshot?.selections ?? order.selections ?? []).map((selection) => ({
+      optionName: selection.optionName,
+      choiceName: selection.choiceName,
+    })),
+    customerName: order.customerName,
+    contactPhone: order.contactPhone ?? null,
+    contactEmail: order.contactEmail ?? null,
+    note: order.note ?? null,
+    status: order.status,
+    createdAt: order.createdAt,
+  };
+}
+
+/**
  * Owner-only board read: newest first and bounded. `byBusinessId` appends
  * `_creationTime` as its tie-breaker, so descending order on the equality range
- * is descending creation time. Item name/price are read once per distinct
- * `menuItemId`; a deleted item degrades to a placeholder instead of failing the
- * board. No price snapshot exists in v1 (plan §3), so the price shown is the
- * item's current price.
+ * is descending creation time.
+ *
+ * Rows carry both order shapes during expand: a committed `items[]` snapshot
+ * wins; a legacy-only row falls back to the live menu item (one read per
+ * distinct `menuItemId`; a deleted item degrades to a placeholder instead of
+ * failing the board). A `legacyUnknown` row never borrows the live price — the
+ * historical price is unrecoverable (protocol §6.2.9 / R11).
  */
 export const listOrders = query({
   args: { businessId: v.id('businesses') },
@@ -146,27 +190,28 @@ export const listOrders = query({
       .order('desc')
       .take(ORDER_LIST_LIMIT);
 
-    const itemIds = [...new Set(orders.map((order) => order.menuItemId))];
-    const items = await Promise.all(itemIds.map((itemId) => ctx.db.get('menuItems', itemId)));
+    // Only legacy-shaped rows need the live menu join; snapshot rows already
+    // carry their own name, price and selections.
+    const legacyItemIds: Id<'menuItems'>[] = [];
+    for (const order of orders) {
+      if (order.items === undefined && order.menuItemId !== undefined) {
+        legacyItemIds.push(order.menuItemId);
+      }
+    }
+    const uniqueItemIds = [...new Set(legacyItemIds)];
+    const items = await Promise.all(
+      uniqueItemIds.map((itemId) => ctx.db.get('menuItems', itemId))
+    );
     const itemById = new Map<Id<'menuItems'>, Doc<'menuItems'> | null>(
-      itemIds.map((itemId, index) => [itemId, items[index]])
+      uniqueItemIds.map((itemId, index) => [itemId, items[index]])
     );
 
     return orders.map((order) => {
-      const item = itemById.get(order.menuItemId) ?? null;
-      return {
-        _id: order._id,
-        menuItemId: order.menuItemId,
-        itemName: item?.name ?? 'Unavailable item',
-        itemPrice: item?.price ?? null,
-        selections: order.selections,
-        customerName: order.customerName,
-        contactPhone: order.contactPhone ?? null,
-        contactEmail: order.contactEmail ?? null,
-        note: order.note ?? null,
-        status: order.status,
-        createdAt: order.createdAt,
-      };
+      const legacyItem =
+        order.items === undefined && order.menuItemId !== undefined
+          ? itemById.get(order.menuItemId) ?? null
+          : null;
+      return projectOrderRow(order, legacyItem);
     });
   },
 });
@@ -175,6 +220,10 @@ export const listOrders = query({
  * Owner-only forward-only transition. The client supplies an action; the target
  * status is resolved server-side by `nextOrderStatus`, and anything other than
  * the one legal next step is rejected with a user-facing error.
+ *
+ * `orders.status` is widened to the protocol's 8-state union (§6.2.2), but the
+ * 4-state machine cannot represent the four new states and nothing writes them
+ * until T3. A row already in one is rejected rather than misjudged.
  */
 export const transitionOrderStatus = mutation({
   args: {
@@ -188,6 +237,10 @@ export const transitionOrderStatus = mutation({
     const order = await ctx.db.get('orders', args.orderId);
     if (order === null || order.businessId !== args.businessId) {
       throw new ConvexError('Order not found');
+    }
+
+    if (!isLegacyOrderStatus(order.status)) {
+      throw new ConvexError('Invalid status transition');
     }
 
     const target = nextOrderStatus(order.status, args.action);

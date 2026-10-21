@@ -75,7 +75,14 @@ function ItemRow({
               disabled={busy || position === count} onClick={() => onMove(groupId, item, 'down')}>
               <span aria-hidden="true">↓</span>
             </Button>
-            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onEdit(item)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Edit ${item.name}`}
+              disabled={busy}
+              onClick={() => onEdit(item)}
+            >
               Edit
             </Button>
             <Button type="button" variant="outline" size="icon" className="text-destructive"
@@ -128,7 +135,14 @@ function GroupActions({
         disabled={busy || position === groupCount} onClick={() => onMove(group, 'down')}>
         <span aria-hidden="true">↓</span>
       </Button>
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onStartRename}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label={`Rename ${group.name}`}
+        disabled={busy}
+        onClick={onStartRename}
+      >
         Rename
       </Button>
       <Button type="button" variant="outline" size="icon" className="text-destructive"
@@ -174,7 +188,14 @@ function GroupRenameForm({
       </fieldset>
       {error === null ? null : <p role="alert" className={ERROR_CLASS}>{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onDone}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={`Cancel renaming ${group.name}`}
+          disabled={busy}
+          onClick={onDone}
+        >
           Cancel
         </Button>
         <Button type="submit" size="sm" disabled={busy}>
@@ -280,7 +301,14 @@ export function GroupRow({
 
       {readOnly ? null : (
         <div>
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onAddItem(group._id)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Add item to ${group.name}`}
+            disabled={busy}
+            onClick={() => onAddItem(group._id)}
+          >
             Add item
           </Button>
         </div>
@@ -322,7 +350,14 @@ export function AddGroupForm({
       </fieldset>
       {error === null ? null : <p role="alert" className={ERROR_CLASS}>{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Cancel new group"
+          disabled={busy}
+          onClick={onCancel}
+        >
           Cancel
         </Button>
         <Button type="submit" size="sm" disabled={busy}>

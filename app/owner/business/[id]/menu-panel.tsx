@@ -241,7 +241,14 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
         <CardDescription>{MENU_SECTION.description}</CardDescription>
         {readOnly ? null : (
           <CardAction>
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setAddOpen(true)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Add menu group"
+              disabled={busy}
+              onClick={() => setAddOpen(true)}
+            >
               Add group
             </Button>
           </CardAction>
