@@ -1003,3 +1003,113 @@ export function isEffectiveOpen(business: EffectiveOpenBusiness, now: number): b
       : true)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Effective-open reason split (issue #78, T4 D2)
+//
+// `isEffectiveOpen` answers yes/no; the S1 handler must also know *why* a
+// business is closed to choose between `ORDERING_CLOSED` (`accepting_off`,
+// `until_passed`) and `OUTSIDE_HOURS`. The splitter mirrors the predicate's
+// `&&` order exactly — approved, not paused, `until` not reached, hours — so
+// the two can never disagree. The first failing gate wins.
+// ---------------------------------------------------------------------------
+
+/** The four closed/open reasons the S1 handler maps to error codes (D2). */
+export type EffectiveOpenReason = 'open' | 'accepting_off' | 'until_passed' | 'outside_hours';
+
+/**
+ * Explains the §6.5 effective-open predicate: `'open'` exactly when
+ * `isEffectiveOpen(business, now)` is true, otherwise the first failing gate
+ * in that predicate's own order.
+ *
+ * Precedence (documented and test-pinned): a pause (`accepting_off`) beats the
+ * `until` deadline (`until_passed`), which beats hours (`outside_hours`). When
+ * several gates fail at once, the earliest one in that list is reported.
+ *
+ * Precondition: the caller has already rejected `status !== 'approved'` — the
+ * S1 handler's `BUSINESS_UNAVAILABLE` guard runs first (D6). Unapproved input
+ * still returns a deterministic non-`'open'` reason (`'accepting_off'`) rather
+ * than adding a fifth union member, so the equivalence
+ * `isEffectiveOpen(...) === (effectiveOpenReason(...) === 'open')` holds for
+ * every input. The handler never observes that branch, so it cannot misroute
+ * `ORDERING_CLOSED` versus `OUTSIDE_HOURS`.
+ */
+export function effectiveOpenReason(
+  business: EffectiveOpenBusiness,
+  now: number
+): EffectiveOpenReason {
+  if (business.status !== 'approved') {
+    return 'accepting_off';
+  }
+  if (!(business.acceptingOrders ?? true)) {
+    return 'accepting_off';
+  }
+  if (business.acceptingOrdersUntil !== undefined && now >= business.acceptingOrdersUntil) {
+    return 'until_passed';
+  }
+  if (hasAnyOpeningPeriod(business.hours)) {
+    const status = openStatusAt(
+      business.hours,
+      businessClock(createBusinessFormatter(business.timezone), now)
+    );
+    if (!status.isOpen) {
+      return 'outside_hours';
+    }
+  }
+  return 'open';
+}
+
+// ---------------------------------------------------------------------------
+// Contact masking (spec §6.2.6 L1093: `***-0100`, `a***@example.com`)
+//
+// The receipt projection masks contact; the owner board keeps the full values.
+// `parseContact` already normalized the input (digits-only phone with an
+// optional leading `+`, trimmed lowercased email), but these rules are total:
+// they never throw and never echo the raw value.
+// ---------------------------------------------------------------------------
+
+/** Masked contact: the input's optional keys, each masked; `{}` when absent. */
+export type MaskedContact = {
+  phone?: string;
+  email?: string;
+};
+
+/** `***-0100` for a value carrying four or more digits; `***` otherwise. */
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 4 ? `***-${digits.slice(-4)}` : '***';
+}
+
+/** `a***@example.com` for `local@domain`; `***` for anything else. */
+function maskEmail(email: string): string {
+  const trimmed = email.trim();
+  const at = trimmed.indexOf('@');
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  if (at > 0 && local.length > 0 && domain.length > 0) {
+    return `${local.charAt(0)}***@${domain}`;
+  }
+  return '***';
+}
+
+/**
+ * Masks the normalized contact for the §6.2.6 receipt. Keys that are
+ * `undefined` are omitted; `{}` comes back when neither is present.
+ *
+ * - phone: non-digits stripped; four or more digits keep the last four
+ *   (`***-0100`); fewer digits mask to `***`.
+ * - email: a non-empty local part and domain around the first `@` keep the
+ *   local's first character (`a***@example.com`); anything else masks to `***`.
+ *
+ * An empty string is a defined value, so it is masked (`***`), not omitted.
+ */
+export function maskContact(contact: { phone?: string; email?: string }): MaskedContact {
+  const masked: MaskedContact = {};
+  if (contact.phone !== undefined) {
+    masked.phone = maskPhone(contact.phone);
+  }
+  if (contact.email !== undefined) {
+    masked.email = maskEmail(contact.email);
+  }
+  return masked;
+}
