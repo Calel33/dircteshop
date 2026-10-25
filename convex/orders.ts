@@ -3,11 +3,12 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { requireBusinessOwner } from './authz';
+import { requireBusinessOwner, requireBusinessOwnerUser } from './authz';
 import { insertNotification } from './notificationHelpers';
 import { insertOrderAccess } from './orderAccess';
 import {
   canonicalArgsHash,
+  DEFAULT_NO_SHOW_REASON,
   DEFAULT_TTL_MS,
   effectiveOpenReason,
   maskContact,
@@ -15,6 +16,8 @@ import {
   parseContact,
   priceBasket,
   validateBasket,
+  validateTransitionReason,
+  VISITOR_CANCEL_REASON,
 } from './orderCommitPolicy';
 import type {
   BasketFailure,
@@ -24,11 +27,12 @@ import type {
   OrderErrorCode,
 } from './orderCommitPolicy';
 import {
-  isLegacyOrderStatus,
-  nextOrderStatus,
+  EVENT_FOR_ACTION,
+  resolveOwnerDecision,
   validateOrderContact,
   validateOrderSelections,
 } from './orderPolicy';
+import type { OrderOwnerAction } from './orderPolicy';
 import { claimBusinessThrottle } from './orderThrottle';
 
 // B8 (issue #8) anonymous order workflow. The visitor submits one item with its
@@ -188,6 +192,10 @@ function projectOrderRow(order: Doc<'orders'>, legacyItem: Doc<'menuItems'> | nu
     contactEmail: order.contactEmail ?? null,
     note: order.note ?? null,
     status: order.status,
+    // D7: the board shows why an order was declined/cancelled; legacy rows
+    // without a stamp fall back to their creation time.
+    statusReason: order.statusReason ?? null,
+    statusUpdatedAt: order.statusUpdatedAt ?? order.createdAt,
     createdAt: order.createdAt,
   };
 }
@@ -240,39 +248,119 @@ export const listOrders = query({
   },
 });
 
+/** §6.1: decline and cancel require a reason; every other owner action does not. */
+function reasonRequiredFor(action: OrderOwnerAction): boolean {
+  return action === 'decline' || action === 'cancel';
+}
+
 /**
- * Owner-only forward-only transition. The client supplies an action; the target
- * status is resolved server-side by `nextOrderStatus`, and anything other than
- * the one legal next step is rejected with a user-facing error.
+ * Owner-only protocol transition (§6.1, plan D3). The client supplies an action;
+ * the target status is resolved server-side by `resolveOwnerDecision`, which
+ * keeps the accept/decline conflict codes (REVISED D1) and delegates the other
+ * four actions to the frozen 8-state matrix.
  *
- * `orders.status` is widened to the protocol's 8-state union (§6.2.2), but the
- * 4-state machine cannot represent the four new states and nothing writes them
- * until T3. A row already in one is rejected rather than misjudged.
+ * Pipeline: owner guard → order scope guard → reason policy → expiry boundary
+ * guard (D8) → verdict → `reused` short-circuit → one transactional move
+ * (status patch, expiry-row sweep, owner event). Repeating the action that
+ * produced the current status returns `{ reused: true }` and writes nothing.
  */
 export const transitionOrderStatus = mutation({
   args: {
     businessId: v.id('businesses'),
     orderId: v.id('orders'),
-    action: v.union(v.literal('accept'), v.literal('ready'), v.literal('complete')),
+    action: v.union(
+      v.literal('accept'),
+      v.literal('decline'),
+      v.literal('cancel'),
+      v.literal('ready'),
+      v.literal('complete'),
+      v.literal('noShow')
+    ),
+    reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireBusinessOwner(ctx, args.businessId);
+    const { user } = await requireBusinessOwnerUser(ctx, args.businessId);
 
     const order = await ctx.db.get('orders', args.orderId);
     if (order === null || order.businessId !== args.businessId) {
-      throw new ConvexError('Order not found');
+      throw orderError('ORDER_NOT_FOUND', { message: 'Order not found' });
     }
 
-    if (!isLegacyOrderStatus(order.status)) {
-      throw new ConvexError('Invalid status transition');
+    const validation = validateTransitionReason(args.reason, reasonRequiredFor(args.action));
+    if (validation === 'missing') {
+      throw orderError('REASON_REQUIRED');
+    }
+    if (validation === 'too_long') {
+      // D2: no dedicated code for an over-long reason; the envelope message
+      // carries the limit instead.
+      throw orderError('REASON_REQUIRED', {
+        message: 'Keep the reason under 200 characters.',
+      });
     }
 
-    const target = nextOrderStatus(order.status, args.action);
-    if (target === null) {
-      throw new ConvexError('Invalid status transition');
+    const trimmedReason = args.reason?.trim();
+    const storedReason =
+      trimmedReason === undefined || trimmedReason.length === 0
+        ? args.action === 'noShow'
+          ? DEFAULT_NO_SHOW_REASON
+          : undefined
+        : trimmedReason;
+    const now = Date.now();
+
+    // D8: a due-but-unswept `new` order is expired in effect. Only the system
+    // sweep writes the `expired` status, so this rejects without any write.
+    // The guard scan is kept and reused as the cleanup scan below: within one
+    // transaction the patch touches only the order row, so this collect stays
+    // authoritative for both checks (OQ-10 variants).
+    const guardExpiryRows: readonly Doc<'orderExpiry'>[] | null =
+      args.action === 'accept' && order.status === 'new'
+        ? await ctx.db
+            .query('orderExpiry')
+            .withIndex('byOrderId', (q) => q.eq('orderId', order._id))
+            .collect()
+        : null;
+    if (guardExpiryRows?.some((row) => row.expiresAt <= now)) {
+      throw orderError('ORDER_EXPIRED');
     }
 
-    await ctx.db.patch('orders', args.orderId, { status: target });
+    const verdict = resolveOwnerDecision(order.status, args.action);
+    if (verdict.kind === 'error') {
+      throw orderError(verdict.code);
+    }
+    if (verdict.kind === 'reused') {
+      return { status: order.status, reused: true };
+    }
+
+    await ctx.db.patch('orders', order._id, {
+      status: verdict.to,
+      statusReason: storedReason,
+      statusUpdatedAt: now,
+    });
+
+    // OQ-9: plain collect + loop. A duplicate stale row is exactly what this
+    // clears, and an empty loop is the correct no-op. The accept path reuses
+    // the D8 guard's scan (see above) instead of collecting a second time.
+    const expiryRows = guardExpiryRows ?? (await ctx.db
+        .query('orderExpiry')
+        .withIndex('byOrderId', (q) => q.eq('orderId', order._id))
+        .collect());
+    for (const row of expiryRows) {
+      await ctx.db.delete(row._id);
+    }
+
+    await ctx.db.insert('orderEvents', {
+      orderId: order._id,
+      businessId: args.businessId,
+      actorType: 'owner',
+      actorUserId: user._id,
+      action: EVENT_FOR_ACTION[args.action],
+      fromStatus: order.status,
+      toStatus: verdict.to,
+      reason: storedReason,
+      createdAt: now,
+    });
+
+    return { status: verdict.to, reused: false };
   },
 });
 
@@ -324,6 +412,9 @@ function projectOrderReceipt(
     reference: access.reference,
     subtotal: order.subtotal ?? null,
     status: order.status,
+    // D7/§6.2.6: the receipt carries the decision reason (never the expiry
+    // timestamp — `orders.expiresAt` is deferred, OQ-10).
+    statusReason: order.statusReason ?? null,
     // Snapshot lines only; §6.2.6 lists name, quantity, and selections.
     items: (order.items ?? []).map((item) => ({
       name: item.name,
@@ -708,5 +799,101 @@ export const getOrderByToken = query({
 
     const business = await ctx.db.get('businesses', order.businessId);
     return projectOrderReceipt(order, access, business);
+  },
+});
+
+/**
+ * Public visitor cancel by token (D4, REVISED). Identity-free like
+ * `getOrderByToken`: the token is the capability, and every lookup miss — an
+ * unknown token, an access row whose order is gone, an INV-06 scope mismatch —
+ * throws the same `ORDER_NOT_FOUND` envelope, so a wrong token never reveals
+ * which check failed.
+ *
+ * Only a `new` order may move. `cancelled` repeats are idempotent and write
+ * nothing; the accepted window (`accepted`/`ready`) is `CANNOT_CANCEL`; the
+ * remaining closed states are terminal. A `new` order with a due-but-unswept
+ * `orderExpiry` row is expired in effect (D8): it rejects `ORDER_EXPIRED` with
+ * no write, because only the system sweep may write `expired`.
+ *
+ * The successful move is one transaction: status patch, expiry-row cleanup
+ * (plain collect + loop, zero-row tolerant for legacy backfilled orders), the
+ * `customer` event, and the owner's `order_cancelled` notice.
+ */
+export const cancelOrder = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const access = await ctx.db
+      .query('orderAccess')
+      .withIndex('byAccessToken', (q) => q.eq('accessToken', args.token))
+      .first();
+    const order = access === null ? null : await ctx.db.get('orders', access.orderId);
+    if (access === null || order === null || order.businessId !== access.businessId) {
+      throw orderError('ORDER_NOT_FOUND');
+    }
+
+    switch (order.status) {
+      case 'cancelled':
+        // Idempotent: no event, no expiry deletion, no second notice.
+        return { status: 'cancelled' as const };
+      case 'accepted':
+      case 'ready':
+        throw orderError('CANNOT_CANCEL');
+      case 'completed':
+      case 'declined':
+      case 'no_show':
+        throw orderError('ORDER_TERMINAL');
+      case 'expired':
+        throw orderError('ORDER_EXPIRED');
+      case 'new':
+        break;
+    }
+
+    const now = Date.now();
+    const expiryRows = await ctx.db
+      .query('orderExpiry')
+      .withIndex('byOrderId', (q) => q.eq('orderId', order._id))
+      .collect();
+    if (expiryRows.some((row) => row.expiresAt <= now)) {
+      throw orderError('ORDER_EXPIRED');
+    }
+
+    await ctx.db.patch('orders', order._id, {
+      status: 'cancelled',
+      statusReason: VISITOR_CANCEL_REASON,
+      statusUpdatedAt: now,
+    });
+
+    for (const row of expiryRows) {
+      await ctx.db.delete(row._id);
+    }
+
+    await ctx.db.insert('orderEvents', {
+      orderId: order._id,
+      businessId: order.businessId,
+      actorType: 'customer',
+      action: 'cancelled',
+      fromStatus: 'new',
+      toStatus: 'cancelled',
+      reason: VISITOR_CANCEL_REASON,
+      createdAt: now,
+    });
+
+    const business = await ctx.db.get('businesses', order.businessId);
+    if (business === null) {
+      throw orderError('ORDER_NOT_FOUND');
+    }
+    await insertNotification(
+      ctx,
+      business.ownerId,
+      {
+        type: 'order_cancelled',
+        businessId: order.businessId,
+        businessName: business.name,
+        reason: undefined,
+      },
+      now
+    );
+
+    return { status: 'cancelled' as const };
   },
 });

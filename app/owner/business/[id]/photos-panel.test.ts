@@ -83,6 +83,16 @@ test('messageForError prefers the ConvexError owner-facing payload', () => {
   assert.equal(messageForError(new ConvexError('Owner-facing text'), 'fallback'), 'Owner-facing text');
 });
 
+test('messageForError reads the message of an object error envelope', () => {
+  assert.equal(
+    messageForError(
+      new ConvexError({ code: 'ORDER_TERMINAL', message: 'This order is already closed.' }),
+      'fallback'
+    ),
+    'This order is already closed.'
+  );
+});
+
 test('messageForError falls back to a generic Error message', () => {
   assert.equal(messageForError(new Error('Network failed'), 'fallback'), 'Network failed');
 });

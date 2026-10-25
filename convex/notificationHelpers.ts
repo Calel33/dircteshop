@@ -28,6 +28,7 @@ export const NOTIFICATION_EVENT_TYPES = [
   'listing_rejected',
   'listing_suspended',
   'new_order',
+  'order_cancelled',
 ] as const;
 
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
@@ -71,6 +72,8 @@ function notificationMessage(type: NotificationEventType, businessName: string):
       return `"${businessName}" was suspended.`;
     case 'new_order':
       return `New order for "${businessName}".`;
+    case 'order_cancelled':
+      return `Order for "${businessName}" was cancelled.`;
   }
 }
 

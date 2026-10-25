@@ -269,3 +269,126 @@ export function resolveOrderAction(
 
   return { kind: 'move', to: target };
 }
+
+// ---------------------------------------------------------------------------
+// Owner decision policy (order protocol §6.1) — added by T5 (issue #79).
+//
+// `resolveOrderAction` above stays frozen: it is the 8 x 8 wire matrix with a
+// blanket terminal rule. The owner board has two decisions whose conflict code
+// is more specific than that matrix (protocol L844-857). This section resolves
+// exactly those two actions and delegates every other owner action to the
+// frozen matrix, so the transition table still exists in one place.
+// ---------------------------------------------------------------------------
+
+/** The owner board's wire actions. `expire` is system-only; `submit` creates the order. */
+export const ORDER_OWNER_ACTIONS = [
+  'accept',
+  'decline',
+  'cancel',
+  'ready',
+  'complete',
+  'noShow',
+] as const;
+export type OrderOwnerAction = (typeof ORDER_OWNER_ACTIONS)[number];
+
+/**
+ * 1:1 wire action -> `orderEvents.action` literal (schema.ts L298-307). The
+ * event row records what happened, not the request: `cancel` writes
+ * `cancelled`, `noShow` writes `no_show`. `submitted` and `expired` are not
+ * owner decisions, so they have no entry.
+ */
+export const EVENT_FOR_ACTION: Record<
+  OrderOwnerAction,
+  'accepted' | 'declined' | 'cancelled' | 'ready' | 'completed' | 'no_show'
+> = {
+  accept: 'accepted',
+  decline: 'declined',
+  cancel: 'cancelled',
+  ready: 'ready',
+  complete: 'completed',
+  noShow: 'no_show',
+};
+
+/**
+ * The error codes the owner decision adds to the frozen resolver's pair:
+ * `ORDER_ALREADY_DECIDED` for a late accept/decline, `ORDER_EXPIRED` for a
+ * late accept on an expired order.
+ */
+export type OwnerDecisionErrorCode =
+  | 'INVALID_TRANSITION'
+  | 'ORDER_TERMINAL'
+  | 'ORDER_ALREADY_DECIDED'
+  | 'ORDER_EXPIRED';
+
+/**
+ * The owner-decision verdict. Wider than `OrderActionResolution` by the two
+ * decision-conflict codes; `move` and `reused` mean the same thing.
+ */
+export type OrderOwnerDecision =
+  | { kind: 'move'; to: OrderDbStatus }
+  | { kind: 'reused' }
+  | { kind: 'error'; code: OwnerDecisionErrorCode };
+
+/**
+ * Resolves one owner action from the order's current status (protocol §6.1,
+ * revised by plan D1).
+ *
+ * The two ALREADY_DECIDED exception pairs are (`accept`, `declined`) and
+ * (`decline`, `accepted`) — the only two a concurrent accept/decline can
+ * produce — plus (`decline`, `ready`) as the same loser one step later;
+ * (`accept`, `expired`) is ORDER_EXPIRED per spec `:844`.
+ *
+ * `accept` and `decline` carry the narrow override:
+ * - `accept`: `new` -> accepted · `accepted` -> reused ·
+ *   `declined` -> ORDER_ALREADY_DECIDED · `expired` -> ORDER_EXPIRED ·
+ *   every other status -> ORDER_TERMINAL.
+ * - `decline`: `new` -> declined · `declined` -> reused ·
+ *   `accepted`/`ready` -> ORDER_ALREADY_DECIDED ·
+ *   every other status -> ORDER_TERMINAL.
+ *
+ * `cancel`, `ready`, `complete`, and `noShow` defer to `resolveOrderAction`.
+ * Neither action passed there is `submit`, so the frozen resolver cannot throw.
+ */
+export function resolveOwnerDecision(
+  status: OrderDbStatus,
+  action: OrderOwnerAction
+): OrderOwnerDecision {
+  if (action === 'accept') {
+    return resolveAcceptDecision(status);
+  }
+  if (action === 'decline') {
+    return resolveDeclineDecision(status);
+  }
+  return resolveOrderAction(status, action);
+}
+
+/** The `accept` row: a late accept loses to `declined`, and `expired` is distinct. */
+function resolveAcceptDecision(status: OrderDbStatus): OrderOwnerDecision {
+  switch (status) {
+    case 'new':
+      return { kind: 'move', to: 'accepted' };
+    case 'accepted':
+      return { kind: 'reused' };
+    case 'declined':
+      return { kind: 'error', code: 'ORDER_ALREADY_DECIDED' };
+    case 'expired':
+      return { kind: 'error', code: 'ORDER_EXPIRED' };
+    default:
+      return { kind: 'error', code: 'ORDER_TERMINAL' };
+  }
+}
+
+/** The `decline` row: `accepted` and one-step-later `ready` both lose the race. */
+function resolveDeclineDecision(status: OrderDbStatus): OrderOwnerDecision {
+  switch (status) {
+    case 'new':
+      return { kind: 'move', to: 'declined' };
+    case 'declined':
+      return { kind: 'reused' };
+    case 'accepted':
+    case 'ready':
+      return { kind: 'error', code: 'ORDER_ALREADY_DECIDED' };
+    default:
+      return { kind: 'error', code: 'ORDER_TERMINAL' };
+  }
+}

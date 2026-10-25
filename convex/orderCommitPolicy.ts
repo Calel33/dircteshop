@@ -1113,3 +1113,46 @@ export function maskContact(contact: { phone?: string; email?: string }): Masked
   }
   return masked;
 }
+
+// ---------------------------------------------------------------------------
+// Transition reason policy (protocol §6.1 L846/L851/L853) — added by T5.
+//
+// The handler owns the throw; this section owns the vocabulary. Reasons are
+// trimmed before they are measured, so padding never pushes a valid reason
+// over the limit and a whitespace-only reason counts as blank.
+// ---------------------------------------------------------------------------
+
+export const MAX_TRANSITION_REASON_LENGTH = 200;
+
+export type TransitionReasonStatus = 'ok' | 'missing' | 'too_long';
+
+/**
+ * Validates a transition reason against §6.1's 200-character limit.
+ *
+ * The reason is trimmed first: padding never pushes a valid reason over the
+ * limit. Blank (missing or whitespace-only) is `'missing'` when required and
+ * `'ok'` when optional; otherwise a trimmed length over 200 is `'too_long'`.
+ */
+export function validateTransitionReason(
+  reason: string | undefined,
+  required: boolean
+): TransitionReasonStatus {
+  const trimmed = reason?.trim() ?? '';
+  if (trimmed.length === 0) {
+    return required ? 'missing' : 'ok';
+  }
+  return trimmed.length > MAX_TRANSITION_REASON_LENGTH ? 'too_long' : 'ok';
+}
+
+/** Default reason applied at write time when a `noShow` carries none (§6.1 L851). */
+export const DEFAULT_NO_SHOW_REASON = 'Not picked up';
+
+/** Reason stamped on a visitor's `cancelOrder` (§6.1 L846). */
+export const VISITOR_CANCEL_REASON = 'Cancelled by customer';
+
+/**
+ * Reason stamped when the expiry sweep closes a `new` order (§6.1 L853). The
+ * "60 minutes" here is the human form of `DEFAULT_TTL_MS` (3_600_000 ms) above;
+ * change both together.
+ */
+export const EXPIRE_REASON = 'Not accepted within 60 minutes';

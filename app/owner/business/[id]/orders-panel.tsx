@@ -268,9 +268,13 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
         return;
       }
 
-      const target = isLegacyOrderStatus(order.status)
-        ? nextOrderStatus(order.status, args.action)
-        : null;
+      // The board only offers the legacy actions; the protocol's wider action
+      // union has no optimistic target, so it waits for the server response.
+      const target =
+        isLegacyOrderStatus(order.status) &&
+        (args.action === 'accept' || args.action === 'ready' || args.action === 'complete')
+          ? nextOrderStatus(order.status, args.action)
+          : null;
       if (target === null) {
         return;
       }

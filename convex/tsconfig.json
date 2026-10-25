@@ -11,6 +11,12 @@
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
+    /* The pure modules here keep `.ts` import specifiers because the
+     * `node --test` type-stripping suites (scripts/*.test.ts) resolve those
+     * specifiers at runtime. Legal only because `noEmit` is set — do not strip
+     * the extensions to satisfy a typecheck.
+     */
+    "allowImportingTsExtensions": true,
 
     /* These compiler options are required by Convex */
     "target": "ESNext",

@@ -16,11 +16,12 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { ConvexError } from 'convex/values';
 import { convexTest } from 'convex-test';
+import type { TestConvex } from 'convex-test';
 
 import schema from './schema';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { DEFAULT_TTL_MS } from './orderCommitPolicy';
+import { DEFAULT_TTL_MS, VISITOR_CANCEL_REASON } from './orderCommitPolicy';
 import { businessThrottleKey } from './orderThrottle';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -339,13 +340,14 @@ test('an illegal transition is rejected', async () => {
   const { businessId, menuItemId } = await seed(t);
   const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
 
-  await expect(
+  await expectOrderError(
     t.withIdentity({ subject: 'user_owner' }).mutation(api.orders.transitionOrderStatus, {
       businessId,
       orderId,
       action: 'ready',
-    })
-  ).rejects.toThrow('Invalid status transition');
+    }),
+    'INVALID_TRANSITION'
+  );
 });
 
 test('a terminal order rejects every further transition', async () => {
@@ -358,9 +360,10 @@ test('a terminal order rejects every further transition', async () => {
     await asOwner.mutation(api.orders.transitionOrderStatus, { businessId, orderId, action });
   }
 
-  await expect(
-    asOwner.mutation(api.orders.transitionOrderStatus, { businessId, orderId, action: 'accept' })
-  ).rejects.toThrow('Invalid status transition');
+  await expectOrderError(
+    asOwner.mutation(api.orders.transitionOrderStatus, { businessId, orderId, action: 'accept' }),
+    'ORDER_TERMINAL'
+  );
 });
 
 test('the public status projection exposes only status and creation time', async () => {
@@ -521,9 +524,10 @@ test('a completed legacy order stays terminal through the backfill', async () =>
   const order = await t.run((ctx) => ctx.db.get('orders', orderId));
   expect(order?.status).toBe('completed');
 
-  await expect(
-    asOwner.mutation(api.orders.transitionOrderStatus, { businessId, orderId, action: 'accept' })
-  ).rejects.toThrow('Invalid status transition');
+  await expectOrderError(
+    asOwner.mutation(api.orders.transitionOrderStatus, { businessId, orderId, action: 'accept' }),
+    'ORDER_TERMINAL'
+  );
 });
 
 test('a deleted menu item backfills as "(item removed)" with no price', async () => {
@@ -853,6 +857,7 @@ test('basket: one order commits exactly six rows and returns the masked receipt'
     'orderId',
     'reference',
     'status',
+    'statusReason',
     'subtotal',
   ]);
   expect(receipt).toMatchObject({
@@ -1427,6 +1432,7 @@ test('receipt: the projection is an allowlist with no raw contact, identity, or 
     'orderId',
     'reference',
     'status',
+    'statusReason',
     'subtotal',
   ]);
   expect(found.contact).toEqual({ phone: '***-0100', email: 'a***@example.com' });
@@ -1547,5 +1553,865 @@ test('receipt: two tokens each return only their own order', async () => {
   expect(firstFound.orderId).toBe(first.orderId);
   expect(secondFound.orderId).toBe(second.orderId);
   expect(firstFound).not.toEqual(secondFound);
+});
+
+// ---------------------------------------------------------------------------
+// Owner protocol transitions (T5, issue #79): `transitionOrderStatus`
+//
+// One test per acceptance row. The owner decision machine (REVISED D1), the
+// reason policy (D2), the expiry boundary guard (D8), actor stamping (D9), and
+// the `reused` short-circuit are proven against the real handler, including the
+// `orderEvents` ledger each move appends.
+// ---------------------------------------------------------------------------
+
+// `TestBackend` above erases `convexTest`'s schema generic, which makes `ctx.db`
+// fall back to `AnyDataModel` (system indexes only). These helpers read real
+// indexes, so they use the schema-instantiated backend type instead.
+type SchemaBackend = TestConvex<typeof schema>;
+
+type OwnerAction = 'accept' | 'decline' | 'cancel' | 'ready' | 'complete' | 'noShow';
+
+/** Drives one owner transition as the owner seeded by `seed()`. */
+function ownerTransition(
+  t: TestBackend,
+  args: {
+    businessId: Id<'businesses'>;
+    orderId: Id<'orders'>;
+    action: OwnerAction;
+    reason?: string;
+  }
+) {
+  return t
+    .withIdentity({ subject: 'user_owner' })
+    .mutation(api.orders.transitionOrderStatus, args);
+}
+
+/** One order's event ledger, oldest first. */
+async function eventsFor(t: SchemaBackend, orderId: Id<'orders'>) {
+  return await t.run((ctx) =>
+    ctx.db
+      .query('orderEvents')
+      .withIndex('byOrderIdCreatedAt', (q) => q.eq('orderId', orderId))
+      .collect()
+  );
+}
+
+/** One order's expiry schedule rows. */
+async function expiryFor(t: SchemaBackend, orderId: Id<'orders'>) {
+  return await t.run((ctx) =>
+    ctx.db
+      .query('orderExpiry')
+      .withIndex('byOrderId', (q) => q.eq('orderId', orderId))
+      .collect()
+  );
+}
+
+/** Every notification addressed to one user, oldest first. */
+async function notificationsFor(t: SchemaBackend, userId: Id<'users'>) {
+  return await t.run((ctx) =>
+    ctx.db
+      .query('notifications')
+      .withIndex('byUserId', (q) => q.eq('userId', userId))
+      .collect()
+  );
+}
+
+/** Inserts an order already holding `status` (a matrix-cell fixture). */
+async function orderAtStatus(
+  t: SchemaBackend,
+  businessId: Id<'businesses'>,
+  status: Doc<'orders'>['status']
+) {
+  return await t.run((ctx) =>
+    ctx.db.insert('orders', {
+      businessId,
+      customerName: `Customer ${status}`,
+      status,
+      createdAt: NOW,
+    })
+  );
+}
+
+/** Inserts an order holding `status` plus its visitor capability row. */
+async function orderWithToken(
+  t: SchemaBackend,
+  businessId: Id<'businesses'>,
+  status: Doc<'orders'>['status'],
+  accessToken: string
+) {
+  const orderId = await orderAtStatus(t, businessId, status);
+  await t.run((ctx) =>
+    ctx.db.insert('orderAccess', {
+      orderId,
+      businessId,
+      accessToken,
+      reference: 'CANCEL',
+      createdAt: NOW,
+    })
+  );
+  return orderId;
+}
+
+test("owner protocol: another business's order id is invisible (S0 row 15)", async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, otherBusinessId, otherMenuItemId } = await seed(t);
+  const otherOrderId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(otherBusinessId, otherMenuItemId),
+    selections: [],
+  });
+
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId: otherOrderId, action: 'accept' }),
+    'ORDER_NOT_FOUND',
+    { message: 'Order not found' }
+  );
+
+  const otherOrder = await t.run((ctx) => ctx.db.get('orders', otherOrderId));
+  expect(otherOrder?.status).toBe('new');
+  expect(await eventsFor(t, otherOrderId)).toHaveLength(0);
+});
+
+test('owner protocol: accept, ready, complete each patch status and append one event', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId, ownerId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  const steps = [
+    { action: 'accept', status: 'accepted' },
+    { action: 'ready', status: 'ready' },
+    { action: 'complete', status: 'completed' },
+  ] as const;
+
+  for (const step of steps) {
+    const result = await ownerTransition(t, {
+      businessId,
+      orderId,
+      action: step.action,
+    });
+    expect(result).toEqual({ status: step.status, reused: false });
+  }
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('completed');
+  expect(order?.statusUpdatedAt).toBe(NOW);
+
+  const events = await eventsFor(t, orderId);
+  expect(events.map((event) => event.action)).toEqual(['accepted', 'ready', 'completed']);
+  expect(events.map((event) => event.fromStatus)).toEqual(['new', 'accepted', 'ready']);
+  expect(events.map((event) => event.toStatus)).toEqual(['accepted', 'ready', 'completed']);
+  expect(events.map((event) => event.actorType)).toEqual(['owner', 'owner', 'owner']);
+  expect(events.map((event) => event.actorUserId)).toEqual([ownerId, ownerId, ownerId]);
+  expect(events.every((event) => event.businessId === businessId)).toBe(true);
+  expect(events.map((event) => event.createdAt)).toEqual([NOW, NOW, NOW]);
+});
+
+test('owner protocol: decline requires a reason and stores it on the order and event', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId, action: 'decline' }),
+    'REASON_REQUIRED'
+  );
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId, action: 'decline', reason: '   ' }),
+    'REASON_REQUIRED'
+  );
+  expect(await eventsFor(t, orderId)).toHaveLength(0);
+
+  const result = await ownerTransition(t, {
+    businessId,
+    orderId,
+    action: 'decline',
+    reason: '  Sold out  ',
+  });
+  expect(result).toEqual({ status: 'declined', reused: false });
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('declined');
+  expect(order?.statusReason).toBe('Sold out');
+
+  const events = await eventsFor(t, orderId);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    orderId,
+    businessId,
+    actorType: 'owner',
+    action: 'declined',
+    fromStatus: 'new',
+    toStatus: 'declined',
+    reason: 'Sold out',
+    createdAt: NOW,
+  });
+
+  // Exactly 200 characters is accepted; 201 is the D2 message override.
+  const boundaryId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Grace Hopper',
+  });
+  const boundary = await ownerTransition(t, {
+    businessId,
+    orderId: boundaryId,
+    action: 'decline',
+    reason: 'a'.repeat(200),
+  });
+  expect(boundary).toEqual({ status: 'declined', reused: false });
+  const boundaryOrder = await t.run((ctx) => ctx.db.get('orders', boundaryId));
+  expect(boundaryOrder?.statusReason).toHaveLength(200);
+
+  const tooLongId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Katherine Johnson',
+  });
+  const tooLong = await expectOrderError(
+    ownerTransition(t, {
+      businessId,
+      orderId: tooLongId,
+      action: 'decline',
+      reason: 'a'.repeat(201),
+    }),
+    'REASON_REQUIRED'
+  );
+  expect(tooLong.message).toBe('Keep the reason under 200 characters.');
+  const unchanged = await t.run((ctx) => ctx.db.get('orders', tooLongId));
+  expect(unchanged?.status).toBe('new');
+  expect(await eventsFor(t, tooLongId)).toHaveLength(0);
+});
+
+test('owner protocol: cancel covers new, accepted and ready and needs a reason', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+
+  // From `new`: blank and whitespace both fail the reason policy.
+  const freshId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId: freshId, action: 'cancel' }),
+    'REASON_REQUIRED'
+  );
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId: freshId, action: 'cancel', reason: '  ' }),
+    'REASON_REQUIRED'
+  );
+  const fromNew = await ownerTransition(t, {
+    businessId,
+    orderId: freshId,
+    action: 'cancel',
+    reason: 'Customer asked',
+  });
+  expect(fromNew).toEqual({ status: 'cancelled', reused: false });
+  expect(await eventsFor(t, freshId)).toHaveLength(1);
+
+  // From `accepted`.
+  const acceptedId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Grace Hopper',
+  });
+  await ownerTransition(t, { businessId, orderId: acceptedId, action: 'accept' });
+  const fromAccepted = await ownerTransition(t, {
+    businessId,
+    orderId: acceptedId,
+    action: 'cancel',
+    reason: 'Owner closed early',
+  });
+  expect(fromAccepted).toEqual({ status: 'cancelled', reused: false });
+  expect((await eventsFor(t, acceptedId)).map((event) => event.action)).toEqual([
+    'accepted',
+    'cancelled',
+  ]);
+
+  // From `ready`.
+  const readyId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Katherine Johnson',
+  });
+  await ownerTransition(t, { businessId, orderId: readyId, action: 'accept' });
+  await ownerTransition(t, { businessId, orderId: readyId, action: 'ready' });
+  const fromReady = await ownerTransition(t, {
+    businessId,
+    orderId: readyId,
+    action: 'cancel',
+    reason: 'Kitchen closed',
+  });
+  expect(fromReady).toEqual({ status: 'cancelled', reused: false });
+  const readyEvents = await eventsFor(t, readyId);
+  expect(readyEvents.map((event) => event.action)).toEqual(['accepted', 'ready', 'cancelled']);
+  expect(readyEvents[readyEvents.length - 1]?.reason).toBe('Kitchen closed');
+
+  // 201 characters is rejected on the same path.
+  const longId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Dorothy Vaughan',
+  });
+  const tooLong = await expectOrderError(
+    ownerTransition(t, {
+      businessId,
+      orderId: longId,
+      action: 'cancel',
+      reason: 'b'.repeat(201),
+    }),
+    'REASON_REQUIRED'
+  );
+  expect(tooLong.message).toBe('Keep the reason under 200 characters.');
+  const unchanged = await t.run((ctx) => ctx.db.get('orders', longId));
+  expect(unchanged?.status).toBe('new');
+});
+
+test('owner protocol: noShow is ready-only and defaults the reason at write time', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+
+  const freshId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId: freshId, action: 'noShow' }),
+    'INVALID_TRANSITION'
+  );
+
+  const blankId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Grace Hopper',
+  });
+  await ownerTransition(t, { businessId, orderId: blankId, action: 'accept' });
+  await ownerTransition(t, { businessId, orderId: blankId, action: 'ready' });
+  const blank = await ownerTransition(t, {
+    businessId,
+    orderId: blankId,
+    action: 'noShow',
+    reason: '   ',
+  });
+  expect(blank).toEqual({ status: 'no_show', reused: false });
+  const blankOrder = await t.run((ctx) => ctx.db.get('orders', blankId));
+  expect(blankOrder?.statusReason).toBe('Not picked up');
+  const blankEvents = await eventsFor(t, blankId);
+  expect(blankEvents[blankEvents.length - 1]).toMatchObject({
+    action: 'no_show',
+    fromStatus: 'ready',
+    toStatus: 'no_show',
+    reason: 'Not picked up',
+  });
+
+  const explicitId = await t.mutation(api.orders.submitOrder, {
+    ...validArgs(businessId, menuItemId),
+    customerName: 'Katherine Johnson',
+  });
+  await ownerTransition(t, { businessId, orderId: explicitId, action: 'accept' });
+  await ownerTransition(t, { businessId, orderId: explicitId, action: 'ready' });
+  await ownerTransition(t, {
+    businessId,
+    orderId: explicitId,
+    action: 'noShow',
+    reason: '  Customer no-show  ',
+  });
+  const explicitOrder = await t.run((ctx) => ctx.db.get('orders', explicitId));
+  expect(explicitOrder?.statusReason).toBe('Customer no-show');
+});
+
+test('owner protocol: the REVISED D1 terminal and decision-conflict matrix', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const terminalStatuses = ['completed', 'declined', 'cancelled', 'expired', 'no_show'] as const;
+
+  // Non-decision actions: all five terminal states reject with ORDER_TERMINAL.
+  for (const status of terminalStatuses) {
+    const orderId = await orderAtStatus(t, businessId, status);
+    for (const action of ['cancel', 'ready', 'complete', 'noShow'] as const) {
+      await expectOrderError(
+        ownerTransition(t, {
+          businessId,
+          orderId,
+          action,
+          reason: action === 'cancel' ? 'Owner closed' : undefined,
+        }),
+        'ORDER_TERMINAL'
+      );
+    }
+  }
+
+  // `accept`: two specific conflicts, the rest of the terminal set is terminal.
+  const acceptCells = [
+    ['declined', 'ORDER_ALREADY_DECIDED'],
+    ['expired', 'ORDER_EXPIRED'],
+    ['ready', 'ORDER_TERMINAL'],
+    ['completed', 'ORDER_TERMINAL'],
+    ['cancelled', 'ORDER_TERMINAL'],
+    ['no_show', 'ORDER_TERMINAL'],
+  ] as const;
+  for (const [status, code] of acceptCells) {
+    const orderId = await orderAtStatus(t, businessId, status);
+    await expectOrderError(
+      ownerTransition(t, { businessId, orderId, action: 'accept' }),
+      code
+    );
+  }
+
+  // `decline`: the two late-decision cells; the rest of the terminal set is terminal.
+  const declineCells = [
+    ['accepted', 'ORDER_ALREADY_DECIDED'],
+    ['ready', 'ORDER_ALREADY_DECIDED'],
+    ['completed', 'ORDER_TERMINAL'],
+    ['cancelled', 'ORDER_TERMINAL'],
+    ['expired', 'ORDER_TERMINAL'],
+    ['no_show', 'ORDER_TERMINAL'],
+  ] as const;
+  for (const [status, code] of declineCells) {
+    const orderId = await orderAtStatus(t, businessId, status);
+    await expectOrderError(
+      ownerTransition(t, {
+        businessId,
+        orderId,
+        action: 'decline',
+        reason: 'Too late',
+      }),
+      code
+    );
+  }
+});
+
+test('owner protocol: non-terminal conflicts stay INVALID_TRANSITION', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+
+  const cells = [
+    ['new', 'ready'],
+    ['new', 'complete'],
+    ['new', 'noShow'],
+    ['accepted', 'complete'],
+    ['accepted', 'noShow'],
+  ] as const;
+  for (const [status, action] of cells) {
+    const orderId = await orderAtStatus(t, businessId, status);
+    await expectOrderError(
+      ownerTransition(t, { businessId, orderId, action }),
+      'INVALID_TRANSITION'
+    );
+  }
+});
+
+test('owner protocol: a double accept reuses the decision without a second event', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  const first = await ownerTransition(t, { businessId, orderId, action: 'accept' });
+  expect(first).toEqual({ status: 'accepted', reused: false });
+  const afterFirst = await t.run((ctx) => ctx.db.get('orders', orderId));
+
+  const second = await ownerTransition(t, { businessId, orderId, action: 'accept' });
+  expect(second).toEqual({ status: 'accepted', reused: true });
+
+  const afterSecond = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(afterSecond?.status).toBe('accepted');
+  expect(afterSecond?.statusUpdatedAt).toBe(afterFirst?.statusUpdatedAt);
+
+  const events = await eventsFor(t, orderId);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.action).toBe('accepted');
+});
+
+test('owner protocol: accepting a due, unswept order throws ORDER_EXPIRED and writes nothing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+  const expiryId = await t.run((ctx) =>
+    ctx.db.insert('orderExpiry', { orderId, businessId, expiresAt: NOW })
+  );
+
+  await expectOrderError(
+    ownerTransition(t, { businessId, orderId, action: 'accept' }),
+    'ORDER_EXPIRED'
+  );
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('new');
+  expect(order?.statusReason).toBeUndefined();
+  expect(order?.statusUpdatedAt).toBeUndefined();
+  expect(await eventsFor(t, orderId)).toHaveLength(0);
+
+  const rows = await expiryFor(t, orderId);
+  expect(rows.map((row) => row._id)).toEqual([expiryId]);
+});
+
+test('owner protocol: a reused accept leaves the expiry row untouched', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  await ownerTransition(t, { businessId, orderId, action: 'accept' });
+  const expiryId = await t.run((ctx) =>
+    ctx.db.insert('orderExpiry', {
+      orderId,
+      businessId,
+      expiresAt: NOW + DEFAULT_TTL_MS,
+    })
+  );
+
+  const reused = await ownerTransition(t, { businessId, orderId, action: 'accept' });
+  expect(reused).toEqual({ status: 'accepted', reused: true });
+
+  const rows = await expiryFor(t, orderId);
+  expect(rows.map((row) => row._id)).toEqual([expiryId]);
+  expect(await eventsFor(t, orderId)).toHaveLength(1);
+});
+
+test('owner protocol: a decline observing an accepted order loses (D10)', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  await ownerTransition(t, { businessId, orderId, action: 'accept' });
+  await expectOrderError(
+    ownerTransition(t, {
+      businessId,
+      orderId,
+      action: 'decline',
+      reason: 'Sold out',
+    }),
+    'ORDER_ALREADY_DECIDED'
+  );
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('accepted');
+  const events = await eventsFor(t, orderId);
+  expect(events.map((event) => event.action)).toEqual(['accepted']);
+});
+
+test('owner protocol: concurrent accept and decline settle one winner and one conflict', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  const results = await Promise.allSettled([
+    ownerTransition(t, { businessId, orderId, action: 'accept' }),
+    ownerTransition(t, {
+      businessId,
+      orderId,
+      action: 'decline',
+      reason: 'Sold out',
+    }),
+  ]);
+
+  const fulfilled = results.filter((result) => result.status === 'fulfilled');
+  const rejected = results.filter(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  );
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+  const conflict = rejected[0]?.reason as ConvexError<Record<string, string>>;
+  expect(conflict).toBeInstanceOf(ConvexError);
+  expect(conflict.data.code).toBe('ORDER_ALREADY_DECIDED');
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(['accepted', 'declined']).toContain(order?.status);
+  expect(await eventsFor(t, orderId)).toHaveLength(1);
+});
+
+// ---------------------------------------------------------------------------
+// Visitor cancel (T5, issue #79): `cancelOrder` + the `order_cancelled` notice
+//
+// The token is the capability (D4): no identity, and every miss — unknown
+// token, an access row whose order is gone, an INV-06 scope mismatch — is the
+// one `ORDER_NOT_FOUND` envelope. Only `new` moves; `cancelled` is idempotent
+// and writes nothing; a due-but-unswept expiry row is proof without a write
+// (D8, the system sweep is the only writer of `expired`).
+// ---------------------------------------------------------------------------
+
+test('visitor cancel: a new order becomes cancelled with one customer event and one owner notice', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId, ownerId } = await seed(t);
+  await configureBasket(t, businessId);
+  const receipt = await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId));
+
+  const result = await t.mutation(api.orders.cancelOrder, { token: receipt.accessToken });
+  expect(result).toEqual({ status: 'cancelled' });
+
+  const order = await t.run((ctx) => ctx.db.get('orders', receipt.orderId));
+  expect(order?.status).toBe('cancelled');
+  expect(order?.statusReason).toBe(VISITOR_CANCEL_REASON);
+  expect(order?.statusUpdatedAt).toBe(NOW);
+  expect(await expiryFor(t, receipt.orderId)).toHaveLength(0);
+
+  const events = await eventsFor(t, receipt.orderId);
+  expect(events.map((event) => event.action)).toEqual(['submitted', 'cancelled']);
+  const cancelled = events.filter((event) => event.action === 'cancelled');
+  expect(cancelled).toHaveLength(1);
+  expect(cancelled[0]).toMatchObject({
+    orderId: receipt.orderId,
+    businessId,
+    actorType: 'customer',
+    action: 'cancelled',
+    fromStatus: 'new',
+    toStatus: 'cancelled',
+    reason: VISITOR_CANCEL_REASON,
+    createdAt: NOW,
+  });
+  expect(cancelled[0]?.actorUserId).toBeUndefined();
+
+  const notices = await notificationsFor(t, ownerId);
+  expect(notices.map((notice) => notice.type)).toEqual(['new_order', 'order_cancelled']);
+  const cancelledNotice = notices.find((notice) => notice.type === 'order_cancelled');
+  expect(cancelledNotice).toMatchObject({
+    userId: ownerId,
+    businessId,
+    message: 'Order for "Blue Harbor Diner" was cancelled.',
+  });
+});
+
+test('visitor cancel: an unknown token is ORDER_NOT_FOUND and writes nothing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId));
+  const before = await rowCounts(t);
+
+  await expectOrderError(
+    t.mutation(api.orders.cancelOrder, { token: 'not-a-real-token' }),
+    'ORDER_NOT_FOUND'
+  );
+
+  expect(await rowCounts(t)).toEqual(before);
+});
+
+test('visitor cancel: a token scoped to another business is ORDER_NOT_FOUND', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, otherBusinessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const receipt = await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId));
+
+  const access = await t.run((ctx) =>
+    ctx.db
+      .query('orderAccess')
+      .withIndex('byOrderId', (q) => q.eq('orderId', receipt.orderId))
+      .first()
+  );
+  if (access === null) {
+    throw new Error('expected the committed access row');
+  }
+  // Corrupt the scope: the order belongs to `businessId`, the access row now
+  // claims the other seeded business.
+  await t.run((ctx) => ctx.db.patch(access._id, { businessId: otherBusinessId }));
+
+  await expectOrderError(
+    t.mutation(api.orders.cancelOrder, { token: receipt.accessToken }),
+    'ORDER_NOT_FOUND'
+  );
+
+  const order = await t.run((ctx) => ctx.db.get('orders', receipt.orderId));
+  expect(order?.status).toBe('new');
+  expect((await eventsFor(t, receipt.orderId)).map((event) => event.action)).toEqual([
+    'submitted',
+  ]);
+});
+
+test('visitor cancel: the status matrix rejects without touching the order', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, ownerId } = await seed(t);
+
+  const cells = [
+    ['accepted', 'CANNOT_CANCEL'],
+    ['ready', 'CANNOT_CANCEL'],
+    ['expired', 'ORDER_EXPIRED'],
+    ['completed', 'ORDER_TERMINAL'],
+    ['declined', 'ORDER_TERMINAL'],
+    ['no_show', 'ORDER_TERMINAL'],
+  ] as const;
+
+  for (const [status, code] of cells) {
+    const token = `token-${status}`;
+    const orderId = await orderWithToken(t, businessId, status, token);
+
+    await expectOrderError(t.mutation(api.orders.cancelOrder, { token }), code);
+
+    const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+    expect(order?.status).toBe(status);
+    expect(order?.statusReason).toBeUndefined();
+    expect(order?.statusUpdatedAt).toBeUndefined();
+    expect(await eventsFor(t, orderId)).toHaveLength(0);
+  }
+
+  expect(await notificationsFor(t, ownerId)).toHaveLength(0);
+});
+
+test('visitor cancel: a due, unswept order is ORDER_EXPIRED with no write', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, ownerId } = await seed(t);
+  const token = 'token-due';
+  const orderId = await orderWithToken(t, businessId, 'new', token);
+  const expiryId = await t.run((ctx) =>
+    ctx.db.insert('orderExpiry', { orderId, businessId, expiresAt: NOW })
+  );
+
+  await expectOrderError(t.mutation(api.orders.cancelOrder, { token }), 'ORDER_EXPIRED');
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('new');
+  expect(order?.statusReason).toBeUndefined();
+  expect(order?.statusUpdatedAt).toBeUndefined();
+  expect(await eventsFor(t, orderId)).toHaveLength(0);
+  expect((await expiryFor(t, orderId)).map((row) => row._id)).toEqual([expiryId]);
+  expect(await notificationsFor(t, ownerId)).toHaveLength(0);
+});
+
+test('visitor cancel: a repeat is idempotent and never re-notifies', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, ownerId } = await seed(t);
+  const token = 'token-repeat';
+  const orderId = await orderWithToken(t, businessId, 'new', token);
+
+  expect(await t.mutation(api.orders.cancelOrder, { token })).toEqual({ status: 'cancelled' });
+  const strayExpiryId = await t.run((ctx) =>
+    ctx.db.insert('orderExpiry', {
+      orderId,
+      businessId,
+      expiresAt: NOW + DEFAULT_TTL_MS,
+    })
+  );
+  expect(await eventsFor(t, orderId)).toHaveLength(1);
+  expect(await notificationsFor(t, ownerId)).toHaveLength(1);
+
+  expect(await t.mutation(api.orders.cancelOrder, { token })).toEqual({ status: 'cancelled' });
+
+  expect(await eventsFor(t, orderId)).toHaveLength(1);
+  expect(await notificationsFor(t, ownerId)).toHaveLength(1);
+  expect((await expiryFor(t, orderId)).map((row) => row._id)).toEqual([strayExpiryId]);
+});
+
+test('visitor cancel: a legacy new order with no expiry row cancels fine (OQ-9)', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId, ownerId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+  const token = 'token-legacy';
+  await t.run((ctx) =>
+    ctx.db.insert('orderAccess', {
+      orderId,
+      businessId,
+      accessToken: token,
+      reference: 'LEGACY',
+      createdAt: NOW,
+    })
+  );
+  expect(await expiryFor(t, orderId)).toHaveLength(0);
+
+  expect(await t.mutation(api.orders.cancelOrder, { token })).toEqual({ status: 'cancelled' });
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('cancelled');
+  expect(order?.statusReason).toBe(VISITOR_CANCEL_REASON);
+
+  const events = await eventsFor(t, orderId);
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
+    actorType: 'customer',
+    action: 'cancelled',
+    fromStatus: 'new',
+    toStatus: 'cancelled',
+    reason: VISITOR_CANCEL_REASON,
+  });
+  expect(events[0]?.actorUserId).toBeUndefined();
+  expect(await expiryFor(t, orderId)).toHaveLength(0);
+
+  const cancelledNotices = (await notificationsFor(t, ownerId)).filter(
+    (notice) => notice.type === 'order_cancelled'
+  );
+  expect(cancelledNotices).toHaveLength(1);
+});
+
+// ---------------------------------------------------------------------------
+// Projections + INV-11 (T5, issue #79): what the visitor receipt and the owner
+// board actually carry, and the wire shape the mutation refuses.
+// ---------------------------------------------------------------------------
+
+test('owner protocol: the decline reason and transition time reach the receipt and the owner board', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  // Legacy `submitOrder` does not mint an access row; the token is the public
+  // receipt capability, so seed one as the visitor-cancel cases do.
+  const accessToken = 'token-reason';
+  await t.run((ctx) =>
+    ctx.db.insert('orderAccess', {
+      orderId,
+      businessId,
+      accessToken,
+      reference: 'REASON',
+      createdAt: NOW,
+    })
+  );
+
+  // Distinguish the transition stamp from `createdAt`: `submitOrder` stamped
+  // the row at NOW; the decline happens a minute later.
+  const transitionedAt = NOW + 60_000;
+  vi.setSystemTime(transitionedAt);
+
+  await ownerTransition(t, {
+    businessId,
+    orderId,
+    action: 'decline',
+    reason: 'Kitchen is out of that dish',
+  });
+
+  const receipt = await t.query(api.orders.getOrderByToken, { token: accessToken });
+  expect(receipt.status).toBe('declined');
+  expect(receipt.statusReason).toBe('Kitchen is out of that dish');
+
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+  const rows = await asOwner.query(api.orders.listOrders, { businessId });
+  const row = rows.find((candidate) => candidate._id === orderId);
+  expect(row?.status).toBe('declined');
+  expect(row?.statusReason).toBe('Kitchen is out of that dish');
+  expect(row?.createdAt).toBe(NOW);
+  expect(row?.statusUpdatedAt).toBe(transitionedAt);
+  expect(row?.statusUpdatedAt).not.toBe(row?.createdAt);
+});
+
+test('owner protocol: board rows without a stamp fall back to createdAt and a missing reason is null', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  // The legacy shape: `createdAt` only, no `statusReason`, no `statusUpdatedAt`.
+  const orderId = await orderAtStatus(t, businessId, 'new');
+
+  const stored = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(stored?.statusUpdatedAt).toBeUndefined();
+  expect(stored?.statusReason).toBeUndefined();
+
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+  const rows = await asOwner.query(api.orders.listOrders, { businessId });
+  const row = rows.find((candidate) => candidate._id === orderId);
+  expect(row?.statusUpdatedAt).toBe(NOW);
+  expect(row?.statusReason).toBeNull();
+});
+
+test('owner protocol: a wire status is rejected by argument validation (INV-11)', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const orderId = await orderAtStatus(t, businessId, 'new');
+
+  // INV-11: the client sends an action, never a status. TypeScript already
+  // rejects the extra key; `as never` is local to this call so the RUNTIME
+  // args validator is what gets exercised. `status: 'completed'` is a legal
+  // status value, so only the wire shape can be what rejects it.
+  const withStatus = {
+    businessId,
+    orderId,
+    action: 'accept',
+    status: 'completed',
+  } as never;
+
+  const thrown = await ownerTransition(t, withStatus).then(
+    () => {
+      throw new Error('Expected the args validator to reject the extra status key');
+    },
+    (error: unknown) => error
+  );
+  expect(thrown).toBeInstanceOf(Error);
+  expect(thrown).not.toBeInstanceOf(ConvexError);
+  expect((thrown as Error).message).toBe('Validator error: Unexpected field `status` in object');
+
+  const order = await t.run((ctx) => ctx.db.get('orders', orderId));
+  expect(order?.status).toBe('new');
+  expect(order?.statusReason).toBeUndefined();
+  expect(order?.statusUpdatedAt).toBeUndefined();
+  expect(await eventsFor(t, orderId)).toHaveLength(0);
 });
 
