@@ -54,6 +54,20 @@ export async function requireSuperAdmin(ctx: AuthenticatedCtx) {
  * callers can patch it without a second read.
  */
 export async function requireBusinessOwner(ctx: AuthenticatedCtx, businessId: Id<'businesses'>) {
+  const { business } = await requireBusinessOwnerUser(ctx, businessId);
+  return business;
+}
+
+/**
+ * `requireBusinessOwnerUser` is the single copy of the owner authorization
+ * checks. `requireBusinessOwner` (above) delegates to it and returns only the
+ * business doc, so a change to the guard cannot diverge between the two
+ * entry points (plan D9).
+ */
+export async function requireBusinessOwnerUser(
+  ctx: AuthenticatedCtx,
+  businessId: Id<'businesses'>
+) {
   const identity = await ctx.auth.getUserIdentity();
   if (identity === null) {
     throw new Error('Unauthorized');
@@ -70,5 +84,5 @@ export async function requireBusinessOwner(ctx: AuthenticatedCtx, businessId: Id
     throw new Error('Forbidden');
   }
 
-  return business;
+  return { business, user };
 }

@@ -43,8 +43,20 @@ export function messageForError(error: unknown, fallback: string): string {
   // The backend sends owner-facing text as the ConvexError payload; the wrapper
   // the client rebuilds carries the internal function path in `.message`
   // (https://docs.convex.dev/functions/error-handling/application-errors).
-  if (error instanceof ConvexError && typeof error.data === 'string' && error.data.trim().length > 0) {
-    return error.data;
+  // Protocol paths send an object envelope `{ code, message }`; prefer its
+  // `message` so the panel never shows the wrapper text (plan D11).
+  if (error instanceof ConvexError) {
+    const data = error.data;
+    if (typeof data === 'string') {
+      if (data.trim().length > 0) {
+        return data;
+      }
+    } else if (typeof data === 'object' && data !== null) {
+      const message = (data as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message;
+      }
+    }
   }
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }

@@ -49,6 +49,8 @@ test('exposes exactly the frozen B5 lifecycle event types', () => {
       'listing_changes_requested',
       'listing_rejected',
       'listing_suspended',
+      'new_order',
+      'order_cancelled',
     ]
   );
 });
@@ -60,6 +62,8 @@ test('builds the server-owned message for every event type', () => {
     listing_changes_requested: 'Changes were requested for "Sunset Cafe".',
     listing_rejected: '"Sunset Cafe" was rejected.',
     listing_suspended: '"Sunset Cafe" was suspended.',
+    new_order: 'New order for "Sunset Cafe".',
+    order_cancelled: 'Order for "Sunset Cafe" was cancelled.',
   } as const;
 
   const content = buildNotificationContent({
@@ -100,6 +104,22 @@ test('builds the server-owned message for every event type', () => {
       reason: undefined,
     }).message,
     expected.listing_suspended
+  );
+  assert.equal(
+    buildNotificationContent({
+      type: 'new_order',
+      businessName: 'Sunset Cafe',
+      reason: undefined,
+    }).message,
+    expected.new_order
+  );
+  assert.equal(
+    buildNotificationContent({
+      type: 'order_cancelled',
+      businessName: 'Sunset Cafe',
+      reason: undefined,
+    }).message,
+    expected.order_cancelled
   );
 });
 
