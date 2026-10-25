@@ -1,0 +1,9 @@
+import { cronJobs } from 'convex/server';
+
+import { internal } from './_generated/api';
+
+const crons = cronJobs();
+
+crons.interval('sweep expired orders', { minutes: 5 }, internal.orderExpiry.sweepExpiredOrders);
+
+export default crons;
