@@ -66,7 +66,9 @@ const PRICE_FORMATTER = new Intl.NumberFormat('en-US', {
 });
 
 export function formatPrice(price: number): string {
-  return PRICE_FORMATTER.format(price);
+  // Prices are stored as integer cents (MONEY = 'integer-cents'); display
+  // divides by 100.
+  return PRICE_FORMATTER.format(price / 100);
 }
 
 /** Statuses outside the 4-step legacy chain: no stepper progress to show. */

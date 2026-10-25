@@ -347,9 +347,16 @@ async function applyImageChange(
  * Explicit public projection: only what `menu-tabs` and the ordering panel
  * render — no `businessId`, `imageStorageId`, or `ordering`. `groupId` is
  * kept: `menu-tabs.tsx` buckets items by it to pair with groups.
+ * `isAvailable` is the §6.2.2 group switch the basket panel renders as
+ * "This section is unavailable right now." (absent = available).
  */
 function publicGroup(group: MenuGroup) {
-  return { _id: group._id, name: group.name, description: group.description };
+  return {
+    _id: group._id,
+    name: group.name,
+    description: group.description,
+    isAvailable: group.isAvailable ?? true,
+  };
 }
 
 function publicItem(item: MenuItem & { imageUrl: string | null }) {

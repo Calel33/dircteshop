@@ -125,9 +125,9 @@ type NumberParse =
 // adjustments, and `Number()` would otherwise accept `0x10`, `1e3` and `Infinity`.
 const DECIMAL_PATTERN = /^(?:\d+\.?\d*|\.\d+)$/;
 
-/** `$` + two decimals, matching the prototype's `money()` helper. */
+/** Prices are stored as integer cents; display divides by 100. */
 export function formatPrice(price: number | undefined): string {
-  return price === undefined ? 'No price' : `$${price.toFixed(2)}`;
+  return price === undefined ? 'No price' : `$${(price / 100).toFixed(2)}`;
 }
 
 /** Blank means "not supplied"; anything else must be a non-negative decimal. */
@@ -205,7 +205,7 @@ export function customizationDraftFrom(
     options: group.options.map((option) => ({
       name: option.name,
       priceAdjustment:
-        option.priceAdjustment === undefined ? '' : String(option.priceAdjustment),
+        option.priceAdjustment === undefined ? '' : String(option.priceAdjustment / 100),
     })),
   }));
 }
@@ -249,7 +249,7 @@ export function customizationFromDraft(groups: readonly CustomizationGroupDraft[
       groupOptions.push(
         parsed.value === undefined
           ? { name: optionName }
-          : { name: optionName, priceAdjustment: parsed.value },
+          : { name: optionName, priceAdjustment: Math.round(parsed.value * 100) },
       );
     });
 
@@ -344,7 +344,7 @@ export function itemDraftFrom(item: MenuItem): ItemDraft {
   return {
     name: item.name,
     description: item.description ?? '',
-    price: item.price === undefined ? '' : String(item.price),
+    price: item.price === undefined ? '' : String(item.price / 100),
     isAvailable: item.isAvailable,
     imageStorageId: item.imageStorageId ?? null,
     imageUrl: item.imageUrl,
@@ -387,7 +387,7 @@ export function buildNewItem(draft: ItemDraft): BuildResult<NewItemFields> {
     value.description = description;
   }
   if (price.ok && price.value !== undefined) {
-    value.price = price.value;
+    value.price = Math.round(price.value * 100);
   }
   if (draft.imageStorageId !== null) {
     value.imageStorageId = draft.imageStorageId;
@@ -440,7 +440,7 @@ export function buildItemPatch(draft: ItemDraft, item: MenuItem): BuildResult<It
     nutrition: nutrition.nutrition,
   };
   if (price.ok && price.value !== undefined) {
-    value.price = price.value;
+    value.price = Math.round(price.value * 100);
   }
   const savedImageId = item.imageStorageId ?? null;
   if (draft.imageStorageId !== savedImageId) {

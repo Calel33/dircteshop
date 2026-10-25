@@ -1066,6 +1066,13 @@ Convex does not enforce unique indexes. Uniqueness is enforced in the mutation t
 | `MONEY`                   | integer cents       | No floats; `Number.isInteger`                            |
 | `MAX_ORDER_VALUE`         | 100000              | $1,000 cap before unpriced lines; abuse bound            |
 
+**Money units (decision, T8).** `menuItems.price` and `customizationOptions[].priceAdjustment` are stored as
+**integer cents**, the same unit as `orders.items[].unitPrice` and `orders.subtotal`. The owner editor
+accepts a decimal dollar value and multiplies by 100 on save; every display surface divides by 100.
+`formatPrice` (in `lib/order-format.ts` and `components/profile/ordering-panel-helpers.ts`) is the single
+display boundary. No conversion happens in `placeOrder` or `submitOrder` — `unitPrice = item.price`
+already. Seed fixtures (`convex/businesses/seedFixtures.ts`) store cents (e.g. `price: 1450` = $14.50).
+
 ### 6.2.5 Pricing algorithm
 
 For each line, in order:

@@ -296,7 +296,7 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
             {
               name: 'Build Your Bowl',
               description: 'Steamed base, your choice of protein, house sauce and fresh veggies.',
-              price: 14.5,
+              price: 1450,
               isAvailable: true,
               customizationOptions: [
                 {
@@ -306,17 +306,17 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
                     { name: 'Jasmine Rice' },
                     { name: 'Brown Rice' },
                     { name: 'Mixed Greens' },
-                    { name: 'Rice Noodles', priceAdjustment: 1.5 },
+                    { name: 'Rice Noodles', priceAdjustment: 150 },
                   ],
                 },
                 {
                   name: 'Protein',
                   required: true,
                   options: [
-                    { name: 'Grilled Chicken', priceAdjustment: 4 },
-                    { name: 'Seared Salmon', priceAdjustment: 6 },
-                    { name: 'Crispy Tofu', priceAdjustment: 3 },
-                    { name: 'Slow-Braised Beef', priceAdjustment: 7 },
+                    { name: 'Grilled Chicken', priceAdjustment: 400 },
+                    { name: 'Seared Salmon', priceAdjustment: 600 },
+                    { name: 'Crispy Tofu', priceAdjustment: 300 },
+                    { name: 'Slow-Braised Beef', priceAdjustment: 700 },
                   ],
                 },
                 {
@@ -324,8 +324,8 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
                   required: true,
                   options: [
                     { name: 'Miso Ginger' },
-                    { name: 'Spicy Sesame', priceAdjustment: 0.5 },
-                    { name: 'Herb Tahini', priceAdjustment: 0.5 },
+                    { name: 'Spicy Sesame', priceAdjustment: 50 },
+                    { name: 'Herb Tahini', priceAdjustment: 50 },
                     { name: 'Citrus Ponzu' },
                   ],
                 },
@@ -334,10 +334,10 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
                   required: false,
                   options: [
                     { name: 'Pickled Cucumber' },
-                    { name: 'Charred Broccoli', priceAdjustment: 0.75 },
+                    { name: 'Charred Broccoli', priceAdjustment: 75 },
                     { name: 'Shaved Carrot' },
-                    { name: 'Edamame', priceAdjustment: 0.75 },
-                    { name: 'Roasted Peppers', priceAdjustment: 0.75 },
+                    { name: 'Edamame', priceAdjustment: 75 },
+                    { name: 'Roasted Peppers', priceAdjustment: 75 },
                   ],
                 },
               ],
@@ -351,7 +351,7 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
             {
               name: 'Seared Salmon Plate',
               description: 'Farro, charred greens and lemon butter.',
-              price: 24,
+              price: 2400,
               isAvailable: true,
               nutrition: {
                 calories: 620,
@@ -364,7 +364,7 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
             {
               name: 'Braised Short Rib',
               description: 'Creamy polenta, roasted carrots and red wine jus.',
-              price: 28,
+              price: 2800,
               isAvailable: true,
               customizationOptions: [],
             },
@@ -372,7 +372,7 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
               // Temporarily sold out: exercises the card's availability state.
               name: 'Harvest Grain Bowl',
               description: 'Seasonal squash, kale, farro and toasted seeds.',
-              price: 18,
+              price: 1800,
               isAvailable: false,
               customizationOptions: [],
             },
@@ -385,21 +385,21 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
             {
               name: 'Sparkling Yuzu Lemonade',
               description: 'House-pressed lemon, yuzu and soda.',
-              price: 5.5,
+              price: 550,
               isAvailable: true,
               customizationOptions: [],
             },
             {
               name: 'House Cold Brew',
               description: 'Slow-steeped single-origin coffee, served over ice.',
-              price: 4,
+              price: 400,
               isAvailable: true,
               customizationOptions: [],
             },
             {
               name: 'Sourdough & Cultured Butter',
               description: 'Warm house sourdough with whipped butter.',
-              price: 6,
+              price: 600,
               isAvailable: true,
               customizationOptions: [],
             },

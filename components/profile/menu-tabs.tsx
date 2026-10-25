@@ -79,13 +79,27 @@ function groupsWithItems(data: MenuData): VisibleGroup[] {
     .filter((entry) => entry.items.length > 0);
 }
 
-function ItemOrderEntry({ item, price }: { item: MenuItem; price: string | null }) {
+function ItemOrderEntry({
+  item,
+  price,
+  orderProtocol = 'legacy',
+}: {
+  item: MenuItem;
+  price: string | null;
+  orderProtocol?: 'legacy' | 'basket';
+}) {
   if (!item.isAvailable) {
     return (
       <span className="bg-neutral-chip text-neutral-chip-foreground rounded-pill px-2 py-0.5 font-mono text-micro tracking-label uppercase">
         Unavailable
       </span>
     );
+  }
+
+  // On basket businesses the basket panel owns add-to-basket; the legacy
+  // `#order-<id>` hash link is dead, so hide it.
+  if (orderProtocol === 'basket') {
+    return null;
   }
 
   return (
@@ -95,7 +109,7 @@ function ItemOrderEntry({ item, price }: { item: MenuItem; price: string | null 
   );
 }
 
-function MenuItemCard({ item }: { item: MenuItem }) {
+function MenuItemCard({ item, orderProtocol = 'legacy' }: { item: MenuItem; orderProtocol?: 'legacy' | 'basket' }) {
   const price = item.price === undefined ? null : formatPrice(item.price);
   const nutrition = nutritionLabel(item.nutrition);
 
@@ -132,7 +146,7 @@ function MenuItemCard({ item }: { item: MenuItem }) {
         <p className="text-micro text-card-muted font-mono">{nutrition}</p>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
-        <ItemOrderEntry item={item} price={price} />
+        <ItemOrderEntry item={item} price={price} orderProtocol={orderProtocol} />
       </div>
     </li>
   );
@@ -209,7 +223,13 @@ class MenuTabsErrorBoundary extends Component<
   }
 }
 
-function MenuTabsQuery({ businessId }: { businessId: Id<'businesses'> }) {
+function MenuTabsQuery({
+  businessId,
+  orderProtocol = 'legacy',
+}: {
+  businessId: Id<'businesses'>;
+  orderProtocol?: 'legacy' | 'basket';
+}) {
   const data = useQuery(api.menus.listForBusiness, { businessId });
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
@@ -256,7 +276,7 @@ function MenuTabsQuery({ businessId }: { businessId: Id<'businesses'> }) {
           <TabsContent key={group._id} value={group._id} className="px-card pt-card">
             <ul role="list" className="grid grid-cols-2 gap-gap @max-[60rem]:grid-cols-1">
               {items.map((item) => (
-                <MenuItemCard key={item._id} item={item} />
+                <MenuItemCard key={item._id} item={item} orderProtocol={orderProtocol} />
               ))}
             </ul>
           </TabsContent>
@@ -271,12 +291,18 @@ function MenuTabsQuery({ businessId }: { businessId: Id<'businesses'> }) {
  * a failed query re-subscribes (Convex `useQuery` throws during render); the
  * error boundary is local presentation, not a data-flow contract.
  */
-export function MenuTabs({ businessId }: { businessId: Id<'businesses'> }) {
+export function MenuTabs({
+  businessId,
+  orderProtocol = 'legacy',
+}: {
+  businessId: Id<'businesses'>;
+  orderProtocol?: 'legacy' | 'basket';
+}) {
   const [retryKey, setRetryKey] = useState(0);
 
   return (
     <MenuTabsErrorBoundary key={retryKey} onRetry={() => setRetryKey((current) => current + 1)}>
-      <MenuTabsQuery businessId={businessId} />
+      <MenuTabsQuery businessId={businessId} orderProtocol={orderProtocol} />
     </MenuTabsErrorBoundary>
   );
 }

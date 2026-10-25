@@ -7,6 +7,7 @@ import { AboutCard, BusinessProfile } from '@/components/profile/BusinessProfile
 import { MenuTabs } from '@/components/profile/menu-tabs';
 import { OrderingPanel } from '@/components/profile/ordering-panel';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
+import { BasketPanel } from '@/components/order/basket-panel';
 import { api } from '@/convex/_generated/api';
 import { getVerticalConfig } from '@/lib/verticals';
 
@@ -78,13 +79,25 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
         data.vertical.modules.includes('menuTabs') ? (
           <div className="flex flex-col gap-6">
             <AboutCard description={result.business.description} />
-            <MenuTabs businessId={result.business._id} />
+            <MenuTabs businessId={result.business._id} orderProtocol={result.business.orderProtocol} />
           </div>
         ) : undefined
       }
       sidebar={
         data.vertical.modules.includes('orderingPanel') ? (
-          <OrderingPanel businessId={result.business._id} />
+          // §6.2.2: missing/unknown is `legacy`, so only an explicit flag
+          // switches the customer UI. The legacy panel stays untouched.
+          result.business.orderProtocol === 'basket' ? (
+            <BasketPanel
+              businessId={result.business._id}
+              businessName={result.business.name}
+              phone={result.business.phone}
+              acceptingOrders={result.business.acceptingOrders ?? true}
+              acceptingOrdersUntil={result.business.acceptingOrdersUntil}
+            />
+          ) : (
+            <OrderingPanel businessId={result.business._id} />
+          )
         ) : undefined
       }
     />

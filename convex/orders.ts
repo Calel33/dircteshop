@@ -447,7 +447,7 @@ function projectOrderReceipt(
  */
 function orderError(
   code: OrderErrorCode,
-  extras: { message?: string; actualSubtotal?: number } = {}
+  extras: { message?: string; actualSubtotal?: number; lineIndex?: number } = {}
 ): ConvexError<Record<string, string | number>> {
   const data: Record<string, string | number> = {
     code,
@@ -455,6 +455,9 @@ function orderError(
   };
   if (extras.actualSubtotal !== undefined) {
     data.actualSubtotal = extras.actualSubtotal;
+  }
+  if (extras.lineIndex !== undefined) {
+    data.lineIndex = extras.lineIndex;
   }
   return new ConvexError(data);
 }
@@ -521,12 +524,18 @@ function basketFailureError(
         '{item}',
         itemName ?? 'this item'
       ),
+      ...(failure.lineIndex === undefined ? {} : { lineIndex: failure.lineIndex }),
     });
   }
   if (failure.code === 'PRICE_CHANGED') {
     return orderError('PRICE_CHANGED', { actualSubtotal: failure.actualSubtotal });
   }
-  return orderError(failure.code);
+  // `lineIndex` lets the basket UI mark the rejected line without guessing
+  // (ITEM_UNAVAILABLE / GROUP_UNAVAILABLE / QUANTITY_INVALID).
+  return orderError(
+    failure.code,
+    failure.lineIndex === undefined ? {} : { lineIndex: failure.lineIndex }
+  );
 }
 
 /**
