@@ -13,15 +13,29 @@
  *
  * Run: pnpm exec vitest run convex/orders.test.ts
  */
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { ConvexError } from 'convex/values';
 import { convexTest } from 'convex-test';
 
 import schema from './schema';
 import { api, internal } from './_generated/api';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
+import { DEFAULT_TTL_MS } from './orderCommitPolicy';
+import { businessThrottleKey } from './orderThrottle';
 
 const modules = import.meta.glob('./**/*.ts');
 const NOW = 1_700_000_000_000;
+
+// D13/Q4: pin `Date` only. `setTimeout` stays real so `convex-test`'s async
+// plumbing cannot stall; the canary in the first basket test proves the VM's
+// `Date` is actually the patched one (a silent no-op must not read as a pass).
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 type TestBackend = ReturnType<typeof convexTest>;
 
@@ -641,3 +655,897 @@ test('an order without menuItemId or items[] gets access but no fabricated line'
   expect(accessRows).toHaveLength(1);
   expect(accessRows[0]?.orderId).toBe(orderId);
 });
+
+// ---------------------------------------------------------------------------
+// Basket protocol (T4, issue #78): `placeOrder` behind `orderProtocol: 'basket'`
+//
+// The legacy S0 suite above is unchanged and shares `seed()`, whose business has
+// no `orderProtocol` (i.e. legacy). Every basket case opts in explicitly through
+// `configureBasket`, so the flag gate itself stays observable.
+// ---------------------------------------------------------------------------
+
+type BasketBusinessPatch = {
+  status?: Doc<'businesses'>['status'];
+  orderProtocol?: 'legacy' | 'basket';
+  acceptingOrders?: boolean;
+  acceptingOrdersUntil?: number;
+  hours?: Doc<'businesses'>['hours'];
+  phone?: string;
+};
+
+/** Patches the basket flag (plus any hours/pause state a single case needs). */
+async function configureBasket(
+  t: TestBackend,
+  businessId: Id<'businesses'>,
+  patch: BasketBusinessPatch = {}
+) {
+  await t.run((ctx) => ctx.db.patch(businessId, { orderProtocol: 'basket', ...patch }));
+}
+
+type BasketLineArgs = {
+  menuItemId: Id<'menuItems'>;
+  quantity: number;
+  selections?: { optionName: string; choiceName: string }[];
+};
+
+type BasketArgs = {
+  businessId: Id<'businesses'>;
+  lines: BasketLineArgs[];
+  customerName: string;
+  contactPhone: string;
+  contactEmail: string;
+  note?: string;
+  expectedSubtotal: number | null;
+  idempotencyKey: string;
+};
+
+/**
+ * A valid two-unit basket on the seeded 1200-cent bowl. The default total is the
+ * server's 2400: §6.2.5 step 8 turns an omitted/`null` total on a priced basket
+ * into `PRICE_CHANGED`, so a committing fixture must confirm the total it saw.
+ */
+function basketArgs(
+  businessId: Id<'businesses'>,
+  menuItemId: Id<'menuItems'>,
+  overrides: Partial<Omit<BasketArgs, 'businessId'>> = {}
+): BasketArgs {
+  return {
+    businessId,
+    lines: [
+      {
+        menuItemId,
+        quantity: 2,
+        selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+      },
+    ],
+    customerName: 'Ada Lovelace',
+    contactPhone: '(555) 010-0100',
+    contactEmail: 'ada@example.com',
+    expectedSubtotal: 2400,
+    idempotencyKey: 'basket-key-0001',
+    ...overrides,
+  };
+}
+
+/** Row counts for one commit attempt: the six commit tables plus the throttle. */
+async function rowCounts(t: TestBackend) {
+  return await t.run(async (ctx) => ({
+    orders: (await ctx.db.query('orders').collect()).length,
+    access: (await ctx.db.query('orderAccess').collect()).length,
+    idempotency: (await ctx.db.query('orderIdempotency').collect()).length,
+    events: (await ctx.db.query('orderEvents').collect()).length,
+    expiry: (await ctx.db.query('orderExpiry').collect()).length,
+    notifications: (await ctx.db.query('notifications').collect()).length,
+    throttle: (await ctx.db.query('orderThrottle').collect()).length,
+  }));
+}
+
+/**
+ * Asserts the §6.5 object envelope. `convex-test` restores the original
+ * `ConvexError` (`deserializeConvexErrorData`), so `.data` is the object the
+ * handler threw — no raw-message matching, no weakening.
+ */
+async function expectOrderError(
+  promise: Promise<unknown>,
+  code: string,
+  extra?: Record<string, unknown>
+) {
+  const thrown = await promise.then(
+    () => {
+      throw new Error(`Expected ${code}, but the call succeeded`);
+    },
+    (error: unknown) => error
+  );
+  expect(thrown).toBeInstanceOf(ConvexError);
+  const data = (thrown as ConvexError<Record<string, string | number>>).data;
+  expect(data.code).toBe(code);
+  if (extra !== undefined) {
+    expect(data).toMatchObject(extra);
+  }
+  return data;
+}
+
+/** The seeded item's group, for cases that need to pause a section. */
+async function itemGroupId(t: TestBackend, menuItemId: Id<'menuItems'>) {
+  const item = await t.run((ctx) => ctx.db.get('menuItems', menuItemId));
+  if (item === null) {
+    throw new Error('seed menu item is missing');
+  }
+  return item.groupId;
+}
+
+test('basket: one order commits exactly six rows and returns the masked receipt', async () => {
+  // Canary (D13/Q4): if the edge-runtime VM did not receive the patched Date,
+  // every NOW assertion below is meaningless — fail here instead.
+  expect(Date.now()).toBe(NOW);
+
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId, ownerId } = await seed(t);
+  await configureBasket(t, businessId, { phone: '(555) 010-0100' });
+
+  const receipt = await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId));
+
+  expect(await rowCounts(t)).toEqual({
+    orders: 1,
+    access: 1,
+    idempotency: 1,
+    events: 1,
+    expiry: 1,
+    notifications: 1,
+    throttle: 1,
+  });
+
+  const order = await t.run((ctx) => ctx.db.query('orders').first());
+  expect(order).toMatchObject({
+    businessId,
+    pricingSource: 'snapshot',
+    subtotal: 2400,
+    status: 'new',
+    // Normalized by `parseContact` (Q2): digits-only phone, lowercased email.
+    customerName: 'Ada Lovelace',
+    contactPhone: '5550100100',
+    contactEmail: 'ada@example.com',
+    createdAt: NOW,
+  });
+  expect(order?.items).toEqual([
+    {
+      menuItemId,
+      name: 'Grain Bowl',
+      unitPrice: 1200,
+      quantity: 2,
+      selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+      lineTotal: 2400,
+    },
+  ]);
+
+  const expiry = await t.run((ctx) => ctx.db.query('orderExpiry').first());
+  expect(expiry).toMatchObject({
+    orderId: receipt.orderId,
+    // Q9/P4: `businessId` is required by the table and carried by the row.
+    businessId,
+    expiresAt: NOW + DEFAULT_TTL_MS,
+  });
+
+  const event = await t.run((ctx) => ctx.db.query('orderEvents').first());
+  expect(event).toMatchObject({
+    orderId: receipt.orderId,
+    businessId,
+    actorType: 'customer',
+    action: 'submitted',
+    toStatus: 'new',
+    createdAt: NOW,
+  });
+
+  const notice = await t.run((ctx) => ctx.db.query('notifications').first());
+  expect(notice).toMatchObject({
+    userId: ownerId,
+    type: 'new_order',
+    businessId,
+    message: 'New order for "Blue Harbor Diner".',
+  });
+
+  expect(Object.keys(receipt).sort()).toEqual([
+    'accessToken',
+    'business',
+    'contact',
+    'createdAt',
+    'items',
+    'orderId',
+    'reference',
+    'status',
+    'subtotal',
+  ]);
+  expect(receipt).toMatchObject({
+    status: 'new',
+    subtotal: 2400,
+    createdAt: NOW,
+    contact: { phone: '***-0100', email: 'a***@example.com' },
+    business: { name: 'Blue Harbor Diner', phone: '(555) 010-0100' },
+    items: [
+      {
+        name: 'Grain Bowl',
+        quantity: 2,
+        selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+      },
+    ],
+  });
+  expect(receipt.accessToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  expect(receipt.reference).toMatch(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6,7}$/);
+
+  // Leak check: the receipt never carries the raw contact or the customer name.
+  const serialized = JSON.stringify(receipt);
+  expect(serialized).not.toContain('5550100100');
+  expect(serialized).not.toContain('ada@example.com');
+  expect(serialized).not.toContain('Ada Lovelace');
+});
+
+test('basket: a same-key different-args retry conflicts before any supply guard', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId);
+  await t.mutation(api.orders.placeOrder, args);
+
+  // Paused business AND a different name: a guard-first handler would answer
+  // ORDERING_CLOSED, so IDEMPOTENCY_CONFLICT proves the hash check runs first.
+  await configureBasket(t, businessId, { acceptingOrders: false });
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, { ...args, customerName: 'Grace Hopper' }),
+    'IDEMPOTENCY_CONFLICT'
+  );
+  expect((await rowCounts(t)).orders).toBe(1);
+});
+
+test('basket: a malformed contact on a fresh key is CONTACT_INVALID and writes nothing', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { contactPhone: 'no digits here' })
+    ),
+    'CONTACT_INVALID'
+  );
+
+  expect(await rowCounts(t)).toEqual({
+    orders: 0,
+    access: 0,
+    idempotency: 0,
+    events: 0,
+    expiry: 0,
+    notifications: 0,
+    throttle: 0,
+  });
+});
+
+test('basket: two tabs with the same key get the same token and reference, one order', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId);
+
+  const first = await t.mutation(api.orders.placeOrder, args);
+  const second = await t.mutation(api.orders.placeOrder, args);
+
+  expect(second).toEqual(first);
+  expect(second.accessToken).toBe(first.accessToken);
+  expect(second.reference).toBe(first.reference);
+  expect(second.orderId).toBe(first.orderId);
+
+  // Throttle stays at 1: the fast path returns before the serialization write.
+  expect(await rowCounts(t)).toEqual({
+    orders: 1,
+    access: 1,
+    idempotency: 1,
+    events: 1,
+    expiry: 1,
+    notifications: 1,
+    throttle: 1,
+  });
+});
+
+test('basket: a replay ignores current supply state (D5b)', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId);
+  const first = await t.mutation(api.orders.placeOrder, args);
+
+  // Post-commit closure: pause plus a flag rollback to `legacy`.
+  await configureBasket(t, businessId, {
+    acceptingOrders: false,
+    orderProtocol: 'legacy',
+  });
+
+  const replay = await t.mutation(api.orders.placeOrder, args);
+  expect(replay).toEqual(first);
+  expect(await rowCounts(t)).toEqual({
+    orders: 1,
+    access: 1,
+    idempotency: 1,
+    events: 1,
+    expiry: 1,
+    notifications: 1,
+    throttle: 1,
+  });
+});
+
+test('basket: a replay with no access row throws INTERNAL and mints no second token', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId);
+  const receipt = await t.mutation(api.orders.placeOrder, args);
+
+  const access = await t.run((ctx) =>
+    ctx.db
+      .query('orderAccess')
+      .withIndex('byOrderId', (q) => q.eq('orderId', receipt.orderId))
+      .first()
+  );
+  if (access === null) {
+    throw new Error('expected the committed access row');
+  }
+  await t.run((ctx) => ctx.db.delete(access._id));
+
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'INTERNAL');
+  expect((await rowCounts(t)).access).toBe(0);
+  expect((await rowCounts(t)).orders).toBe(1);
+});
+
+test('basket: supply guards use the spec codes and precedence', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, otherBusinessId, menuItemId, otherMenuItemId } = await seed(t);
+  const args = basketArgs(businessId, menuItemId);
+
+  // A. Missing flag (the legacy seed shape) → ORDERING_CLOSED (D3 pin).
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'ORDERING_CLOSED');
+
+  // B. Explicit `legacy` → the same code; `basket` is the only accepted value.
+  await configureBasket(t, businessId, { orderProtocol: 'legacy' });
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'ORDERING_CLOSED');
+
+  // C. Paused → ORDERING_CLOSED, with `{phone}` filled from "the business".
+  await configureBasket(t, businessId, { acceptingOrders: false });
+  const paused = await expectOrderError(
+    t.mutation(api.orders.placeOrder, args),
+    'ORDERING_CLOSED'
+  );
+  expect(paused.message).toBe(
+    "This business isn't accepting orders right now. Call the business."
+  );
+
+  // C2. The same placeholder uses the business's configured phone when present.
+  await configureBasket(t, businessId, {
+    acceptingOrders: false,
+    phone: '555-0199',
+  });
+  const pausedWithPhone = await expectOrderError(
+    t.mutation(api.orders.placeOrder, args),
+    'ORDERING_CLOSED'
+  );
+  expect(pausedWithPhone.message).toBe(
+    "This business isn't accepting orders right now. Call 555-0199."
+  );
+
+  // D. `acceptingOrdersUntil` reached → ORDERING_CLOSED (pause reset to true).
+  await configureBasket(t, businessId, { acceptingOrders: true, acceptingOrdersUntil: NOW });
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'ORDERING_CLOSED');
+
+  // E. Configured closed hours → OUTSIDE_HOURS, a distinct code. NOW is Tuesday
+  //    17:13 in America/New_York, after a 09:00–17:00 window.
+  await configureBasket(t, otherBusinessId, {
+    hours: { tuesday: [{ opensAt: '09:00', closesAt: '17:00' }] },
+  });
+  const closed = await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(otherBusinessId, otherMenuItemId, {
+        lines: [{ menuItemId: otherMenuItemId, quantity: 2, selections: [] }],
+        expectedSubtotal: 1800,
+      })
+    ),
+    'OUTSIDE_HOURS'
+  );
+  expect(closed.message).toBe(
+    'This business is closed right now. Call the business or check its hours.'
+  );
+
+  // F. Unapproved → BUSINESS_UNAVAILABLE, ahead of every supply switch.
+  await configureBasket(t, businessId, { status: 'pendingReview' });
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'BUSINESS_UNAVAILABLE');
+
+  expect((await rowCounts(t)).orders).toBe(0);
+  expect((await rowCounts(t)).throttle).toBe(0);
+});
+
+test('basket: a failed order consumes no quota slot', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId, { acceptingOrders: false });
+
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'ORDERING_CLOSED'
+  );
+
+  const throttleRows = await t.run((ctx) => ctx.db.query('orderThrottle').collect());
+  expect(throttleRows).toEqual([]);
+  expect((await rowCounts(t)).orders).toBe(0);
+});
+
+test('basket: PRICE_CHANGED carries the server total and a corrected retry commits', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId, { expectedSubtotal: 999 });
+
+  const failure = await expectOrderError(
+    t.mutation(api.orders.placeOrder, args),
+    'PRICE_CHANGED',
+    { actualSubtotal: 2400 }
+  );
+  expect(failure.actualSubtotal).toBe(2400);
+
+  // D4: pre-critical. No order, no idempotency row, and no throttle slot.
+  expect((await rowCounts(t)).orders).toBe(0);
+  expect((await rowCounts(t)).idempotency).toBe(0);
+  expect((await rowCounts(t)).throttle).toBe(0);
+
+  // The hash excludes `expectedSubtotal`, so the same key with the corrected
+  // total is not a replay of anything (no row exists) and it commits.
+  const receipt = await t.mutation(api.orders.placeOrder, {
+    ...args,
+    expectedSubtotal: 2400,
+  });
+  expect(receipt.subtotal).toBe(2400);
+  expect((await rowCounts(t)).orders).toBe(1);
+});
+
+test('basket: a live window at the limit throws TOO_MANY_REQUESTS with retryAfterMs', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  await t.run((ctx) =>
+    ctx.db.insert('orderThrottle', {
+      key: businessThrottleKey(businessId),
+      windowStart: NOW,
+      count: 60,
+    })
+  );
+
+  const data = await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'TOO_MANY_REQUESTS'
+  );
+  expect(typeof data.retryAfterMs).toBe('number');
+  expect(data.retryAfterMs).toBe(600_000);
+  expect(String(data.message)).toBe(
+    'Too many order attempts. Try again in 10 minutes or call the business.'
+  );
+  expect(String(data.message)).not.toContain('{n}');
+  expect((await rowCounts(t)).orders).toBe(0);
+});
+
+test('basket: two successful orders increment one window to 2', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'basket-key-a' })
+  );
+  await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'basket-key-b' })
+  );
+
+  const rows = await t.run((ctx) => ctx.db.query('orderThrottle').collect());
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    key: businessThrottleKey(businessId),
+    windowStart: NOW,
+    count: 2,
+  });
+});
+
+test('basket: an empty basket is BASKET_EMPTY', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { lines: [] })),
+    'BASKET_EMPTY'
+  );
+});
+
+test('basket: more than twenty lines is BASKET_TOO_LARGE', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  const lines = Array.from({ length: 21 }, () => ({
+    menuItemId,
+    quantity: 1,
+    selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+  }));
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { lines })),
+    'BASKET_TOO_LARGE'
+  );
+});
+
+test('basket: more than one hundred total units is BASKET_TOO_LARGE', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  const lines = Array.from({ length: 6 }, () => ({ menuItemId, quantity: 20 }));
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { lines })),
+    'BASKET_TOO_LARGE'
+  );
+});
+
+test('basket: quantity 0, 21, or a fraction is QUANTITY_INVALID', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  for (const quantity of [0, 21, 1.5]) {
+    await expectOrderError(
+      t.mutation(
+        api.orders.placeOrder,
+        basketArgs(businessId, menuItemId, { lines: [{ menuItemId, quantity }] })
+      ),
+      'QUANTITY_INVALID'
+    );
+  }
+});
+
+test('basket: an unknown menu item is ITEM_UNAVAILABLE', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  const groupId = await itemGroupId(t, menuItemId);
+  const ghostId = await t.run(async (ctx) => {
+    const id = await ctx.db.insert('menuItems', {
+      businessId,
+      groupId,
+      name: 'Ghost Bowl',
+      customizationOptions: [],
+      ordering: 9,
+      isAvailable: true,
+    });
+    await ctx.db.delete(id);
+    return id;
+  });
+
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, ghostId, {
+        lines: [{ menuItemId: ghostId, quantity: 1, selections: [] }],
+        expectedSubtotal: 1200,
+      })
+    ),
+    'ITEM_UNAVAILABLE'
+  );
+});
+
+test("basket: another business's item is ITEM_UNAVAILABLE", async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, otherMenuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, otherMenuItemId, {
+        lines: [{ menuItemId: otherMenuItemId, quantity: 1, selections: [] }],
+        expectedSubtotal: 900,
+      })
+    ),
+    'ITEM_UNAVAILABLE'
+  );
+});
+
+test('basket: an unavailable item is ITEM_UNAVAILABLE', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  await t.run((ctx) => ctx.db.patch(menuItemId, { isAvailable: false }));
+
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'ITEM_UNAVAILABLE'
+  );
+});
+
+test('basket: a paused group is GROUP_UNAVAILABLE', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const groupId = await itemGroupId(t, menuItemId);
+  await t.run((ctx) => ctx.db.patch(groupId, { isAvailable: false }));
+
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'GROUP_UNAVAILABLE'
+  );
+});
+
+test('basket: missing, unknown, or duplicate selections are SELECTION_INVALID', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  for (const selections of [
+    [],
+    [{ optionName: 'Base', choiceName: 'Bread' }],
+    [
+      { optionName: 'Base', choiceName: 'Rice' },
+      { optionName: 'Base', choiceName: 'Greens' },
+    ],
+  ]) {
+    const data = await expectOrderError(
+      t.mutation(
+        api.orders.placeOrder,
+        basketArgs(businessId, menuItemId, {
+          lines: [{ menuItemId, quantity: 2, selections }],
+        })
+      ),
+      'SELECTION_INVALID'
+    );
+    // §6.5 `{item}` substitution: the failing line names its catalog item.
+    expect(String(data.message)).toBe(
+      'Check the options for Grain Bowl; one is missing or no longer available.'
+    );
+  }
+});
+
+test('basket: a note over 500 characters is NOTE_TOO_LONG', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { note: 'x'.repeat(501) })
+    ),
+    'NOTE_TOO_LONG'
+  );
+});
+
+test('basket: a subtotal over $1,000 is ORDER_VALUE_TOO_HIGH', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  await t.run((ctx) => ctx.db.patch(menuItemId, { price: 100_001 }));
+
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, {
+        lines: [
+          {
+            menuItemId,
+            quantity: 1,
+            selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+          },
+        ],
+        expectedSubtotal: 100_001,
+      })
+    ),
+    'ORDER_VALUE_TOO_HIGH'
+  );
+});
+
+test('basket: a client price field is rejected by the args validator, never priced', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  // INV-01: the validator declares ids, quantities, and selections only. The
+  // Convex args validator (which `convex-test` applies too) rejects fields it
+  // does not declare — `Validator error: Unexpected field ...` — so a client
+  // price can never reach the handler or the committed subtotal.
+  const tampered = {
+    ...basketArgs(businessId, menuItemId),
+    lines: [
+      {
+        menuItemId,
+        quantity: 2,
+        selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+        unitPrice: 1,
+        priceAdjustment: 0,
+      },
+    ],
+  } as unknown as ReturnType<typeof basketArgs>;
+
+  await expect(t.mutation(api.orders.placeOrder, tampered)).rejects.toThrow(
+    /Unexpected field/
+  );
+  expect((await rowCounts(t)).orders).toBe(0);
+});
+
+// ---------------------------------------------------------------------------
+// Token receipt read (T4): `getOrderByToken` is the public capability surface
+// ---------------------------------------------------------------------------
+// The token is the capability (§6.2.6 L1091): no identity, no allow-list, no S1
+// throttle (INV-05 — 256 bits of entropy is the stated control). Every miss —
+// unknown token, an access row whose order is gone, an INV-06 scope mismatch —
+// throws the one `ORDER_NOT_FOUND` envelope (error table `:1296`) rather than
+// returning `null` (`:1573` "or null" variance, Q7/P7). A hard-deleted business
+// omits the business block and still answers (Q8). Each case builds its own
+// backend, so the mutations below cannot leak between cases.
+
+test('receipt: the token returns exactly the receipt placeOrder committed', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId, { phone: '(555) 010-0100' });
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId)
+  );
+
+  // Public surface: called without `withIdentity`, exactly as the receipt page
+  // does. Deep equality is the pin — the post-commit receipt and the token read
+  // are the same projection, not two look-alike shapes.
+  const found = await t.query(api.orders.getOrderByToken, {
+    token: receipt.accessToken,
+  });
+
+  expect(found).toEqual(receipt);
+});
+
+test('receipt: the projection is an allowlist with no raw contact, identity, or second token', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId, { phone: '(555) 010-0100' });
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId)
+  );
+
+  const found = await t.query(api.orders.getOrderByToken, {
+    token: receipt.accessToken,
+  });
+
+  expect(Object.keys(found).sort()).toEqual([
+    'accessToken',
+    'business',
+    'contact',
+    'createdAt',
+    'items',
+    'orderId',
+    'reference',
+    'status',
+    'subtotal',
+  ]);
+  expect(found.contact).toEqual({ phone: '***-0100', email: 'a***@example.com' });
+
+  const serialized = JSON.stringify(found);
+  expect(serialized).not.toContain('5550100100');
+  expect(serialized).not.toContain('ada@example.com');
+  expect(serialized).not.toContain('Ada Lovelace');
+  expect(serialized).not.toContain('customerUserId');
+  // The only token field is `accessToken`: no JSON key literally named `token`.
+  expect(serialized).not.toContain('"token"');
+  expect(Object.keys(found)).not.toContain('token');
+});
+
+test('receipt: an unknown token throws ORDER_NOT_FOUND', async () => {
+  const t = convexTest(schema, modules);
+  await seed(t);
+
+  await expectOrderError(
+    t.query(api.orders.getOrderByToken, { token: 'not-a-real-token' }),
+    'ORDER_NOT_FOUND'
+  );
+});
+
+test('receipt: an INV-06 business mismatch throws ORDER_NOT_FOUND', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, otherBusinessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId)
+  );
+
+  const access = await t.run((ctx) =>
+    ctx.db
+      .query('orderAccess')
+      .withIndex('byOrderId', (q) => q.eq('orderId', receipt.orderId))
+      .first()
+  );
+  if (access === null) {
+    throw new Error('expected the committed access row');
+  }
+  // Corrupt the scope: the order belongs to `businessId`, the access row now
+  // claims the other seeded business.
+  await t.run((ctx) => ctx.db.patch(access._id, { businessId: otherBusinessId }));
+
+  await expectOrderError(
+    t.query(api.orders.getOrderByToken, { token: access.accessToken }),
+    'ORDER_NOT_FOUND'
+  );
+});
+
+test('receipt: an access row whose order is gone throws ORDER_NOT_FOUND', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId)
+  );
+
+  await t.run((ctx) => ctx.db.delete(receipt.orderId));
+
+  await expectOrderError(
+    t.query(api.orders.getOrderByToken, { token: receipt.accessToken }),
+    'ORDER_NOT_FOUND'
+  );
+});
+
+test('receipt: a hard-deleted business omits the business block and still answers', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId, { phone: '(555) 010-0100' });
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId)
+  );
+  expect(receipt).toMatchObject({
+    business: { name: 'Blue Harbor Diner', phone: '(555) 010-0100' },
+  });
+
+  await t.run((ctx) => ctx.db.delete(businessId));
+
+  const found = await t.query(api.orders.getOrderByToken, {
+    token: receipt.accessToken,
+  });
+  const expected = { ...receipt } as Record<string, unknown>;
+  delete expected.business;
+  expect(found).toEqual(expected);
+  expect(found).not.toHaveProperty('business');
+});
+
+test('receipt: two tokens each return only their own order', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const first = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'basket-key-0001' })
+  );
+  const second = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'basket-key-0002' })
+  );
+
+  expect(second.orderId).not.toBe(first.orderId);
+  expect(second.accessToken).not.toBe(first.accessToken);
+
+  const firstFound = await t.query(api.orders.getOrderByToken, {
+    token: first.accessToken,
+  });
+  const secondFound = await t.query(api.orders.getOrderByToken, {
+    token: second.accessToken,
+  });
+
+  expect(firstFound).toEqual(first);
+  expect(secondFound).toEqual(second);
+  expect(firstFound.orderId).toBe(first.orderId);
+  expect(secondFound.orderId).toBe(second.orderId);
+  expect(firstFound).not.toEqual(secondFound);
+});
+

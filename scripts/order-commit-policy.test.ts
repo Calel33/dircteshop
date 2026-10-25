@@ -44,7 +44,9 @@ import {
   TOKEN_BYTES,
   canonicalArgsHash,
   createReference,
+  effectiveOpenReason,
   isEffectiveOpen,
+  maskContact,
   parseContact,
   priceBasket,
   randomReference,
@@ -58,6 +60,7 @@ import type {
   Catalog,
   CatalogEntry,
   EffectiveOpenBusiness,
+  EffectiveOpenReason,
   OrderActionResolution,
   OrderDbStatus,
   OrderProtocolAction,
@@ -1789,4 +1792,218 @@ test('resolves one instant differently in two timezones', () => {
     isEffectiveOpen(effectiveBusiness({ hours, timezone: 'America/New_York' }), now),
     false
   );
+});
+
+// ---------------------------------------------------------------------------
+// Effective-open reason (issue #78, D2): the four-way split the handler needs
+// to choose ORDERING_CLOSED (`accepting_off` / `until_passed`) versus
+// OUTSIDE_HOURS. Precedence is the predicate's own `&&` order:
+// approval → pause → until → hours.
+// ---------------------------------------------------------------------------
+
+test('splits every approved fixture exactly where isEffectiveOpen flips', () => {
+  const mondayNoonUtc = Date.UTC(2026, 0, 12, 12, 0);
+  const hours: BusinessHours = { monday: [{ opensAt: '09:00', closesAt: '17:00' }] };
+  const fixtures: ReadonlyArray<{
+    label: string;
+    business: EffectiveOpenBusiness;
+    now: number;
+    expected: EffectiveOpenReason;
+  }> = [
+    {
+      label: 'open',
+      business: effectiveBusiness(),
+      now: mondayNoonUtc,
+      expected: 'open',
+    },
+    {
+      label: 'paused',
+      business: effectiveBusiness({ acceptingOrders: false }),
+      now: mondayNoonUtc,
+      expected: 'accepting_off',
+    },
+    {
+      label: 'until passed',
+      business: effectiveBusiness({ acceptingOrdersUntil: mondayNoonUtc - 1 }),
+      now: mondayNoonUtc,
+      expected: 'until_passed',
+    },
+    {
+      label: 'until reached exactly',
+      business: effectiveBusiness({ acceptingOrdersUntil: mondayNoonUtc }),
+      now: mondayNoonUtc,
+      expected: 'until_passed',
+    },
+    {
+      label: 'hours closed',
+      business: effectiveBusiness({ hours }),
+      now: mondayNoonUtc,
+      expected: 'outside_hours',
+    },
+    {
+      label: 'hours open',
+      business: effectiveBusiness({ hours, timezone: 'Europe/London' }),
+      now: mondayNoonUtc,
+      expected: 'open',
+    },
+    {
+      label: 'empty hours',
+      business: effectiveBusiness({ hours: {} }),
+      now: mondayNoonUtc,
+      expected: 'open',
+    },
+    {
+      label: 'empty day list',
+      business: effectiveBusiness({ hours: { monday: [] } }),
+      now: mondayNoonUtc,
+      expected: 'open',
+    },
+  ];
+
+  for (const { label, business, now, expected } of fixtures) {
+    assert.equal(effectiveOpenReason(business, now), expected, label);
+    assert.equal(
+      isEffectiveOpen(business, now),
+      expected === 'open',
+      `${label}: the boolean and the reason must agree`
+    );
+  }
+});
+
+test('agrees with isEffectiveOpen across every gate combination', () => {
+  const hours: BusinessHours = { monday: [{ opensAt: '09:00', closesAt: '17:00' }] };
+  const now = Date.UTC(2026, 0, 12, 12, 0);
+  const statuses = ['approved', 'pendingReview'];
+  const acceptingOrders = [true, false];
+  const untils = [now - 1, now, now + 1];
+  const hourSets: BusinessHours[] = [{}, { monday: [] }, hours];
+
+  for (const status of statuses) {
+    for (const accepting of acceptingOrders) {
+      for (const until of untils) {
+        for (const businessHours of hourSets) {
+          const business = effectiveBusiness({
+            status,
+            acceptingOrders: accepting,
+            acceptingOrdersUntil: until,
+            hours: businessHours,
+          });
+          assert.equal(
+            effectiveOpenReason(business, now) === 'open',
+            isEffectiveOpen(business, now),
+            `${status}/${accepting}/${until}/${JSON.stringify(businessHours)}`
+          );
+        }
+      }
+    }
+  }
+});
+
+test('treats an undefined acceptingOrders as accepting in the reason split', () => {
+  const business: EffectiveOpenBusiness = {
+    status: 'approved',
+    hours: {},
+    timezone: 'America/New_York',
+  };
+  assert.equal(effectiveOpenReason(business, Date.UTC(2026, 0, 12, 12, 0)), 'open');
+});
+
+test('reports until_passed at and after the deadline', () => {
+  const now = Date.UTC(2026, 0, 13, 8, 0);
+  assert.equal(
+    effectiveOpenReason(effectiveBusiness({ acceptingOrdersUntil: now }), now),
+    'until_passed'
+  );
+  assert.equal(
+    effectiveOpenReason(effectiveBusiness({ acceptingOrdersUntil: now - 1 }), now),
+    'until_passed'
+  );
+  assert.equal(
+    effectiveOpenReason(effectiveBusiness({ acceptingOrdersUntil: now + 1 }), now),
+    'open'
+  );
+});
+
+test('reports outside_hours when the configured period is closed', () => {
+  const hours: BusinessHours = { monday: [{ opensAt: '09:00', closesAt: '17:00' }] };
+  // 2026-01-12T23:00Z is Monday 18:00 in New York — past the close.
+  assert.equal(
+    effectiveOpenReason(effectiveBusiness({ hours }), Date.UTC(2026, 0, 12, 23, 0)),
+    'outside_hours'
+  );
+});
+
+test('pins the reason precedence when several gates fail at once', () => {
+  const hours: BusinessHours = { monday: [{ opensAt: '09:00', closesAt: '17:00' }] };
+  // 2026-01-12T12:00Z is Monday 07:00 in New York — also closed by hours.
+  const now = Date.UTC(2026, 0, 12, 12, 0);
+
+  assert.equal(
+    effectiveOpenReason(
+      effectiveBusiness({ acceptingOrders: false, acceptingOrdersUntil: now - 1, hours }),
+      now
+    ),
+    'accepting_off',
+    'a pause outranks the deadline and hours'
+  );
+  assert.equal(
+    effectiveOpenReason(effectiveBusiness({ acceptingOrdersUntil: now - 1, hours }), now),
+    'until_passed',
+    'the deadline outranks hours'
+  );
+});
+
+test('never reports open for an unapproved business', () => {
+  const now = Date.UTC(2026, 0, 12, 12, 0);
+  for (const status of ['draft', 'pendingReview', 'changesRequested', 'rejected', 'suspended']) {
+    const business = effectiveBusiness({ status });
+    assert.equal(effectiveOpenReason(business, now), 'accepting_off', status);
+    assert.notEqual(effectiveOpenReason(business, now), 'open', status);
+    assert.equal(isEffectiveOpen(business, now), false, status);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Contact masking (spec §6.2.6 L1093). The shapes below are exact-match pins;
+// the input is the normalized `ParsedContact` value, not the order row.
+// ---------------------------------------------------------------------------
+
+test('masks a phone to its last four digits', () => {
+  assert.deepEqual(maskContact({ phone: '+1 (555) 010-0100' }), { phone: '***-0100' });
+  assert.deepEqual(maskContact({ phone: '0100' }), { phone: '***-0100' });
+});
+
+test('masks an email to its first character and domain', () => {
+  assert.deepEqual(maskContact({ email: 'alice@example.com' }), { email: 'a***@example.com' });
+  assert.deepEqual(maskContact({ email: 'a@b.co' }), { email: 'a***@b.co' });
+});
+
+test('omits contact channels that are absent', () => {
+  assert.deepEqual(maskContact({}), {});
+  const phoneOnly = maskContact({ phone: '555-0100' });
+  assert.equal('email' in phoneOnly, false);
+  const emailOnly = maskContact({ email: 'alice@example.com' });
+  assert.equal('phone' in emailOnly, false);
+});
+
+test('masks a phone with fewer than four digits to ***', () => {
+  assert.deepEqual(maskContact({ phone: '010' }), { phone: '***' });
+  assert.deepEqual(maskContact({ phone: '' }), { phone: '***' });
+  assert.deepEqual(maskContact({ phone: 'no digits' }), { phone: '***' });
+});
+
+test('masks a malformed email to ***', () => {
+  assert.deepEqual(maskContact({ email: 'not-an-email' }), { email: '***' });
+  assert.deepEqual(maskContact({ email: '@example.com' }), { email: '***' });
+  assert.deepEqual(maskContact({ email: 'alice@' }), { email: '***' });
+  assert.deepEqual(maskContact({ email: '' }), { email: '***' });
+});
+
+test('never echoes the raw contact and masks deterministically', () => {
+  const phone = '+1 (555) 010-0100';
+  const email = 'alice@example.com';
+  const masked = maskContact({ phone, email });
+  assert.notEqual(masked.phone, phone);
+  assert.notEqual(masked.email, email);
+  assert.deepEqual(maskContact({ phone, email }), masked);
 });
