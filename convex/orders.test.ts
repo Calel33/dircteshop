@@ -260,10 +260,10 @@ test('the owner board returns the order and the owner can advance it', async () 
   const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
 
   const asOwner = t.withIdentity({ subject: 'user_owner' });
-  const rows = await asOwner.query(api.orders.listOrders, { businessId });
-  expect(rows).toHaveLength(1);
-  expect(rows[0]?.itemName).toBe('Grain Bowl');
-  expect(rows[0]?.itemPrice).toBe(1200);
+  const page = await asOwner.query(api.orders.listOrders, { businessId });
+  expect(page.rows).toHaveLength(1);
+  expect(page.rows[0]?.itemName).toBe('Grain Bowl');
+  expect(page.rows[0]?.itemPrice).toBe(1200);
 
   for (const action of ['accept', 'ready', 'complete'] as const) {
     await asOwner.mutation(api.orders.transitionOrderStatus, {
@@ -382,14 +382,14 @@ test('legacy-only rows project through the live join and expose no pricing sourc
   const { businessId, menuItemId } = await seed(t);
   const orderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
 
-  const rows = await t
+  const page = await t
     .withIdentity({ subject: 'user_owner' })
     .query(api.orders.listOrders, { businessId });
-  expect(rows).toHaveLength(1);
-  expect(rows[0]?.itemName).toBe('Grain Bowl');
-  expect(rows[0]?.itemPrice).toBe(1200);
-  expect(rows[0]?.pricingSource).toBeNull();
-  expect(rows[0]?.selections).toEqual([{ optionName: 'Base', choiceName: 'Rice' }]);
+  expect(page.rows).toHaveLength(1);
+  expect(page.rows[0]?.itemName).toBe('Grain Bowl');
+  expect(page.rows[0]?.itemPrice).toBe(1200);
+  expect(page.rows[0]?.pricingSource).toBeNull();
+  expect(page.rows[0]?.selections).toEqual([{ optionName: 'Base', choiceName: 'Rice' }]);
 
   expect(await t.query(api.orders.getOrderStatus, { orderId })).toEqual({
     status: 'new',
@@ -420,14 +420,14 @@ test('a committed items[] snapshot wins over the live join and stays unpriced', 
     })
   );
 
-  const rows = await t
+  const page = await t
     .withIdentity({ subject: 'user_owner' })
     .query(api.orders.listOrders, { businessId });
-  expect(rows).toHaveLength(1);
-  expect(rows[0]?.itemName).toBe('Snapshot Bowl');
-  expect(rows[0]?.itemPrice).toBeNull();
-  expect(rows[0]?.pricingSource).toBe('legacyUnknown');
-  expect(rows[0]?.selections).toEqual([{ optionName: 'Base', choiceName: 'Greens' }]);
+  expect(page.rows).toHaveLength(1);
+  expect(page.rows[0]?.itemName).toBe('Snapshot Bowl');
+  expect(page.rows[0]?.itemPrice).toBeNull();
+  expect(page.rows[0]?.pricingSource).toBe('legacyUnknown');
+  expect(page.rows[0]?.selections).toEqual([{ optionName: 'Base', choiceName: 'Greens' }]);
 
   const status = await t.query(api.orders.getOrderStatus, { orderId });
   expect(Object.keys(status ?? {}).sort()).toEqual(['createdAt', 'status']);
@@ -479,11 +479,11 @@ test('a backfilled order never borrows a later menu price (R11)', async () => {
 
   await t.run((ctx) => ctx.db.patch(menuItemId, { price: 9999 }));
 
-  const rows = await t
+  const page = await t
     .withIdentity({ subject: 'user_owner' })
     .query(api.orders.listOrders, { businessId });
-  expect(rows[0]?.itemPrice).toBeNull();
-  expect(rows[0]?.pricingSource).toBe('legacyUnknown');
+  expect(page.rows[0]?.itemPrice).toBeNull();
+  expect(page.rows[0]?.pricingSource).toBe('legacyUnknown');
 
   const order = await t.run((ctx) => ctx.db.get('orders', orderId));
   const line = order?.items?.[0];
@@ -2356,8 +2356,9 @@ test('owner protocol: the decline reason and transition time reach the receipt a
   expect(receipt.statusReason).toBe('Kitchen is out of that dish');
 
   const asOwner = t.withIdentity({ subject: 'user_owner' });
-  const rows = await asOwner.query(api.orders.listOrders, { businessId });
-  const row = rows.find((candidate) => candidate._id === orderId);
+  // The order left `new`; the board's default filter would not return it.
+  const page = await asOwner.query(api.orders.listOrders, { businessId, status: 'all' });
+  const row = page.rows.find((candidate) => candidate._id === orderId);
   expect(row?.status).toBe('declined');
   expect(row?.statusReason).toBe('Kitchen is out of that dish');
   expect(row?.createdAt).toBe(NOW);
@@ -2376,8 +2377,8 @@ test('owner protocol: board rows without a stamp fall back to createdAt and a mi
   expect(stored?.statusReason).toBeUndefined();
 
   const asOwner = t.withIdentity({ subject: 'user_owner' });
-  const rows = await asOwner.query(api.orders.listOrders, { businessId });
-  const row = rows.find((candidate) => candidate._id === orderId);
+  const page = await asOwner.query(api.orders.listOrders, { businessId });
+  const row = page.rows.find((candidate) => candidate._id === orderId);
   expect(row?.statusUpdatedAt).toBe(NOW);
   expect(row?.statusReason).toBeNull();
 });
@@ -2505,4 +2506,305 @@ test('basket: owner supply mutations pause ordering and drive the commit guards'
   expect(order?.status).toBe('accepted');
 });
 
+// ---------------------------------------------------------------------------
+// T7 (issue #82): the filtered owner-board read path (§6.8, §7.2 S2)
+//
+// Every filter is index-range work. These pin the starvation fix (a `new` row
+// survives 100+ completed rows), insertion-order pagination (the fake clock
+// shares one `createdAt`, so only `_id` order proves `_creationTime` collation),
+// the 100-row cap + `capped` flag, per-status counts, and the row payload —
+// including the `orderAccess.reference` join and the token that must never
+// reach it.
+// ---------------------------------------------------------------------------
 
+/** Inserts one order per status in argument order (insertion order = board order). */
+async function insertOrderStatuses(
+  t: SchemaBackend,
+  businessId: Id<'businesses'>,
+  statuses: readonly Doc<'orders'>['status'][]
+) {
+  return await t.run(async (ctx) => {
+    const ids: Id<'orders'>[] = [];
+    for (const status of statuses) {
+      ids.push(
+        await ctx.db.insert('orders', {
+          businessId,
+          customerName: `Customer ${status}`,
+          status,
+          createdAt: NOW,
+        })
+      );
+    }
+    return ids;
+  });
+}
+
+test('issue #82: one new order stays visible above 120 completed orders (no starvation)', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const [newOrderId] = await insertOrderStatuses(t, businessId, [
+    'new',
+    ...Array.from({ length: 120 }, () => 'completed' as const),
+  ]);
+
+  const page = await t
+    .withIdentity({ subject: 'user_owner' })
+    .query(api.orders.listOrders, { businessId });
+
+  expect(page.rows.map((row) => row._id)).toEqual([newOrderId]);
+  expect(page.isDone).toBe(true);
+  expect(page.capped).toBe(false);
+});
+
+test('issue #82: the new filter pages 50 rows by default', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  await insertOrderStatuses(
+    t,
+    businessId,
+    Array.from({ length: 51 }, () => 'new' as const)
+  );
+
+  const page = await t
+    .withIdentity({ subject: 'user_owner' })
+    .query(api.orders.listOrders, { businessId });
+
+  expect(page.rows).toHaveLength(50);
+  expect(page.isDone).toBe(false);
+  expect(page.continueCursor).not.toBe('');
+});
+
+test('issue #82: new paginates oldest-first by insertion order with no gaps or duplicates', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const orderIds = await insertOrderStatuses(t, businessId, ['new', 'new', 'new', 'new', 'new']);
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+
+  const first = await asOwner.query(api.orders.listOrders, { businessId, numItems: 2 });
+  expect(first.rows.map((row) => row._id)).toEqual(orderIds.slice(0, 2));
+  expect(first.isDone).toBe(false);
+  // The fake clock stamps every row with the same `createdAt`; the sequence
+  // above can only hold if the index orders by its appended `_creationTime`.
+  expect(new Set(first.rows.map((row) => row.createdAt))).toEqual(new Set([NOW]));
+
+  const second = await asOwner.query(api.orders.listOrders, {
+    businessId,
+    cursor: first.continueCursor,
+    numItems: 2,
+  });
+  expect(second.rows.map((row) => row._id)).toEqual(orderIds.slice(2, 4));
+
+  const third = await asOwner.query(api.orders.listOrders, {
+    businessId,
+    cursor: second.continueCursor,
+    numItems: 2,
+  });
+  expect(third.rows.map((row) => row._id)).toEqual(orderIds.slice(4));
+  expect(third.isDone).toBe(true);
+
+  const paged = [...first.rows, ...second.rows, ...third.rows].map((row) => row._id);
+  expect(paged).toEqual(orderIds);
+  expect(new Set(paged).size).toBe(orderIds.length);
+});
+
+test('issue #82: every protocol status filter reads only its own status', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const statuses = [
+    'new',
+    'accepted',
+    'ready',
+    'completed',
+    'declined',
+    'cancelled',
+    'expired',
+    'no_show',
+  ] as const;
+  const orderIds = await insertOrderStatuses(t, businessId, statuses);
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+
+  for (const [index, status] of statuses.entries()) {
+    const page = await asOwner.query(api.orders.listOrders, { businessId, status });
+    expect(page.rows.map((row) => row._id)).toEqual([orderIds[index]]);
+    expect(page.capped).toBe(false);
+  }
+
+  const all = await asOwner.query(api.orders.listOrders, { businessId, status: 'all' });
+  expect(all.rows.map((row) => row._id)).toEqual(orderIds);
+});
+
+test('issue #82: non-new filters cap at 100 rows and flag the 101st', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  await insertOrderStatuses(
+    t,
+    businessId,
+    Array.from({ length: 100 }, () => 'accepted' as const)
+  );
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+
+  const atCap = await asOwner.query(api.orders.listOrders, { businessId, status: 'accepted' });
+  expect(atCap.rows).toHaveLength(100);
+  expect(atCap.capped).toBe(false);
+  expect(atCap.isDone).toBe(true);
+
+  await insertOrderStatuses(t, businessId, ['accepted']);
+
+  const overCap = await asOwner.query(api.orders.listOrders, { businessId, status: 'accepted' });
+  expect(overCap.rows).toHaveLength(100);
+  expect(overCap.capped).toBe(true);
+  expect(overCap.isDone).toBe(true);
+  expect(overCap.continueCursor).toBe('');
+
+  const all = await asOwner.query(api.orders.listOrders, { businessId, status: 'all' });
+  expect(all.rows).toHaveLength(100);
+  expect(all.capped).toBe(true);
+});
+
+test('issue #82: listOrderCounts returns per-status counts and flips capped at the cap', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  await insertOrderStatuses(t, businessId, [
+    'new',
+    'new',
+    'accepted',
+    ...Array.from({ length: 100 }, () => 'completed' as const),
+  ]);
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+
+  const atCap = await asOwner.query(api.orders.listOrderCounts, { businessId });
+  expect(atCap.new).toEqual({ count: 2, capped: false });
+  expect(atCap.accepted).toEqual({ count: 1, capped: false });
+  expect(atCap.completed).toEqual({ count: 100, capped: false });
+  expect(atCap.no_show).toEqual({ count: 0, capped: false });
+  // 103 rows overall: the bounded `all` read sees 101 and reports the cap.
+  expect(atCap.all).toEqual({ count: 100, capped: true });
+
+  await insertOrderStatuses(t, businessId, ['completed']);
+
+  const overCap = await asOwner.query(api.orders.listOrderCounts, { businessId });
+  expect(overCap.completed).toEqual({ count: 100, capped: true });
+  expect(overCap.new).toEqual({ count: 2, capped: false });
+});
+
+test('issue #82: rows carry the reference and never the access token', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const [orderId] = await insertOrderStatuses(t, businessId, ['new']);
+  await t.run((ctx) =>
+    ctx.db.insert('orderAccess', {
+      orderId,
+      businessId,
+      accessToken: 'super-secret-token',
+      reference: 'AB12CD',
+      createdAt: NOW,
+    })
+  );
+
+  const page = await t
+    .withIdentity({ subject: 'user_owner' })
+    .query(api.orders.listOrders, { businessId });
+
+  expect(page.rows).toHaveLength(1);
+  expect(page.rows[0]?.reference).toBe('AB12CD');
+  // Pin the projection shape so a future refactor cannot slip the capability
+  // token into the row payload.
+  expect(Object.keys(page.rows[0] ?? {}).sort()).toEqual([
+    '_id',
+    'contactEmail',
+    'contactPhone',
+    'createdAt',
+    'customerName',
+    'expiresAt',
+    'itemName',
+    'itemPrice',
+    'items',
+    'note',
+    'pricingSource',
+    'reference',
+    'selections',
+    'status',
+    'statusReason',
+    'statusUpdatedAt',
+    'subtotal',
+  ]);
+  expect(JSON.stringify(page)).not.toContain('super-secret-token');
+  expect(JSON.stringify(page)).not.toContain('accessToken');
+});
+
+test('issue #82: items[], selections and subtotal reach the row; legacy rows keep the join', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  const snapshotOrderId = await t.run((ctx) =>
+    ctx.db.insert('orders', {
+      businessId,
+      customerName: 'Grace Hopper',
+      status: 'new',
+      createdAt: NOW,
+      pricingSource: 'snapshot',
+      subtotal: 2900,
+      items: [
+        {
+          menuItemId,
+          name: 'Grain Bowl',
+          quantity: 2,
+          unitPrice: 1200,
+          lineTotal: 2400,
+          selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+        },
+        {
+          menuItemId,
+          name: 'Side Salad',
+          quantity: 1,
+          unitPrice: 500,
+          lineTotal: 500,
+          selections: [],
+        },
+      ],
+    })
+  );
+  const legacyOrderId = await t.mutation(api.orders.submitOrder, validArgs(businessId, menuItemId));
+
+  const page = await t
+    .withIdentity({ subject: 'user_owner' })
+    .query(api.orders.listOrders, { businessId });
+
+  const snapshotRow = page.rows.find((row) => row._id === snapshotOrderId);
+  expect(snapshotRow?.items).toEqual([
+    {
+      name: 'Grain Bowl',
+      quantity: 2,
+      unitPrice: 1200,
+      lineTotal: 2400,
+      selections: [{ optionName: 'Base', choiceName: 'Rice' }],
+    },
+    {
+      name: 'Side Salad',
+      quantity: 1,
+      unitPrice: 500,
+      lineTotal: 500,
+      selections: [],
+    },
+  ]);
+  expect(snapshotRow?.subtotal).toBe(2900);
+
+  const legacyRow = page.rows.find((row) => row._id === legacyOrderId);
+  expect(legacyRow?.items).toBeNull();
+  expect(legacyRow?.itemName).toBe('Grain Bowl');
+  expect(legacyRow?.itemPrice).toBe(1200);
+});
+
+test('issue #82: board reads reject anonymous and non-owner callers', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seed(t);
+  const asOtherOwner = t.withIdentity({ subject: 'user_other_owner' });
+
+  await expect(t.query(api.orders.listOrders, { businessId })).rejects.toThrow('Unauthorized');
+  await expect(t.query(api.orders.listOrderCounts, { businessId })).rejects.toThrow('Unauthorized');
+  await expect(
+    asOtherOwner.query(api.orders.listOrders, { businessId, status: 'all' })
+  ).rejects.toThrow('Forbidden');
+  await expect(asOtherOwner.query(api.orders.listOrderCounts, { businessId })).rejects.toThrow(
+    'Forbidden'
+  );
+});

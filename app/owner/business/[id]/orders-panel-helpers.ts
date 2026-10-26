@@ -1,18 +1,19 @@
 import {
-  ORDER_ACTIONS,
-  ORDER_ACTION_TARGET,
   ORDER_DB_STATUSES,
-  ORDER_STATUS_TRANSITIONS,
-  isLegacyOrderStatus,
-  type OrderAction,
+  TERMINAL_ORDER_STATUSES,
+  type OrderOwnerAction,
 } from '../../../../convex/orderPolicy.ts';
 
-// Pure presentation helpers for the owner orders board. The status machine
-// itself lives in `convex/orderPolicy.ts`; this module only derives what the
-// row renders from it, so an illegal transition can never be offered.
+// Pure presentation helpers for the owner orders board (issue #82, T7). The
+// status machine, action union, and terminal set live in
+// `convex/orderPolicy.ts`; this module only derives what the board renders from
+// those tuples, so the UI cannot drift from the server policy.
 
 /** Every stored status; derived from the schema's tuple, never redeclared. */
-type OrderBoardStatus = (typeof ORDER_DB_STATUSES)[number];
+export type OrderBoardStatus = (typeof ORDER_DB_STATUSES)[number];
+
+/** The board's filter vocabulary: every stored status plus `All`. */
+export type OrderFilter = OrderBoardStatus | 'all';
 
 export const ORDER_STATUS_LABELS: Record<OrderBoardStatus, string> = {
   new: 'New',
@@ -25,13 +26,18 @@ export const ORDER_STATUS_LABELS: Record<OrderBoardStatus, string> = {
   no_show: 'No show',
 };
 
-export const ORDER_ACTION_LABELS: Record<OrderAction, string> = {
+/** Every owner wire action, keyed by the policy tuple's own union. */
+export const ORDER_ACTION_LABELS: Record<OrderOwnerAction, string> = {
   accept: 'Accept',
+  decline: 'Decline',
+  cancel: 'Cancel',
   ready: 'Ready',
   complete: 'Complete',
+  noShow: 'No show',
 };
 
-const STATUS_PILL_CLASSES: Record<OrderBoardStatus, string> = {
+/** Token classes for the status pill (fill + border + text, never colour alone). */
+export const STATUS_PILL_CLASSES: Record<OrderBoardStatus, string> = {
   new: 'bg-warning-soft border-warning-border text-warning-strong',
   accepted: 'bg-info-soft border-info-border text-info-strong',
   ready: 'bg-success-soft border-success-border text-success-strong',
@@ -43,23 +49,127 @@ const STATUS_PILL_CLASSES: Record<OrderBoardStatus, string> = {
 };
 
 /**
- * The single forward action available from a legacy `status`; terminal and
- * non-legacy statuses (`declined`, `cancelled`, `expired`, `no_show`) have
- * none. TS only has one shape (`orders.status`), so the 4-state matrix is
- * indexed only after the legacy guard.
+ * The button set the board offers from each status. The authority for every
+ * pair is `resolveOwnerDecision` in `convex/orderPolicy.ts`; this table is the
+ * narrower operator surface described by §6.8 (e.g. the server matrix also
+ * accepts `cancel` from `new`, while the owner workflow only offers cancel
+ * after accept). `orders-panel-helpers.test.ts` pins every listed pair as a
+ * legal policy `move`, so the table cannot invent server behaviour.
  */
-export function nextActionForStatus(status: OrderBoardStatus): OrderAction | null {
-  if (!isLegacyOrderStatus(status)) {
-    return null;
-  }
-  const target = ORDER_STATUS_TRANSITIONS[status];
-  if (target === null) {
-    return null;
-  }
-  return ORDER_ACTIONS.find((action) => ORDER_ACTION_TARGET[action] === target) ?? null;
+const BOARD_ACTIONS: Record<OrderBoardStatus, readonly OrderOwnerAction[]> = {
+  new: ['accept', 'decline'],
+  accepted: ['ready', 'cancel'],
+  ready: ['complete', 'noShow', 'cancel'],
+  completed: [],
+  declined: [],
+  cancelled: [],
+  expired: [],
+  no_show: [],
+};
+
+/** Every protocol action the current status can act on, in render order. */
+export function nextActionForStatus(status: OrderBoardStatus): readonly OrderOwnerAction[] {
+  return BOARD_ACTIONS[status];
 }
 
-/** Token classes for the status pill (fill + border + text, never colour alone). */
+/** True for the five §6.1 terminal statuses (the policy tuple owns the list). */
+export function isTerminalStatus(status: OrderBoardStatus): boolean {
+  return (TERMINAL_ORDER_STATUSES as readonly OrderBoardStatus[]).includes(status);
+}
+
+export const AGE_AMBER_MS = 5 * 60 * 1000;
+export const AGE_RED_MS = 15 * 60 * 1000;
+
+/** How often a live row refreshes its minute-granularity waiting clock. */
+export const AGE_TICK_MS = 30_000;
+
+export type AgeTone = 'neutral' | 'amber' | 'danger';
+
+/** Token classes for the age badge; the text always carries the value too. */
+export const AGE_BADGE_CLASSES: Record<AgeTone, string> = {
+  neutral: 'bg-neutral-chip border-border text-neutral-chip-foreground',
+  amber: 'bg-warning-soft border-warning-border text-warning-strong',
+  danger: 'bg-danger-soft border-danger-border text-danger-strong',
+};
+
+/**
+ * Age tone for the unwaiting queue: amber from 5 minutes, red from 15. Pure and
+ * clock-injected so the row's interval and the tests share one rule.
+ */
+export function ageClass(createdAt: number, now: number): AgeTone {
+  const age = Math.max(0, now - createdAt);
+  if (age >= AGE_RED_MS) {
+    return 'danger';
+  }
+  if (age >= AGE_AMBER_MS) {
+    return 'amber';
+  }
+  return 'neutral';
+}
+
+/** Compact waiting time: "under a minute", "12 min", "1 h 30 min". */
+export function formatAge(createdAt: number, now: number): string {
+  const minutes = Math.max(0, Math.floor((now - createdAt) / 60_000));
+  if (minutes < 1) {
+    return 'under a minute';
+  }
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours} h` : `${hours} h ${remainder} min`;
+}
+
+export const NOTE_PREVIEW_LENGTH = 140;
+
+export type NoteSummary = { text: string; truncated: boolean };
+
+/**
+ * Single-line note clamp for a board row. Returns `null` when there is nothing
+ * to show; `truncated` tells the row whether to render the expand control.
+ */
+export function summarizeNote(
+  note: string | null,
+  limit: number = NOTE_PREVIEW_LENGTH
+): NoteSummary | null {
+  if (note === null) {
+    return null;
+  }
+  const normalized = note.trim().replace(/\s+/g, ' ');
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized.length <= limit) {
+    return { text: normalized, truncated: false };
+  }
+  return { text: `${normalized.slice(0, limit).trimEnd()}…`, truncated: true };
+}
+
+/**
+ * The nine filters in the operator order of §6.8. `No-show` follows the spec's
+ * hyphenated filter copy; the row pill keeps the status label "No show".
+ */
+export const ORDER_FILTERS: readonly { value: OrderFilter; label: string }[] = [
+  { value: 'new', label: ORDER_STATUS_LABELS.new },
+  { value: 'accepted', label: ORDER_STATUS_LABELS.accepted },
+  { value: 'ready', label: ORDER_STATUS_LABELS.ready },
+  { value: 'completed', label: ORDER_STATUS_LABELS.completed },
+  { value: 'declined', label: ORDER_STATUS_LABELS.declined },
+  { value: 'cancelled', label: ORDER_STATUS_LABELS.cancelled },
+  { value: 'expired', label: ORDER_STATUS_LABELS.expired },
+  { value: 'no_show', label: 'No-show' },
+  { value: 'all', label: 'All' },
+];
+
+export const COUNT_CAP = 100;
+
+/** Count chip copy: the server saturates at 100, so past it show "99+". */
+export function countChipLabel(count: number, capped: boolean): string {
+  return capped || count >= COUNT_CAP ? '99+' : String(count);
+}
+
+/** Token classes for the status pill; kept as a function for call-site parity. */
 export function statusPillClass(status: OrderBoardStatus): string {
   return STATUS_PILL_CLASSES[status];
 }
@@ -67,4 +177,65 @@ export function statusPillClass(status: OrderBoardStatus): string {
 /** Owner-facing creation time in the viewer's locale. */
 export function formatOrderTime(createdAt: number): string {
   return new Date(createdAt).toLocaleString();
+}
+
+/** The only part of a page result the merge reads. */
+export type LiveOrderPage<T> = { readonly rows: readonly T[] };
+
+/**
+ * Merge the live `new` pages into one list, page order then row order.
+ *
+ * Every page is its own live subscription, so a row that leaves `new` is
+ * absent from its page on the next delivery and therefore absent here; there
+ * are no frozen row copies to keep it on screen. A page that has not
+ * delivered yet is skipped instead of blanking the list.
+ *
+ * A duplicate `_id` keeps the first page's position (Map insertion order) and
+ * the later page's value (`set` overwrites in place). That is deterministic
+ * because all pages are live projections of the same reactive store: a row
+ * appears in whichever page its position and status put it, and every page
+ * that returns it carries the same current edited document.
+ */
+export function mergeLiveOrderPages<T extends { readonly _id: string }>(
+  firstPage: LiveOrderPage<T>,
+  pages: readonly string[],
+  pageResults: ReadonlyMap<string, LiveOrderPage<T>>
+): T[] {
+  const byId = new Map<string, T>();
+  for (const row of firstPage.rows) {
+    byId.set(row._id, row);
+  }
+  for (const cursor of pages) {
+    const page = pageResults.get(cursor);
+    if (page === undefined) {
+      continue;
+    }
+    for (const row of page.rows) {
+      byId.set(row._id, row);
+    }
+  }
+  return [...byId.values()];
+}
+
+/**
+ * `new` alone paginates; the other filters are one capped read, so they never
+ * load more. Before a second page exists the empty page has nothing more to
+ * fetch; once a page is loaded the visible row count must not hide the
+ * control when every visible row has left `new` (C6).
+ */
+export function canLoadMore(
+  filter: OrderFilter,
+  rowCount: number,
+  lastPage: { readonly isDone: boolean } | undefined,
+  loadedPageCount: number
+): boolean {
+  if (filter !== 'new' || lastPage?.isDone === true) {
+    return false;
+  }
+  return loadedPageCount > 0 || rowCount > 0;
+}
+
+/** True while a page just requested has not delivered its first result. */
+export function isLoadingMore(pages: readonly string[], lastPage: unknown): boolean {
+  return pages.length > 0 && lastPage === undefined;
 }

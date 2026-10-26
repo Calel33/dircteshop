@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireBusinessOwner, requireBusinessOwnerUser } from './authz';
 import { insertNotification } from './notificationHelpers';
 import { insertOrderAccess } from './orderAccess';
@@ -28,6 +28,7 @@ import type {
 } from './orderCommitPolicy';
 import {
   EVENT_FOR_ACTION,
+  ORDER_DB_STATUSES,
   resolveOwnerDecision,
   validateOrderContact,
   validateOrderSelections,
@@ -47,6 +48,7 @@ import { claimBusinessThrottle } from './orderThrottle';
 // Docs: https://docs.convex.dev/functions/error-handling (ConvexError text)
 
 const ORDER_LIST_LIMIT = 100;
+const ORDER_PAGE_SIZE = 50;
 const MAX_ORDER_NOTE_LENGTH = 500;
 // Anonymous public surface: bounds the per-submission validation loop (Convex
 // caps arrays at 8192 elements, far more than any real order needs).
@@ -164,8 +166,17 @@ export const submitOrder = mutation({
  * Projects one board row from either order shape. A committed `items[]`
  * snapshot wins; a `legacyUnknown` row never borrows the live price, and a
  * legacy-only row keeps the live-join fallback (protocol §6.2.9).
+ *
+ * `reference` is joined from `orderAccess` by the caller for the page's rows
+ * only. The capability `accessToken` lives on the same table and must never
+ * reach a projection, so it is not readable from here: the reference arrives as
+ * a scalar.
  */
-function projectOrderRow(order: Doc<'orders'>, legacyItem: Doc<'menuItems'> | null) {
+function projectOrderRow(
+  order: Doc<'orders'>,
+  legacyItem: Doc<'menuItems'> | null,
+  reference: string | null
+) {
   const snapshot = order.items?.[0];
 
   let itemPrice: number | null;
@@ -179,9 +190,26 @@ function projectOrderRow(order: Doc<'orders'>, legacyItem: Doc<'menuItems'> | nu
 
   return {
     _id: order._id,
+    reference,
     itemName: snapshot?.name ?? legacyItem?.name ?? 'Unavailable item',
     itemPrice,
     pricingSource: order.pricingSource ?? null,
+    // Full committed line snapshots when the order has them; legacy rows keep
+    // the single-item fields above and leave this null.
+    items:
+      order.items === undefined
+        ? null
+        : order.items.map((line) => ({
+            name: line.name,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice ?? null,
+            lineTotal: line.lineTotal ?? null,
+            selections: line.selections.map((selection) => ({
+              optionName: selection.optionName,
+              choiceName: selection.choiceName,
+            })),
+          })),
+    subtotal: order.subtotal ?? null,
     // Always defined: the board renders `selections.length` and `.map`.
     selections: (snapshot?.selections ?? order.selections ?? []).map((selection) => ({
       optionName: selection.optionName,
@@ -196,55 +224,206 @@ function projectOrderRow(order: Doc<'orders'>, legacyItem: Doc<'menuItems'> | nu
     // without a stamp fall back to their creation time.
     statusReason: order.statusReason ?? null,
     statusUpdatedAt: order.statusUpdatedAt ?? order.createdAt,
+    expiresAt: order.expiresAt ?? null,
     createdAt: order.createdAt,
   };
 }
 
 /**
- * Owner-only board read: newest first and bounded. `byBusinessId` appends
- * `_creationTime` as its tie-breaker, so descending order on the equality range
- * is descending creation time.
+ * Projects one page of rows. Only the page's rows are joined to `orderAccess`
+ * (reference only) and, for legacy-shaped rows, to the live menu item — one
+ * read per distinct `menuItemId`; a deleted item degrades to a placeholder
+ * instead of failing the board. A `legacyUnknown` row never borrows the live
+ * price — the historical price is unrecoverable (protocol §6.2.9 / R11).
+ */
+async function projectOrderRows(ctx: QueryCtx, orders: Doc<'orders'>[]) {
+  const legacyItemIds: Id<'menuItems'>[] = [];
+  for (const order of orders) {
+    if (order.items === undefined && order.menuItemId !== undefined) {
+      legacyItemIds.push(order.menuItemId);
+    }
+  }
+  const uniqueItemIds = [...new Set(legacyItemIds)];
+
+  const [items, accessRows] = await Promise.all([
+    Promise.all(uniqueItemIds.map((itemId) => ctx.db.get('menuItems', itemId))),
+    Promise.all(
+      orders.map((order) =>
+        ctx.db
+          .query('orderAccess')
+          .withIndex('byOrderId', (q) => q.eq('orderId', order._id))
+          .first()
+      )
+    ),
+  ]);
+
+  const itemById = new Map<Id<'menuItems'>, Doc<'menuItems'> | null>(
+    uniqueItemIds.map((itemId, index) => [itemId, items[index]])
+  );
+
+  return orders.map((order, index) => {
+    const legacyItem =
+      order.items === undefined && order.menuItemId !== undefined
+        ? (itemById.get(order.menuItemId) ?? null)
+        : null;
+    return projectOrderRow(order, legacyItem, accessRows[index]?.reference ?? null);
+  });
+}
+
+/** The board's filter set: every protocol status plus the aggregate `all`. */
+const STATUS_FILTERS = [...ORDER_DB_STATUSES, 'all'] as const;
+export type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+const statusFilterValidator = v.union(...STATUS_FILTERS.map((status) => v.literal(status)));
+
+/** Clamps a client page size; the default page is 50 and larger asks are capped. */
+function clampPageSize(requested: number | undefined): number {
+  if (requested === undefined || !Number.isFinite(requested)) {
+    return ORDER_PAGE_SIZE;
+  }
+  return Math.min(Math.max(Math.floor(requested), 1), ORDER_PAGE_SIZE);
+}
+
+/**
+ * Owner-only board read (protocol §6.8, §7.2 S2). Every filter is index-range
+ * work — never a post-`take` filter, which is the starvation bug AC1 names.
  *
- * Rows carry both order shapes during expand: a committed `items[]` snapshot
- * wins; a legacy-only row falls back to the live menu item (one read per
- * distinct `menuItemId`; a deleted item degrades to a placeholder instead of
- * failing the board). A `legacyUnknown` row never borrows the live price — the
- * historical price is unrecoverable (protocol §6.2.9 / R11).
+ * - `new` (default) paginates the `byBusinessIdStatus` prefix oldest first, 50
+ *   per page. The index appends `_creationTime` as its tie-breaker, so the
+ *   order is insertion order, which equals `createdAt` for rows written by
+ *   `submitOrder`/`placeOrder`. Completed history can never push a `new` row out
+ *   of view.
+ * - every other single status reads at most 101 rows from the same prefix: 100
+ *   are returned and the 101st only proves `capped`. No cursor — the spec caps
+ *   these filters at 100 with a visible count.
+ * - `all` does the same over the `byBusinessId` prefix.
  */
 export const listOrders = query({
+  args: {
+    businessId: v.id('businesses'),
+    status: v.optional(statusFilterValidator),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    numItems: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireBusinessOwner(ctx, args.businessId);
+
+    const status = args.status ?? 'new';
+
+    if (status === 'new') {
+      const page = await ctx.db
+        .query('orders')
+        .withIndex('byBusinessIdStatus', (q) =>
+          q.eq('businessId', args.businessId).eq('status', 'new')
+        )
+        .order('asc')
+        .paginate({
+          numItems: clampPageSize(args.numItems),
+          cursor: args.cursor ?? null,
+        });
+
+      return {
+        rows: await projectOrderRows(ctx, page.page),
+        isDone: page.isDone,
+        continueCursor: page.continueCursor,
+        capped: false,
+      };
+    }
+
+    const bounded =
+      status === 'all'
+        ? await ctx.db
+            .query('orders')
+            .withIndex('byBusinessId', (q) => q.eq('businessId', args.businessId))
+            .order('asc')
+            .take(ORDER_LIST_LIMIT + 1)
+        : await ctx.db
+            .query('orders')
+            .withIndex('byBusinessIdStatus', (q) =>
+              q.eq('businessId', args.businessId).eq('status', status)
+            )
+            .order('asc')
+            .take(ORDER_LIST_LIMIT + 1);
+
+    const capped = bounded.length > ORDER_LIST_LIMIT;
+
+    return {
+      rows: await projectOrderRows(ctx, capped ? bounded.slice(0, ORDER_LIST_LIMIT) : bounded),
+      isDone: true,
+      continueCursor: '',
+      capped,
+    };
+  },
+});
+
+/**
+ * Owner-only per-filter counts for the board chips (protocol §6.8: "counts show
+ * `99+` when capped; do not run an unbounded count on every render").
+ *
+ * Deliberate deviation from the Convex guidelines' `@convex-dev/aggregate`
+ * recommendation (research Q4): the component is not installed, and adopting it
+ * would require every order write (`placeOrder`, `transitionOrderStatus`,
+ * `cancelOrder`, expiry) to maintain a counter in the same transaction — out of
+ * scope for this read-path ticket. Each status is instead a bounded
+ * `.take(101)` read (the extra row detects the cap), 9 in `Promise.all`, so one
+ * call reads at most 909 documents. Swap to an aggregate component only if a
+ * business's per-status volume approaches ~1k.
+ */
+export const listOrderCounts = query({
   args: { businessId: v.id('businesses') },
   handler: async (ctx, args) => {
     await requireBusinessOwner(ctx, args.businessId);
 
-    const orders = await ctx.db
-      .query('orders')
-      .withIndex('byBusinessId', (q) => q.eq('businessId', args.businessId))
-      .order('desc')
-      .take(ORDER_LIST_LIMIT);
-
-    // Only legacy-shaped rows need the live menu join; snapshot rows already
-    // carry their own name, price and selections.
-    const legacyItemIds: Id<'menuItems'>[] = [];
-    for (const order of orders) {
-      if (order.items === undefined && order.menuItemId !== undefined) {
-        legacyItemIds.push(order.menuItemId);
-      }
-    }
-    const uniqueItemIds = [...new Set(legacyItemIds)];
-    const items = await Promise.all(
-      uniqueItemIds.map((itemId) => ctx.db.get('menuItems', itemId))
-    );
-    const itemById = new Map<Id<'menuItems'>, Doc<'menuItems'> | null>(
-      uniqueItemIds.map((itemId, index) => [itemId, items[index]])
-    );
-
-    return orders.map((order) => {
-      const legacyItem =
-        order.items === undefined && order.menuItemId !== undefined
-          ? itemById.get(order.menuItemId) ?? null
-          : null;
-      return projectOrderRow(order, legacyItem);
+    const countOf = (rows: Doc<'orders'>[]) => ({
+      // The chip's visible count saturates at the cap; `capped` says "or more".
+      count: Math.min(rows.length, ORDER_LIST_LIMIT),
+      capped: rows.length > ORDER_LIST_LIMIT,
     });
+
+    const readStatus = (status: (typeof ORDER_DB_STATUSES)[number]) =>
+      ctx.db
+        .query('orders')
+        .withIndex('byBusinessIdStatus', (q) =>
+          q.eq('businessId', args.businessId).eq('status', status)
+        )
+        .take(ORDER_LIST_LIMIT + 1);
+
+    const [
+      newRows,
+      acceptedRows,
+      readyRows,
+      completedRows,
+      declinedRows,
+      cancelledRows,
+      expiredRows,
+      noShowRows,
+      allRows,
+    ] = await Promise.all([
+      readStatus('new'),
+      readStatus('accepted'),
+      readStatus('ready'),
+      readStatus('completed'),
+      readStatus('declined'),
+      readStatus('cancelled'),
+      readStatus('expired'),
+      readStatus('no_show'),
+      ctx.db
+        .query('orders')
+        .withIndex('byBusinessId', (q) => q.eq('businessId', args.businessId))
+        .take(ORDER_LIST_LIMIT + 1),
+    ]);
+
+    return {
+      new: countOf(newRows),
+      accepted: countOf(acceptedRows),
+      ready: countOf(readyRows),
+      completed: countOf(completedRows),
+      declined: countOf(declinedRows),
+      cancelled: countOf(cancelledRows),
+      expired: countOf(expiredRows),
+      no_show: countOf(noShowRows),
+      all: countOf(allRows),
+    };
   },
 });
 
