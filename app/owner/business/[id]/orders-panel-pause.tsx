@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 
@@ -23,6 +23,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { messageForError } from './photos-panel-helpers';
+import { AGE_TICK_MS } from './orders-panel-helpers';
 
 // Order-commitment protocol T7 (issue #82): the pause control reads the owner
 // projection (`getMine` already carries the pause tuple plus `timezone`) and
@@ -375,6 +376,16 @@ export function OrdersPauseControl({ businessId }: { businessId: Id<'businesses'
   const setAcceptingOrders = useMutation(api.businesses.mutations.setAcceptingOrders);
   const [resumePending, setResumePending] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  // The banner copy depends on the clock ("Paused until X" becomes "Pause ended
+  // X — press Resume" once the deadline passes), but while paused the getMine
+  // subscription is quiet exactly because ordering is closed — nothing repaints
+  // on its own. The same 30 s tick the board rows use keeps that state reachable
+  // without a manual repaint.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   if (supply === undefined) {
     return <PauseSkeleton />;
@@ -387,7 +398,7 @@ export function OrdersPauseControl({ businessId }: { businessId: Id<'businesses'
   const paused = state.acceptingOrders === false;
   const until = state.acceptingOrdersUntil;
   const trimmedNote = state.acceptingOrdersNote?.trim() ?? '';
-  const bannerText = pauseBannerText(until, trimmedNote, state.timezone, Date.now());
+  const bannerText = pauseBannerText(until, trimmedNote, state.timezone, now);
 
   async function handleResume() {
     setResumeError(null);
