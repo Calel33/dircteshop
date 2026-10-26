@@ -52,6 +52,7 @@ import type * as orderThrottle from "../orderThrottle.js";
 import type * as orders from "../orders.js";
 import type * as paymentAttemptTypes from "../paymentAttemptTypes.js";
 import type * as paymentAttempts from "../paymentAttempts.js";
+import type * as supplyAudit from "../supplyAudit.js";
 import type * as userName from "../userName.js";
 import type * as users from "../users.js";
 
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   paymentAttemptTypes: typeof paymentAttemptTypes;
   paymentAttempts: typeof paymentAttempts;
+  supplyAudit: typeof supplyAudit;
   userName: typeof userName;
   users: typeof users;
 }>;

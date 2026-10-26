@@ -2415,3 +2415,94 @@ test('owner protocol: a wire status is rejected by argument validation (INV-11)'
   expect(await eventsFor(t, orderId)).toHaveLength(0);
 });
 
+// ---------------------------------------------------------------------------
+// Owner supply toggles (T6, issue #77): §6.2.8 mutations drive §6.5's guards
+//
+// These complement the direct-patch cases above: every switch is thrown by the
+// REAL owner mutation, so the handler boundary (INV-18) is what the commit
+// guard observes. INV-17 is pinned on the same fixture — a pause never blocks
+// work on an order that is already pending.
+// ---------------------------------------------------------------------------
+
+test('basket: owner supply mutations pause ordering and drive the commit guards', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const owner = t.withIdentity({ subject: 'user_owner' });
+
+  // AC-1: pause through the real mutation → ORDERING_CLOSED at commit.
+  await owner.mutation(api.businesses.mutations.setAcceptingOrders, {
+    businessId,
+    accepting: false,
+  });
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'ORDERING_CLOSED'
+  );
+
+  // AC-2: one-tap resume clears both optional pause artifacts, ignoring stale
+  // retry args (the issue mandates the clear, not a throw).
+  await owner.mutation(api.businesses.mutations.setAcceptingOrders, {
+    businessId,
+    accepting: true,
+    until: NOW + 60_000,
+    note: 'stale retry args',
+  });
+  const resumed = await t.run((ctx) => ctx.db.get('businesses', businessId));
+  expect(resumed?.acceptingOrders).toBe(true);
+  expect(resumed?.acceptingOrdersUntil).toBeUndefined();
+  expect(resumed?.acceptingOrdersNote).toBeUndefined();
+
+  // AC-5a: hiding the group through the real mutation → GROUP_UNAVAILABLE.
+  const groupId = await itemGroupId(t, menuItemId);
+  await owner.mutation(api.menus.setGroupAvailability, {
+    businessId,
+    groupId,
+    isAvailable: false,
+  });
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'GROUP_UNAVAILABLE'
+  );
+
+  // Restore the section, then toggle the item off through `updateItem`.
+  await owner.mutation(api.menus.setGroupAvailability, {
+    businessId,
+    groupId,
+    isAvailable: true,
+  });
+  // AC-5b: the existing item mutation → ITEM_UNAVAILABLE.
+  await owner.mutation(api.menus.updateItem, {
+    businessId,
+    itemId: menuItemId,
+    patch: { isAvailable: false },
+  });
+  await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'ITEM_UNAVAILABLE'
+  );
+
+  // One order commits, then the owner pauses while it is still pending.
+  await owner.mutation(api.menus.updateItem, {
+    businessId,
+    itemId: menuItemId,
+    patch: { isAvailable: true },
+  });
+  const receipt = await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId));
+  await owner.mutation(api.businesses.mutations.setAcceptingOrders, {
+    businessId,
+    accepting: false,
+  });
+
+  // AC-3 / INV-17: pending orders remain workable while the business is paused.
+  const accepted = await ownerTransition(t, {
+    businessId,
+    orderId: receipt.orderId,
+    action: 'accept',
+  });
+  expect(accepted).toEqual({ status: 'accepted', reused: false });
+  const order = await t.run((ctx) => ctx.db.get('orders', receipt.orderId));
+  expect(order?.status).toBe('accepted');
+});
+
+
