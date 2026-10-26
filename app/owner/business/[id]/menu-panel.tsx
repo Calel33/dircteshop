@@ -51,6 +51,7 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
   const createItemMutation = useMutation(api.menus.createItem);
   const updateItemMutation = useMutation(api.menus.updateItem);
   const deleteItemMutation = useMutation(api.menus.deleteItem);
+  const setGroupAvailabilityMutation = useMutation(api.menus.setGroupAvailability);
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [editor, setEditor] = useState<ItemEditorState | null>(null);
@@ -208,6 +209,38 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
     if (moved) setAnnouncement('Menu item moved.');
   }
 
+  /**
+   * Supply toggles (order protocol T6/#77, wired in T7/#82): one tap, no
+   * confirmation step — the mutation is no-op-safe and writes exactly one
+   * `auditLogs` row only when the persisted value actually changes (INV-22).
+   * State is never mirrored locally; the `listMine` subscription repaints it.
+   */
+  async function handleToggleGroupAvailability(group: MenuGroup, isAvailable: boolean) {
+    setGroupError(null);
+    const toggled = await runAction(
+      `group:${group._id}:availability`,
+      () => setGroupAvailabilityMutation({ businessId, groupId: group._id, isAvailable }),
+      'The menu group availability could not be changed. Try again.',
+      (message) => setGroupError({ groupId: group._id, message }),
+    );
+    if (toggled) setAnnouncement(`${group.name} is now ${isAvailable ? 'available' : 'sold out'}.`);
+  }
+
+  async function handleToggleItemAvailability(
+    groupId: Id<'menuGroups'>,
+    item: MenuItem,
+    isAvailable: boolean,
+  ) {
+    setGroupError(null);
+    const toggled = await runAction(
+      `item:${item._id}:availability`,
+      () => updateItemMutation({ businessId, itemId: item._id, patch: { isAvailable } }),
+      'The menu item availability could not be changed. Try again.',
+      (message) => setGroupError({ groupId, message }),
+    );
+    if (toggled) setAnnouncement(`${item.name} is now ${isAvailable ? 'available' : 'sold out'}.`);
+  }
+
   async function handleSaveItem() {
     if (editor === null || busy) return;
     const { save, errors } = buildSave(editor);
@@ -289,7 +322,9 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
                   )}
                   onRename={handleRenameGroup} onMove={handleMoveGroup} onDelete={handleDeleteGroup}
                   onAddItem={openCreate} onEditItem={openEdit} onMoveItem={handleMoveItem}
-                  onDeleteItem={handleDeleteItem} />
+                  onDeleteItem={handleDeleteItem}
+                  onToggleGroupAvailability={handleToggleGroupAvailability}
+                  onToggleItemAvailability={handleToggleItemAvailability} />
               );
             })}
           </ul>

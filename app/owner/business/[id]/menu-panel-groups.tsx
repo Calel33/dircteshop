@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { InlineConfirm } from '@/components/ui/inline-confirm';
+import { Switch } from '@/components/ui/switch';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { formatPrice } from './menu-panel-helpers';
@@ -24,6 +25,51 @@ const AVAILABLE_CLASS =
 const UNAVAILABLE_CLASS =
   'border-border bg-muted text-muted-foreground rounded-pill border px-2 py-0.5 text-micro font-semibold';
 
+function AvailabilityBadge({ available }: { available: boolean }) {
+  return (
+    <span className={available ? AVAILABLE_CLASS : UNAVAILABLE_CLASS}>
+      {available ? 'Available' : 'Sold out'}
+    </span>
+  );
+}
+
+/**
+ * One-tap availability: the switch plus the state label. `readOnly` renders the
+ * state without an interactive control. The switch's accessible name includes
+ * the target's name and its current state, so repeated rows never read alike.
+ */
+function AvailabilityControl({
+  name,
+  available,
+  readOnly,
+  busy,
+  inFlight,
+  onToggle,
+}: {
+  name: string;
+  available: boolean;
+  readOnly: boolean;
+  busy: boolean;
+  inFlight: boolean;
+  onToggle: (next: boolean) => void;
+}) {
+  if (readOnly) {
+    return <AvailabilityBadge available={available} />;
+  }
+  return (
+    <span className="flex items-center gap-2">
+      <Switch
+        checked={available}
+        disabled={busy}
+        aria-busy={inFlight}
+        aria-label={`${name}: ${available ? 'available' : 'sold out'}`}
+        onCheckedChange={onToggle}
+      />
+      <AvailabilityBadge available={available} />
+    </span>
+  );
+}
+
 function ItemRow({
   item,
   position,
@@ -34,6 +80,7 @@ function ItemRow({
   onEdit,
   onMove,
   onDelete,
+  onToggleAvailability,
 }: {
   item: MenuItem;
   position: number;
@@ -44,6 +91,11 @@ function ItemRow({
   onEdit: (item: MenuItem) => void;
   onMove: (groupId: Id<'menuGroups'>, item: MenuItem, direction: MoveDirection) => void;
   onDelete: (groupId: Id<'menuGroups'>, itemId: Id<'menuItems'>) => Promise<boolean>;
+  onToggleAvailability: (
+    groupId: Id<'menuGroups'>,
+    item: MenuItem,
+    isAvailable: boolean
+  ) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const busy = busyKey !== null;
@@ -61,9 +113,14 @@ function ItemRow({
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <p className="text-sm font-medium">{item.name}</p>
           <span className="text-card-muted text-sm">{formatPrice(item.price)}</span>
-          <span className={item.isAvailable ? AVAILABLE_CLASS : UNAVAILABLE_CLASS}>
-            {item.isAvailable ? 'Available' : 'Unavailable'}
-          </span>
+          <AvailabilityControl
+            name={item.name}
+            available={item.isAvailable}
+            readOnly={readOnly}
+            busy={busy}
+            inFlight={busyKey === `item:${item._id}:availability`}
+            onToggle={(next) => onToggleAvailability(groupId, item, next)}
+          />
         </div>
         {readOnly ? null : (
           <div className="flex items-center gap-1">
@@ -222,6 +279,8 @@ export function GroupRow({
   onEditItem,
   onMoveItem,
   onDeleteItem,
+  onToggleGroupAvailability,
+  onToggleItemAvailability,
 }: {
   group: MenuGroup;
   position: number;
@@ -238,10 +297,18 @@ export function GroupRow({
   onEditItem: (item: MenuItem) => void;
   onMoveItem: (groupId: Id<'menuGroups'>, item: MenuItem, direction: MoveDirection) => void;
   onDeleteItem: (groupId: Id<'menuGroups'>, itemId: Id<'menuItems'>) => Promise<boolean>;
+  onToggleGroupAvailability: (group: MenuGroup, isAvailable: boolean) => void;
+  onToggleItemAvailability: (
+    groupId: Id<'menuGroups'>,
+    item: MenuItem,
+    isAvailable: boolean
+  ) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const busy = busyKey !== null;
+  // Absent `isAvailable` means available (§6.2.2), same normalization as the server.
+  const groupAvailable = group.isAvailable !== false;
 
   return (
     <li className="border-border rounded-card flex flex-col gap-3 border p-4">
@@ -251,6 +318,16 @@ export function GroupRow({
           {group.description === undefined ? null : (
             <p className="text-card-muted text-sm">{group.description}</p>
           )}
+          <div className="mt-2 flex items-center gap-2">
+            <AvailabilityControl
+              name={group.name}
+              available={groupAvailable}
+              readOnly={readOnly}
+              busy={busy}
+              inFlight={busyKey === `group:${group._id}:availability`}
+              onToggle={(next) => onToggleGroupAvailability(group, next)}
+            />
+          </div>
         </div>
         {readOnly ? null : (
           <GroupActions
@@ -292,7 +369,8 @@ export function GroupRow({
           {items.map((item, index) => (
             <ItemRow key={item._id} item={item} position={index + 1} count={items.length}
               readOnly={readOnly} busyKey={busyKey} groupId={group._id}
-              onEdit={onEditItem} onMove={onMoveItem} onDelete={onDeleteItem} />
+              onEdit={onEditItem} onMove={onMoveItem} onDelete={onDeleteItem}
+              onToggleAvailability={onToggleItemAvailability} />
           ))}
         </ul>
       )}

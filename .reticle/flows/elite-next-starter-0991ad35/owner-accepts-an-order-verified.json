@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "name": "owner-accepts-an-order-verified",
+  "projectId": "elite-next-starter-0991ad35",
+  "createdAt": 1793013410257,
+  "steps": [
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Orders"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "kind": "element",
+        "query": {
+          "role": "button",
+          "name": "Accept order from Reticle AC9 Flow"
+        },
+        "state": "visible"
+      },
+      "page": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq",
+      "source": {
+        "file": "app/owner/business/[id]/editor-sections.tsx",
+        "line": 243
+      }
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Accept order from Reticle AC9 Flow"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "kind": "allOf",
+        "predicates": [
+          {
+            "kind": "element",
+            "query": {
+              "role": "dialog",
+              "name": "Accept order from Reticle AC9 Flow"
+            },
+            "state": "visible"
+          },
+          {
+            "kind": "element",
+            "query": {
+              "role": "link",
+              "name": "Call Reticle AC9 Flow at +1 555 0142"
+            },
+            "state": "visible"
+          }
+        ]
+      },
+      "page": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq",
+      "source": {
+        "file": "app/owner/business/[id]/orders-panel-row.tsx",
+        "line": 83
+      }
+    },
+    {
+      "tool": "reticle_act",
+      "anchor": {
+        "kind": "role",
+        "role": "button",
+        "name": "Accept verified"
+      },
+      "args": {},
+      "action": "click",
+      "expect": {
+        "kind": "allOf",
+        "predicates": [
+          {
+            "kind": "not",
+            "predicate": {
+              "kind": "element",
+              "query": {
+                "role": "dialog"
+              },
+              "state": "visible"
+            }
+          },
+          {
+            "kind": "element",
+            "query": {
+              "role": "button",
+              "name": "New , 0 orders"
+            },
+            "state": "visible"
+          },
+          {
+            "kind": "text",
+            "contains": "order is now accepted."
+          }
+        ]
+      },
+      "page": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq",
+      "source": {
+        "file": "components/ui/dialog.tsx",
+        "line": 96
+      }
+    }
+  ],
+  "startPath": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq",
+  "intent": "An owner working the New queue accepts an order only after verifying it: the accept dialog shows the customer's phone as a call link, pressing Accept verified confirms the order, and the order leaves the New filter as accepted with the board announcing it. This is the AC9 owner-accept journey of issue #82 (order protocol T7).",
+  "requires": [
+    {
+      "kind": "route",
+      "pathname": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq"
+    }
+  ],
+  "ensures": [
+    {
+      "kind": "route",
+      "pathname": "/owner/business/jh7bdgz2bzrf0g8skd5d8crnzs8gaatq"
+    }
+  ],
+  "author": {
+    "agent": "opencode",
+    "person": "callovecrypto03@protonmail.com"
+  },
+  "intentId": "flow:owner-accepts-an-order-verified"
+}
