@@ -6,13 +6,19 @@ import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
 import { EDITABLE_FIELD_CLASS, editableBusinessFieldsValidator } from '../businessTypes';
 import type { EditableBusinessField } from '../businessTypes';
-import { configuredSuperAdminIds, requireBusinessOwner, requireSuperAdmin } from '../authz';
+import {
+  configuredSuperAdminIds,
+  requireBusinessOwner,
+  requireBusinessOwnerUser,
+  requireSuperAdmin,
+} from '../authz';
 import {
   insertNotification,
   moderationNotificationEvent,
   notifyAdminRecipients,
   planTransitionNotification,
 } from '../notificationHelpers';
+import { buildSupplyAuditLog, resolveSupplyChange, validateSupplyNote } from '../supplyAudit';
 import { getCurrentUserOrThrow } from '../users';
 import {
   approvedResubmitTarget,
@@ -568,6 +574,83 @@ export const saveAndResubmit = mutation({
     // Runs after every database write (including notifications) so a rolled
     // back transaction can never point at an already-deleted file.
     await reconcilePhotoStorage(ctx, business, business.photos, persistedPhotos);
+  },
+});
+
+/**
+ * Order-commitment protocol T6 (issue #77): the owner's business-level supply
+ * switch (§6.2.8, §6.5). Puts ordering on hold (`accepting: false`, optionally
+ * with a customer-visible `until`/note) or resumes it in one tap.
+ *
+ * Resume force-clears `acceptingOrdersUntil` and `acceptingOrdersNote`
+ * regardless of the supplied arguments (§6.4 "One-tap Resume clears both"), so
+ * a retried resume stays idempotent instead of throwing on stale args. Optional
+ * fields are cleared by including them as `undefined` in the patch — fields set
+ * to `undefined` are removed; never `db.replace` (V1).
+ *
+ * No listing-status guard by design (Q2): `acceptingOrders*` is server-owned
+ * supply state, not owner-editable listing content, and `placeOrder` rejects an
+ * unapproved listing with `BUSINESS_UNAVAILABLE` before any supply gate. There
+ * is also no past/future validation on `until` — this mutation is a setter, and
+ * the expired-`until` reading is a separate product decision (plan R1/Q5).
+ *
+ * The patch and its single `auditLogs` row commit in one transaction (INV-22).
+ * An identical normalized `(accepting, until, note)` tuple is a no-op with no
+ * row, so a repeated toggle cannot manufacture a misleading event (Q4).
+ */
+export const setAcceptingOrders = mutation({
+  args: {
+    businessId: v.id('businesses'),
+    accepting: v.boolean(),
+    until: v.optional(v.union(v.number(), v.null())),
+    note: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { business, user } = await requireBusinessOwnerUser(ctx, args.businessId);
+
+    // Resume clears both pause artifacts and ignores the supplied `until`/note
+    // entirely (Q1/Q6): a retried one-tap resume must never throw on stale
+    // args, so the note is not even validated on that path. On pause, `null` is
+    // an explicit clear (the repo's nullable-clear convention) and a supplied
+    // note is trimmed with blank collapsing to absent (§6.2.8 `reason`).
+    const until = args.accepting ? undefined : args.until ?? undefined;
+    const nextNote =
+      args.accepting || args.note === undefined || args.note === null
+        ? undefined
+        : validateSupplyNote(args.note);
+
+    const change = resolveSupplyChange(
+      {
+        accepting: business.acceptingOrders ?? true,
+        until: business.acceptingOrdersUntil,
+        note: business.acceptingOrdersNote,
+      },
+      { accepting: args.accepting, until, note: nextNote }
+    );
+    if (!change.changed) {
+      return;
+    }
+
+    const now = Date.now();
+
+    await ctx.db.patch(args.businessId, {
+      acceptingOrders: args.accepting,
+      acceptingOrdersUntil: until,
+      acceptingOrdersNote: nextNote,
+    });
+
+    await ctx.db.insert(
+      'auditLogs',
+      buildSupplyAuditLog({
+        actorUserId: user._id,
+        action: 'orders.acceptingOrders.toggled',
+        targetType: 'business',
+        targetId: args.businessId,
+        targetName: business.name,
+        reason: nextNote,
+        createdAt: now,
+      })
+    );
   },
 });
 

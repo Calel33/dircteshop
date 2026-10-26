@@ -4,13 +4,14 @@ import type { Infer } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { requireBusinessOwner } from './authz';
+import { requireBusinessOwner, requireBusinessOwnerUser } from './authz';
 import { ownerSaveMode } from './businesses/ownerSavePolicy';
 import {
   deleteStorageFileQuietly,
   isUploadOwnedBy,
   resolveStorageUrls,
 } from './businesses/photoStorage';
+import { buildSupplyAuditLog } from './supplyAudit';
 
 // B8 (issue #8) restaurant menu CRUD for `menuGroups` + `menuItems`.
 //
@@ -499,6 +500,55 @@ export const moveGroup = mutation({
   },
 });
 
+/**
+ * Order-commitment protocol T6 (issue #77): the owner's menu-section supply
+ * switch (§6.2.8, §6.5 group matrix). Hiding a group makes `placeOrder` reject
+ * any basket that selected one of its items with `GROUP_UNAVAILABLE`; the group
+ * stays visible to customers as "Currently unavailable".
+ *
+ * `assertMenuWritable` applies exactly as it does to every other menu mutation:
+ * a group is listing content, read-only while the listing is pendingReview /
+ * suspended / rejected. The patch and its single `auditLogs` row commit in one
+ * transaction (INV-22). An identical value — compared against the normalized
+ * `isAvailable ?? true`, since absent means available (§6.2.2) — is a no-op and
+ * writes no row, mirroring `setFeatured`.
+ */
+export const setGroupAvailability = mutation({
+  args: {
+    businessId: v.id('businesses'),
+    groupId: v.id('menuGroups'),
+    isAvailable: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { business, user } = await requireBusinessOwnerUser(ctx, args.businessId);
+    assertMenuWritable(business);
+    const group = await groupInBusiness(ctx, args.businessId, args.groupId);
+
+    const current = group.isAvailable ?? true;
+    if (current === args.isAvailable) {
+      return;
+    }
+
+    const now = Date.now();
+
+    await ctx.db.patch(group._id, { isAvailable: args.isAvailable });
+
+    // The name snapshot comes from the doc the guards already loaded (Q7): a
+    // menu target has no read-side name fallback once the cascade deletes it.
+    await ctx.db.insert(
+      'auditLogs',
+      buildSupplyAuditLog({
+        actorUserId: user._id,
+        action: 'orders.groupAvailability.toggled',
+        targetType: 'menuGroup',
+        targetId: group._id,
+        targetName: group.name,
+        createdAt: now,
+      })
+    );
+  },
+});
+
 export const createItem = mutation({
   args: {
     businessId: v.id('businesses'),
@@ -535,6 +585,8 @@ export const createItem = mutation({
           ? []
           : validatedCustomizationOptions(args.customizationOptions),
       ordering: nextOrdering(await readItems(ctx, args.businessId)),
+      // §6.2.8 (issue #77): creation sets initial state, not a toggle, so it
+      // writes no audit row; only a real availability change does (updateItem).
       isAvailable: args.isAvailable ?? true,
     };
     Object.assign(item, optionalItemFields(args));
@@ -550,9 +602,17 @@ export const updateItem = mutation({
     patch: updateItemPatchValidator,
   },
   handler: async (ctx, args) => {
-    const business = await requireBusinessOwner(ctx, args.businessId);
+    const { business, user } = await requireBusinessOwnerUser(ctx, args.businessId);
     assertMenuWritable(business);
     const item = await itemInBusiness(ctx, args.businessId, args.itemId);
+
+    // §6.2.8 (issue #77): the existing item availability mutation audits a real
+    // toggle. Comparing against the persisted value is mandatory, not
+    // defensive: the owner editor's `buildItemPatch` sends `isAvailable` on
+    // EVERY save, so without it every name/price edit would manufacture a
+    // spurious `orders.itemAvailability.toggled` row.
+    const availabilityChanged =
+      args.patch.isAvailable !== undefined && args.patch.isAvailable !== item.isAvailable;
 
     const patch = validatedItemFields(args.patch);
     let deleteAfter: Id<'_storage'> | null = null;
@@ -567,7 +627,23 @@ export const updateItem = mutation({
       deleteAfter = imageChange.deleteAfter;
     }
 
+    const now = Date.now();
     await ctx.db.patch(item._id, patch);
+
+    if (availabilityChanged) {
+      await ctx.db.insert(
+        'auditLogs',
+        buildSupplyAuditLog({
+          actorUserId: user._id,
+          action: 'orders.itemAvailability.toggled',
+          targetType: 'menuItem',
+          targetId: item._id,
+          targetName: item.name,
+          createdAt: now,
+        })
+      );
+    }
+
     // Runs after the write: `ctx.storage.delete` is not transactional, so a
     // rolled-back save must never leave a dangling image reference.
     if (deleteAfter !== null) {
