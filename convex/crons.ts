@@ -14,4 +14,13 @@ crons.daily(
   internal.orderThrottleCleanup.cleanupStaleThrottleRows
 );
 
+// Order retention (issue #84 T10 / plan D5; protocol E74 :282, INV-30 :326).
+// `dryRun` defaults to true for manual runs; the daily job is the wet path.
+crons.daily(
+  'purge retained orders',
+  { hourUTC: 5, minuteUTC: 0 },
+  internal.orderRetention.purgeRetainedOrders,
+  { dryRun: false }
+);
+
 export default crons;

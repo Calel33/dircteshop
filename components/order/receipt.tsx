@@ -5,7 +5,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { Check, CircleAlert, Copy, CheckCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Component, useEffect, useState, type ReactNode } from 'react';
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -474,5 +474,25 @@ function ReceiptLive({
   onRefresh: () => void;
 }) {
   const live = useQuery(api.orders.getOrderByToken, { token });
+  const recordView = useMutation(api.orderMetrics.recordReceiptView);
+
+  // Receipt-view metric (issue #84, Task 6). This component is only mounted by
+  // the server page after `getOrderByToken` has resolved — a bad token renders
+  // `ReceiptNotFound` instead (`app/order/[token]/page.tsx:70`) — so mounting
+  // here IS the receipt-loaded branch, and the beacon can never fire for a
+  // receipt that has not loaded. The ref survives React 18/19 StrictMode's
+  // mount → unmount → mount double-invoke, giving one count per opened receipt
+  // (dedupe is per tab on the client only; the counter itself is an aggregate).
+  // Rejections are swallowed: a fire-and-forget beacon must never surface an
+  // error, and the mutation itself resolves `{ recorded: false }` on a miss.
+  const recordedView = useRef(false);
+  useEffect(() => {
+    if (recordedView.current) {
+      return;
+    }
+    recordedView.current = true;
+    void recordView({ token }).catch(() => {});
+  }, [recordView, token]);
+
   return <ReceiptView token={token} receipt={live ?? initial} onRefresh={onRefresh} />;
 }

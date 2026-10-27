@@ -57,6 +57,27 @@ export function assertHardDeleteConfirmation(currentName: string, typedName: str
 }
 
 /**
+ * Order-history refusal guard (issue #84, Task 13 · plan D6). Order rows are
+ * ledger evidence the protocol forbids cascading (INV-30/E68), so a business
+ * that owns ANY order is never hard-deleted: the operator must archive it
+ * instead. Pure by design — the caller supplies the (bounded) count, so the
+ * policy is unit-testable under `node --test` without a Convex runtime.
+ *
+ * Thrown from inside the delete transaction, so a refusal rolls every write
+ * already made by the caller (the `delete` audit row in ./adminMutations.ts)
+ * back: no orphan audit row survives a refused delete.
+ */
+export function assertHardDeleteHasNoOrders(orderCount: number): void {
+  if (orderCount > 0) {
+    throw new ConvexError({
+      code: 'HAS_ORDERS',
+      message:
+        'This business has order history, so it cannot be permanently deleted. Archive it instead to keep past orders intact.',
+    });
+  }
+}
+
+/**
  * Collects the unique storage ids the cascade owns: business photos first,
  * then menu-item images, then stylist photos, deduplicated in first-seen
  * order. Deduplication matters because Convex Storage has no reference
@@ -176,6 +197,13 @@ export async function backfillAuditTargetNames(
  * `byBusinessId`), backfill legacy audit name snapshots, then delete the
  * children, then the parent, and finally the storage objects.
  *
+ * Refuses before anything else when the business owns even one order
+ * (`assertHardDeleteHasNoOrders`, issue #84 · INV-30/E68): order history is
+ * never destroyed by a listing delete. Every caller — including the audit-row
+ * insert in ./adminMutations.ts, which precedes this call — is therefore
+ * rolled back on a refusal, and the `orders` child set below is always empty
+ * when the delete path is reached.
+ *
  * - The parent delete is the caller-visible point of no return for the
  *   database; every database write commits or rolls back together.
  * - Storage deletes run LAST: `ctx.storage.delete` is available in mutations
@@ -190,6 +218,14 @@ export async function cascadeHardDeleteBusiness(
   business: Doc<'businesses'>
 ): Promise<void> {
   const businessId = business._id;
+
+  // Bounded "any orders?" read: `.take(1)` asks the index for one document
+  // instead of collecting a history that only needs to be proven non-empty.
+  const ordersOwned = await ctx.db
+    .query('orders')
+    .withIndex('byBusinessId', (q) => q.eq('businessId', businessId))
+    .take(1);
+  assertHardDeleteHasNoOrders(ordersOwned.length);
 
   const [
     menuGroups,

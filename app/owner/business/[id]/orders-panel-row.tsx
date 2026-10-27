@@ -51,12 +51,14 @@ export function OrderRow({
   failure,
   onAction,
   onContactAction,
+  onFlagAction,
 }: {
   order: OrderBoardRow;
   pending: boolean;
   failure: OrderRowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
   onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
+  onFlagAction: (order: OrderBoardRow) => void;
 }) {
   const actions = nextActionForStatus(order.status);
   const hasContact = order.contactPhone !== null || order.contactEmail !== null;
@@ -149,6 +151,28 @@ export function OrderRow({
             {ORDER_CONTACT_ACTION_LABELS[action]}
           </Button>
         ))}
+      </div>
+
+      <div
+        role="group"
+        aria-label="Order flags"
+        aria-busy={pending}
+        className="border-border mt-gap flex flex-wrap items-center gap-2 border-t pt-2"
+      >
+        <span className="text-card-muted font-label text-micro tracking-label uppercase">
+          Order flags
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="min-h-11"
+          disabled={pending}
+          aria-label={`Flag order from ${actionContext} as fake`}
+          onClick={() => onFlagAction(order)}
+        >
+          Flag fake order
+        </Button>
       </div>
 
       {failure === null ? null : (

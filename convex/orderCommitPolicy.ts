@@ -101,6 +101,58 @@ export const ORDER_COMMIT_CONSTANTS = Object.freeze({
 } as const);
 
 // ---------------------------------------------------------------------------
+// Retention policy (issue #84, T10 / plan D5; protocol E74 :282, INV-30 :326)
+//
+// Decided values, not spec numbers: E74 prints its windows as "e.g." and says
+// retention is "not implemented v1". `orderRetention.purgeRetainedOrders`
+// enforces them. `RETENTION_BATCH` bounds one run in the style of
+// `orderThrottleCleanup.CLEANUP_BATCH`; one order also removes at most its five
+// companion kinds, so a full batch is roughly 350 document writes.
+// ---------------------------------------------------------------------------
+
+export const RETENTION_TERMINAL_DAYS_MS = 90 * 24 * 60 * 60_000;
+export const RETENTION_COMPLETED_DAYS_MS = 365 * 24 * 60 * 60_000;
+export const RETENTION_BATCH = 50;
+
+// ---------------------------------------------------------------------------
+// Owner fake-order flag reasons (issue #84, T10 / protocol §7.2 S5 :1645)
+//
+// The owner picks one label and `orderFlags.flagOrder` validates against this
+// closed list, so a flag reason is always one of five labels and no free text
+// reaches an `auditLogs` row.
+// ---------------------------------------------------------------------------
+
+export const FLAG_REASONS = [
+  'Fake order',
+  'Wrong number',
+  'Duplicate',
+  'Prank',
+  'Other',
+] as const;
+
+// ---------------------------------------------------------------------------
+// Client-reported rejection codes (issue #84, T10 / plan D4, research design A)
+//
+// A rejection cannot be counted where it happens: every rejection path throws,
+// and a Convex mutation discards its writes when it throws. So the customer's
+// client reports the failure through `orderMetrics.recordOrderRejection`, and
+// this closed list is the only vocabulary that report accepts — a counter row
+// is never an arbitrary key. One code per rejection class the §4.4 rates need;
+// codes that have no rate here (`GROUP_UNAVAILABLE`, `PRICE_UNAVAILABLE`,
+// `ORDER_VALUE_TOO_HIGH`, …) are deliberately not reported.
+// ---------------------------------------------------------------------------
+
+export const REJECTION_CODES = [
+  'throttle_rejected',
+  'block_hit',
+  'price_changed',
+  'item_unavailable',
+  'ordering_closed',
+  'outside_hours',
+] as const;
+export type RejectionCode = (typeof REJECTION_CODES)[number];
+
+// ---------------------------------------------------------------------------
 // Error catalog (spec §6.5, table at L1275–1304)
 //
 // The table has 28 rows but 29 codes: `FORBIDDEN` and `UNAUTHORIZED` share one

@@ -12,7 +12,13 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import { EVENT_FOR_ACTION, type OrderOwnerAction } from '../../../../convex/orderPolicy.ts';
 import { ORDERS_SECTION } from './editor-sections';
-import { BlockContactDialog, OrdersDialogs, type OrdersDialogRequest } from './orders-panel-dialogs';
+import {
+  BlockContactDialog,
+  FlagOrderDialog,
+  OrdersDialogs,
+  type FlagReasonCode,
+  type OrdersDialogRequest,
+} from './orders-panel-dialogs';
 import { OrdersFilterBar } from './orders-panel-filter-bar';
 import {
   ORDER_FILTERS,
@@ -65,6 +71,13 @@ type RowFailure =
  * decision back through `runTransition`.
  */
 type PendingAction = OrdersDialogRequest;
+
+/**
+ * A flag failure belongs to the open flag dialog, and nowhere else. Flagging is
+ * not a status transition, so it never joins `RowFailure` (whose kinds decide
+ * which handler a row's "Try again" calls).
+ */
+type FlagFailure = { orderId: Id<'orders'>; message: string };
 
 /**
  * `useQuery` throws during render when the owner-gated read rejects, so the
@@ -181,6 +194,17 @@ function blockDialogFailure(
   return failure.message;
 }
 
+/** The failure that belongs inside the flag dialog, and nowhere else. */
+function flagDialogFailure(
+  failure: FlagFailure | null,
+  order: OrderBoardRow | null
+): string | null {
+  if (failure === null || order === null || failure.orderId !== order._id) {
+    return null;
+  }
+  return failure.message;
+}
+
 /** True while the mutation for the request on screen is in flight. */
 function isRequestPending(
   request: PendingAction | null,
@@ -195,6 +219,7 @@ function OrdersQueue({
   failure,
   onAction,
   onContactAction,
+  onFlagAction,
   showLoadMore,
   loadingMore,
   onLoadMore,
@@ -205,6 +230,7 @@ function OrdersQueue({
   failure: RowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
   onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
+  onFlagAction: (order: OrderBoardRow) => void;
   showLoadMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -224,6 +250,7 @@ function OrdersQueue({
               failure={rowFailure}
               onAction={onAction}
               onContactAction={onContactAction}
+              onFlagAction={onFlagAction}
             />
           );
         })}
@@ -267,6 +294,7 @@ function OrdersBoardList({
   failure,
   onAction,
   onContactAction,
+  onFlagAction,
   loadingMore,
   onLoadMore,
 }: {
@@ -278,6 +306,7 @@ function OrdersBoardList({
   failure: RowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
   onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
+  onFlagAction: (order: OrderBoardRow) => void;
   loadingMore: boolean;
   onLoadMore: () => void;
 }) {
@@ -294,6 +323,7 @@ function OrdersBoardList({
       failure={failure}
       onAction={onAction}
       onContactAction={onContactAction}
+      onFlagAction={onFlagAction}
       showLoadMore={showLoadMore}
       loadingMore={loadingMore}
       onLoadMore={onLoadMore}
@@ -416,6 +446,8 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
   const [failure, setFailure] = useState<RowFailure | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [blockRequest, setBlockRequest] = useState<OrderBoardRow | null>(null);
+  const [flagRequest, setFlagRequest] = useState<OrderBoardRow | null>(null);
+  const [flagFailure, setFlagFailure] = useState<FlagFailure | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
   const counts = useQuery(api.orders.listOrderCounts, { businessId });
@@ -429,6 +461,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
   const blockContact = useMutation(api.orderBlocks.blockContact);
   const unblockContact = useMutation(api.orderBlocks.unblockContact);
   const clearContactThrottle = useMutation(api.orderBlocks.clearContactThrottle);
+  const flagOrder = useMutation(api.orderFlags.flagOrder);
 
   // Stable identity: every page effect depends on it, so a fresh callback per
   // render would re-run them all. The functional updater plus the reference
@@ -473,6 +506,8 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
     setFailure(null);
     setPendingAction(null);
     setBlockRequest(null);
+    setFlagRequest(null);
+    setFlagFailure(null);
     setAnnouncement('');
   }
 
@@ -605,6 +640,48 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
     void runContactAction(order, action);
   }
 
+  /**
+   * The owner's fake-order flag (issue #84, T10). It mirrors `runContactAction`:
+   * one row id in `pendingIds` gates every control on the row, a server error
+   * lands in the dialog that raised it, and success is announced through the
+   * board's existing live region. Nothing to refetch or invalidate — the board
+   * reads `listOrders`, which carries no flag state, and a flag changes no
+   * order row.
+   */
+  async function runFlagAction(order: OrderBoardRow, reason: FlagReasonCode) {
+    setFailure(null);
+    setFlagFailure(null);
+    setPendingIds((current) => new Set(current).add(order._id));
+
+    try {
+      const { changed } = await flagOrder({ businessId, orderId: order._id, reason });
+      setAnnouncement(
+        changed
+          ? `Flagged ${order.customerName}'s order as fake.`
+          : `${order.customerName}'s order was already flagged.`
+      );
+      // Closed on success only, so a failure keeps the dialog and its reason.
+      setFlagRequest(null);
+    } catch (error) {
+      setFlagFailure({
+        orderId: order._id,
+        message: messageForError(error, 'Could not flag this order. Try again.'),
+      });
+    } finally {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(order._id);
+        return next;
+      });
+    }
+  }
+
+  function handleFlagAction(order: OrderBoardRow) {
+    setFailure(null);
+    setFlagFailure(null);
+    setFlagRequest(order);
+  }
+
   return (
     <div className="@container flex flex-col gap-gap">
       <OrdersPauseControl businessId={businessId} />
@@ -634,6 +711,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
         failure={failure}
         onAction={handleAction}
         onContactAction={handleContactAction}
+        onFlagAction={handleFlagAction}
         loadingMore={loadingMore}
         onLoadMore={handleLoadMore}
       />
@@ -669,6 +747,20 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
           error={blockDialogFailure(failure, blockRequest)}
           onSubmit={(reason) => void runContactAction(blockRequest, 'block', reason)}
           onClose={() => setBlockRequest(null)}
+        />
+      )}
+
+      {flagRequest === null ? null : (
+        <FlagOrderDialog
+          key={flagRequest._id}
+          order={flagRequest}
+          pending={pendingIds.has(flagRequest._id)}
+          error={flagDialogFailure(flagFailure, flagRequest)}
+          onSubmit={(reason) => void runFlagAction(flagRequest, reason)}
+          onClose={() => {
+            setFlagRequest(null);
+            setFlagFailure(null);
+          }}
         />
       )}
     </div>

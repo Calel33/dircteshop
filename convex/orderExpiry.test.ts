@@ -429,6 +429,7 @@ test('sweep only touches new: every non-new status reports stale and is never pa
 test('crons register the 5-minute expiry sweep and the daily throttle cleanup', () => {
   expect(Object.keys(crons.crons).sort()).toEqual([
     'cleanup stale order throttle',
+    'purge retained orders',
     'sweep expired orders',
   ]);
 

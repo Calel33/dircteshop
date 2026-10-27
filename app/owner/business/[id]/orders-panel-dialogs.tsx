@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 
 import {
   DEFAULT_NO_SHOW_REASON,
+  FLAG_REASONS,
   MAX_TRANSITION_REASON_LENGTH,
 } from '../../../../convex/orderCommitPolicy.ts';
 import type { OrderOwnerAction } from '../../../../convex/orderPolicy.ts';
@@ -764,6 +765,113 @@ export function BlockContactDialog({
           disabled={pending}
           className="min-h-11"
         />
+        <DialogError message={error} pending={pending} onRetry={handleSubmit} />
+      </div>
+    </DialogShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Flag fake order (issue #84, T10)
+// ---------------------------------------------------------------------------
+
+/** The coded flag reasons; the tuple is the server validator's own source. */
+export type FlagReasonCode = (typeof FLAG_REASONS)[number];
+
+/**
+ * The owner's fake-order flag. The reason is always one of the five coded
+ * labels — `FLAG_REASONS` also derives the server's validator — so no free text
+ * can reach the mutation or its audit row. A flag is not a status transition:
+ * it never touches `orderEvents`, and the customer is not notified.
+ */
+export function FlagOrderDialog({
+  order,
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  order: OrderBoardRow;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (reason: FlagReasonCode) => void;
+}) {
+  const [code, setCode] = useState<FlagReasonCode | ''>('');
+  const selectId = useId();
+
+  const blocked = code === '';
+
+  function handleSubmit() {
+    if (blocked) {
+      return;
+    }
+    onSubmit(code);
+  }
+
+  return (
+    <DialogShell
+      order={order}
+      title={`Flag order from ${order.customerName} as fake`}
+      description="Flagging records this order as fake or abusive for your records. The order status does not change and the customer is not notified."
+      pending={pending}
+      onClose={onClose}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Close
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="min-h-11"
+            disabled={blocked || pending}
+            aria-busy={pending}
+            onClick={handleSubmit}
+          >
+            {pending ? 'Flagging…' : 'Flag as fake'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-gap">
+        <OrderDigest order={order} />
+
+        <div className="flex flex-col gap-2">
+          <Label id={`${selectId}-label`} htmlFor={selectId}>
+            Reason
+          </Label>
+          <Select
+            value={code}
+            disabled={pending}
+            onValueChange={(value) => {
+              const next = FLAG_REASONS.find((candidate) => candidate === value);
+              setCode(next ?? '');
+            }}
+          >
+            <SelectTrigger
+              id={selectId}
+              aria-labelledby={`${selectId}-label`}
+              className="min-h-11 w-full"
+            >
+              <SelectValue placeholder="Choose a reason" />
+            </SelectTrigger>
+            <SelectContent>
+              {FLAG_REASONS.map((candidate) => (
+                <SelectItem key={candidate} value={candidate}>
+                  {candidate}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <DialogError message={error} pending={pending} onRetry={handleSubmit} />
       </div>
     </DialogShell>

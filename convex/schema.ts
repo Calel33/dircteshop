@@ -309,7 +309,33 @@ export default defineSchema({
     toStatus: v.string(),
     reason: v.optional(v.string()),
     createdAt: v.number(),
-  }).index('byOrderIdCreatedAt', ['orderId', 'createdAt']),
+  })
+    .index('byOrderIdCreatedAt', ['orderId', 'createdAt'])
+    // T10 (issue #84) metrics read one business's events by recency. Ships
+    // plain (synchronous deploy) like `orders.byBusinessIdStatus`; the table is
+    // small enough that the backfill does not need the two-deploy path.
+    .index('byBusinessIdCreatedAt', ['businessId', 'createdAt']),
+
+  // T10 (issue #84) owner fake-order flag, separate from the append-only
+  // `orderEvents` ledger so a mis-flag can be corrected via `active`. Convex
+  // has no unique indexes: `byOrderId` is plain and the mutation enforces one
+  // flag row per order.
+  orderFlags: defineTable({
+    businessId: v.id('businesses'),
+    orderId: v.id('orders'),
+    actorUserId: v.id('users'),
+    active: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index('byOrderId', ['orderId'])
+    .index('byBusinessIdCreatedAt', ['businessId', 'createdAt']),
+
+  // Per-business counters; `code` is a closed const list owned by `orderCommitPolicy.ts`.
+  orderMetricCounters: defineTable({
+    businessId: v.id('businesses'),
+    code: v.string(),
+    value: v.number(),
+  }).index('byBusinessIdCode', ['businessId', 'code']),
 
   // Fixed-window counters. Contact keys are hashes; business keys are ids.
   orderThrottle: defineTable({

@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { RejectionCode } from '@/convex/orderCommitPolicy';
 import { validateOrderContact } from '@/convex/orderPolicy';
 import {
   EMPTY_BASKET,
@@ -60,6 +61,31 @@ const EMPTY_FORM: OrderFormValues = {
 };
 
 type PriceChange = { previousSubtotal: number | null; actualSubtotal: number };
+
+/**
+ * `resolveOrderError` code → reported rejection code (issue #84, T10 / plan D4).
+ *
+ * A rejection cannot be counted where it happens — the handler throws and its
+ * writes roll back — so the client is the only observer and reports it through
+ * `orderMetrics.recordOrderRejection`. Only codes that back a §4.4 rate are
+ * reported; `GROUP_UNAVAILABLE`, `PRICE_UNAVAILABLE`, `ORDER_VALUE_TOO_HIGH`,
+ * `CONTACT_INVALID`, `IDEMPOTENCY_CONFLICT`, `NETWORK`, and the rest are not in
+ * `REJECTION_CODES` and are deliberately silent.
+ *
+ * `ORDER_NOT_ACCEPTED` is the block list's refusal (`convex/orderThrottle.ts`
+ * `assertContactNotBlocked`); `TOO_MANY_REQUESTS` is either throttle window.
+ * The load-test harness reproduces this exact mapping for its self-reporting.
+ */
+const REJECTION_CODE_BY_ORDER_ERROR: Partial<
+  Record<ResolvedOrderError['code'], RejectionCode>
+> = {
+  TOO_MANY_REQUESTS: 'throttle_rejected',
+  ORDER_NOT_ACCEPTED: 'block_hit',
+  PRICE_CHANGED: 'price_changed',
+  ITEM_UNAVAILABLE: 'item_unavailable',
+  ORDERING_CLOSED: 'ordering_closed',
+  OUTSIDE_HOURS: 'outside_hours',
+};
 
 function BasketPanelShell({ children }: { children: ReactNode }) {
   return (
@@ -178,6 +204,7 @@ function BasketPanelBody({
   data,
 }: BasketPanelProps & { data: MenuData }) {
   const placeOrder = useMutation(api.orders.placeOrder);
+  const recordOrderRejection = useMutation(api.orderMetrics.recordOrderRejection);
   const router = useRouter();
   const [basket, dispatch] = useReducer(basketReducer, EMPTY_BASKET);
   const [storage, setStorage] = useState<BasketStorage | null>(null);
@@ -193,6 +220,7 @@ function BasketPanelBody({
   const errorRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLHeadingElement>(null);
   const signatureRef = useRef<string | null>(null);
+  const reportedRejectionRef = useRef<string | null>(null);
 
   const pausedByFlag =
     !acceptingOrders ||
@@ -298,6 +326,29 @@ function BasketPanelBody({
     return null;
   }
 
+  /**
+   * Fire-and-forget rejection report (§4.4 counters, plan D4).
+   *
+   * Exactly once per failed attempt: the signature is the submit key plus the
+   * code, and the submit key only rotates when the basket or form changes, so
+   * pressing Submit again on an unchanged failure cannot double-count.
+   *
+   * The beacon must never compete with the order error the customer is reading:
+   * its own rejection is swallowed, and the order error is applied regardless.
+   */
+  function reportRejection(code: ResolvedOrderError['code'], attemptKey: string) {
+    const rejection = REJECTION_CODE_BY_ORDER_ERROR[code];
+    if (rejection === undefined) {
+      return;
+    }
+    const signature = `${attemptKey}:${rejection}`;
+    if (reportedRejectionRef.current === signature) {
+      return;
+    }
+    reportedRejectionRef.current = signature;
+    void recordOrderRejection({ businessId, code: rejection }).catch(() => {});
+  }
+
   function applySubmitError(resolved: ResolvedOrderError, expectedSubtotal: number | null) {
     // A pause or closed hours is not a basket error: it is a browse-only
     // state with the business's phone, so the panel banner owns the copy.
@@ -358,7 +409,9 @@ function BasketPanelBody({
       setAnnouncement('Order sent. Opening your receipt…');
       router.push(`/order/${receipt.accessToken}`);
     } catch (caught) {
-      applySubmitError(resolveOrderError(caught, { phone }), expectedSubtotal);
+      const resolved = resolveOrderError(caught, { phone });
+      reportRejection(resolved.code, key);
+      applySubmitError(resolved, expectedSubtotal);
     } finally {
       setIsSubmitting(false);
     }
