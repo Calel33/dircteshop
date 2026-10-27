@@ -26,11 +26,13 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from '../convex/_generated/dataModel.ts';
 import {
   HARD_DELETE_CHILD_TABLES,
   assertHardDeleteConfirmation,
+  assertHardDeleteHasNoOrders,
   buildHardDeleteAuditLog,
   collectStorageIds,
 } from '../convex/businesses/adminDeletion.ts';
@@ -59,6 +61,34 @@ test('a wrong, stale, or differently-cased name fails the confirmation', () => {
   assert.throws(() => assertHardDeleteConfirmation('Acme Coffee', 'Acme'), /does not match/);
   assert.throws(() => assertHardDeleteConfirmation('Acme Coffee', ''), /does not match/);
   assert.throws(() => assertHardDeleteConfirmation('Acme Coffee', '   '), /does not match/);
+});
+
+// ---------------------------------------------------------------------------
+// Order-history refusal (issue #84, Task 13 · protocol INV-30/E68).
+// ---------------------------------------------------------------------------
+
+/** The refusal is the `{ code, message }` envelope the admin UI renders. */
+function isOrdersRefusal(error: unknown): boolean {
+  assert.ok(error instanceof ConvexError, 'the refusal must be a ConvexError');
+  const data: unknown = error.data;
+  assert.ok(
+    typeof data === 'object' && data !== null && 'code' in data,
+    'the refusal must carry a machine-readable code'
+  );
+  const envelope: { code?: unknown; message?: unknown } = data;
+  assert.equal(envelope.code, 'HAS_ORDERS');
+  assert.equal(typeof envelope.message, 'string');
+  assert.match(String(envelope.message), /order history/i);
+  return true;
+}
+
+test('a business with no orders passes the hard-delete guard', () => {
+  assert.doesNotThrow(() => assertHardDeleteHasNoOrders(0));
+});
+
+test('a business with any orders is refused with HAS_ORDERS', () => {
+  assert.throws(() => assertHardDeleteHasNoOrders(1), isOrdersRefusal);
+  assert.throws(() => assertHardDeleteHasNoOrders(250), isOrdersRefusal);
 });
 
 // ---------------------------------------------------------------------------

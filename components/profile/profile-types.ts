@@ -32,6 +32,15 @@ export type PublicBusiness = {
   services: string[];
   credentials: string[];
   lastUpdatedAt: number;
+  /**
+   * Ordering protocol flag (§6.2.2). Absent — including in the owner preview
+   * adapter — means `legacy`, so only an explicit `basket` switches the panel.
+   */
+  orderProtocol?: 'legacy' | 'basket';
+  /** Business-level ordering pause; absent means accepting (schema default). */
+  acceptingOrders?: boolean;
+  /** Auto-resume time for the pause, epoch ms. */
+  acceptingOrdersUntil?: number;
 };
 
 /** A single step in the public profile breadcrumb trail. */

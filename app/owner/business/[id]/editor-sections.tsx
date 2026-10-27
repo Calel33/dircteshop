@@ -75,12 +75,30 @@ export const SETTINGS_SECTION = {
   stub: true,
 } as const satisfies EditorSection;
 
+/**
+ * Restaurant-only sections (issue #8 / B8). They are registered conditionally
+ * through `buildEditorNavGroups`; no other category sees them.
+ */
+export const MENU_SECTION = {
+  id: 'menu',
+  label: 'Menu',
+  description: 'Groups and items — published immediately',
+} as const satisfies EditorSection;
+
+export const ORDERS_SECTION = {
+  id: 'orders',
+  label: 'Orders',
+  description: 'Incoming orders and status board',
+} as const satisfies EditorSection;
+
 export type EditorSectionId =
   | EditorFormSectionId
   | typeof PHOTOS_SECTION.id
   | typeof ANALYTICS_SECTION.id
   | typeof HISTORY_SECTION.id
-  | typeof SETTINGS_SECTION.id;
+  | typeof SETTINGS_SECTION.id
+  | typeof MENU_SECTION.id
+  | typeof ORDERS_SECTION.id;
 
 /** A labelled group of nav sections (prototype `.nav-group`, L359-371). */
 export interface EditorNavGroup {
@@ -109,9 +127,38 @@ export const EDITOR_NAV_GROUPS: readonly EditorNavGroup[] = [
   { label: 'Management', sections: [ANALYTICS_SECTION, HISTORY_SECTION, SETTINGS_SECTION] },
 ];
 
-/** Every section shown in the nav, in prototype order (flattened for lookups). */
+/** Flattens nav groups into the section list used for lookups and rendering. */
+export function flattenNavSections(
+  groups: readonly EditorNavGroup[]
+): readonly (EditorSection & { id: EditorSectionId })[] {
+  return groups.flatMap((group) => group.sections);
+}
+
+/** Every section in the static nav, in prototype order (backwards compatible). */
 export const EDITOR_NAV_SECTIONS: readonly (EditorSection & { id: EditorSectionId })[] =
-  EDITOR_NAV_GROUPS.flatMap((group) => group.sections);
+  flattenNavSections(EDITOR_NAV_GROUPS);
+
+const RESTAURANT_NAV_GROUP: EditorNavGroup = {
+  label: 'Restaurant',
+  sections: [MENU_SECTION, ORDERS_SECTION],
+};
+
+/**
+ * Builds the nav groups for a business category. Only restaurants get the
+ * Menu + Orders group (inserted after Listing Details); every other category
+ * returns the static groups unchanged.
+ */
+export function buildEditorNavGroups(
+  categorySlug: string | undefined
+): readonly EditorNavGroup[] {
+  if (categorySlug !== 'restaurants') {
+    return EDITOR_NAV_GROUPS;
+  }
+
+  return EDITOR_NAV_GROUPS.flatMap((group) =>
+    group.label === 'Listing Details' ? [group, RESTAURANT_NAV_GROUP] : [group]
+  );
+}
 
 /** Per-section completion dot: filled ("ok"), partial, or the default grey. */
 export type NavDotState = 'ok' | 'partial' | 'none';
@@ -161,6 +208,7 @@ function contactDot(form: EditorFormState): NavDotState {
 }
 
 interface EditorSectionNavProps {
+  groups: readonly EditorNavGroup[];
   activeId: EditorSectionId;
   onSelect: (id: EditorSectionId) => void;
   completion: NavCompletion;
@@ -173,14 +221,14 @@ interface EditorSectionNavProps {
  * controls. Compact (below `lg`) collapses to a horizontal strip with the group
  * labels and dots hidden.
  */
-export function EditorSectionNav({ activeId, onSelect, completion }: EditorSectionNavProps) {
+export function EditorSectionNav({ groups, activeId, onSelect, completion }: EditorSectionNavProps) {
   return (
     <nav
       aria-label="Editor sections"
       className="bg-card text-card-foreground border-border rounded-card border p-3 lg:sticky lg:top-4"
     >
       <div className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-2 lg:overflow-visible lg:pb-0">
-        {EDITOR_NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <Fragment key={group.label}>
             <p className="text-card-muted hidden px-2 font-label text-xs font-semibold tracking-wide uppercase lg:block">
               {group.label}

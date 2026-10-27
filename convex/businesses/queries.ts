@@ -92,6 +92,11 @@ export const getPublic = query({
         services: business.services,
         credentials: business.credentials,
         lastUpdatedAt: business.lastUpdatedAt,
+        // Ordering flag and pause state (§6.2.2). Missing/unknown is 'legacy'
+        // by contract, so the page can switch the UI on this one value.
+        orderProtocol: business.orderProtocol ?? 'legacy',
+        acceptingOrders: business.acceptingOrders ?? true,
+        acceptingOrdersUntil: business.acceptingOrdersUntil,
       },
       category,
       photoUrls,
