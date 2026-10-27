@@ -36,6 +36,60 @@ export const ORDER_ACTION_LABELS: Record<OrderOwnerAction, string> = {
   noShow: 'No show',
 };
 
+/**
+ * The owner's abuse controls (issue #81, T9). Deliberately a UI-local union:
+ * these are not protocol transitions, so they must never widen
+ * `OrderOwnerAction` or reach the transition mutation.
+ */
+export const ORDER_CONTACT_ACTIONS = ['block', 'unblock', 'clear_throttle'] as const;
+
+export type OrderContactAction = (typeof ORDER_CONTACT_ACTIONS)[number];
+
+export const ORDER_CONTACT_ACTION_LABELS: Record<OrderContactAction, string> = {
+  block: 'Block contact',
+  unblock: 'Unblock contact',
+  clear_throttle: 'Clear throttle',
+};
+
+/**
+ * Live-region copy for a completed contact control. `changed` is the mutation's
+ * own count (`created` / `removed` / `cleared`), so an idempotent no-op reports
+ * that nothing changed instead of claiming a write.
+ */
+export function contactActionAnnouncement(
+  action: OrderContactAction,
+  customerName: string,
+  changed: number
+): string {
+  const order = `${customerName}'s order`;
+  switch (action) {
+    case 'block':
+      return changed > 0
+        ? `Blocked the contact for ${order}.`
+        : `The contact for ${order} was already blocked.`;
+    case 'unblock':
+      return changed > 0
+        ? `Unblocked the contact for ${order}.`
+        : `The contact for ${order} was not blocked.`;
+    case 'clear_throttle':
+      return changed > 0
+        ? `Cleared the throttle for ${order}.`
+        : `There was no throttle to clear for ${order}.`;
+  }
+}
+
+/** Fallback copy when a contact control fails without a server message. */
+export function contactActionErrorFallback(action: OrderContactAction): string {
+  switch (action) {
+    case 'block':
+      return 'Could not block this contact. Try again.';
+    case 'unblock':
+      return 'Could not unblock this contact. Try again.';
+    case 'clear_throttle':
+      return 'Could not clear this throttle. Try again.';
+  }
+}
+
 /** Token classes for the status pill (fill + border + text, never colour alone). */
 export const STATUS_PILL_CLASSES: Record<OrderBoardStatus, string> = {
   new: 'bg-warning-soft border-warning-border text-warning-strong',

@@ -12,6 +12,7 @@ import {
   AGE_BADGE_CLASSES,
   AGE_TICK_MS,
   ORDER_ACTION_LABELS,
+  ORDER_CONTACT_ACTION_LABELS,
   ORDER_STATUS_LABELS,
   ageClass,
   formatAge,
@@ -20,6 +21,7 @@ import {
   nextActionForStatus,
   statusPillClass,
   summarizeNote,
+  type OrderContactAction,
 } from './orders-panel-helpers';
 
 type OrdersListResult = FunctionReturnType<typeof api.orders.listOrders>;
@@ -27,29 +29,40 @@ type OrdersListResult = FunctionReturnType<typeof api.orders.listOrders>;
 /** One projected row from `api.orders.listOrders` (Task 1's envelope). */
 export type OrderBoardRow = OrdersListResult['rows'][number];
 
-export type OrderRowFailure = {
-  action: OrderOwnerAction;
-  message: string;
-};
+/**
+ * A row-scoped failure. The kind decides which handler the row's "Try again"
+ * calls: protocol transitions and contact controls are separate mutations, so
+ * they can never be retried through the wrong one.
+ */
+export type OrderRowFailure =
+  | { kind: 'transition'; action: OrderOwnerAction; message: string }
+  | { kind: 'contact'; action: OrderContactAction; message: string };
 
 /**
  * One operator row: reference, customer, every line with quantity and
  * selections, the recorded subtotal (or the legacy "Price not recorded"
  * branch), the note with its expand control, a ticking age badge, the status
- * pill, and exactly the actions the status allows (§6.8).
+ * pill, and exactly the actions the status allows (§6.8). Contact controls sit
+ * apart from the protocol buttons because they never move the order.
  */
 export function OrderRow({
   order,
   pending,
   failure,
   onAction,
+  onContactAction,
 }: {
   order: OrderBoardRow;
   pending: boolean;
   failure: OrderRowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
+  onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
 }) {
   const actions = nextActionForStatus(order.status);
+  const hasContact = order.contactPhone !== null || order.contactEmail !== null;
+  const contactActions: readonly OrderContactAction[] = hasContact
+    ? ['block', 'unblock', 'clear_throttle']
+    : ['clear_throttle'];
   const actionContext =
     order.reference === null
       ? order.customerName
@@ -113,6 +126,31 @@ export function OrderRow({
         )}
       </div>
 
+      <div
+        role="group"
+        aria-label="Contact controls"
+        aria-busy={pending}
+        className="border-border mt-gap flex flex-wrap items-center gap-2 border-t pt-2"
+      >
+        <span className="text-card-muted font-label text-micro tracking-label uppercase">
+          Contact controls
+        </span>
+        {contactActions.map((action) => (
+          <Button
+            key={action}
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-11"
+            disabled={pending}
+            aria-label={`${ORDER_CONTACT_ACTION_LABELS[action]} for ${actionContext}`}
+            onClick={() => onContactAction(order, action)}
+          >
+            {ORDER_CONTACT_ACTION_LABELS[action]}
+          </Button>
+        ))}
+      </div>
+
       {failure === null ? null : (
         <div
           role="alert"
@@ -124,7 +162,11 @@ export function OrderRow({
             size="sm"
             variant="outline"
             className="min-h-11"
-            onClick={() => onAction(order, failure.action)}
+            onClick={() =>
+              failure.kind === 'transition'
+                ? onAction(order, failure.action)
+                : onContactAction(order, failure.action)
+            }
           >
             Try again
           </Button>

@@ -14,11 +14,12 @@
  * Run: pnpm exec vitest run convex/orderExpiry.test.ts
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { ConvexError } from 'convex/values';
 import { convexTest } from 'convex-test';
 import type { TestConvex } from 'convex-test';
 
 import schema from './schema';
-import { internal } from './_generated/api';
+import { api, internal } from './_generated/api';
 import crons from './crons';
 import { EXPIRE_REASON } from './orderCommitPolicy';
 import type { Doc, Id } from './_generated/dataModel';
@@ -113,6 +114,33 @@ function eventsFor(t: TestBackend, orderId: Id<'orders'>) {
       .withIndex('byOrderIdCreatedAt', (q) => q.eq('orderId', orderId))
       .collect()
   );
+}
+
+/**
+ * Asserts the §6.5 object envelope. `convex-test` restores the original
+ * `ConvexError`, so `.data` is the object the handler threw (same contract as
+ * `convex/orders.test.ts`).
+ */
+async function expectOrderError(promise: Promise<unknown>, code: string) {
+  const thrown = await promise.then(
+    () => {
+      throw new Error(`Expected ${code}, but the call succeeded`);
+    },
+    (error: unknown) => error
+  );
+  expect(thrown).toBeInstanceOf(ConvexError);
+  const data = (thrown as ConvexError<Record<string, string | number>>).data;
+  expect(data.code).toBe(code);
+  return data;
+}
+
+/** Drives one owner accept through the real handler as the seeded owner. */
+function ownerAccept(t: TestBackend, businessId: Id<'businesses'>, orderId: Id<'orders'>) {
+  return t.withIdentity({ subject: 'user_owner' }).mutation(api.orders.transitionOrderStatus, {
+    businessId,
+    orderId,
+    action: 'accept',
+  });
 }
 
 test('sweep expires a due new order, stamps the reason and appends one system event', async () => {
@@ -262,9 +290,153 @@ test('one sweep is bounded to the 50 earliest-due rows, ascending', async () => 
   expect(statuses.slice(50)).toEqual(Array(5).fill('new'));
 });
 
-test('crons registers exactly one 5-minute expiry sweep', () => {
-  expect(Object.keys(crons.crons)).toEqual(['sweep expired orders']);
-  const job = crons.crons['sweep expired orders'];
-  expect(job.schedule).toEqual({ type: 'interval', minutes: 5 });
-  expect(job.name).toMatch(/sweepExpiredOrders$/);
+// ---------------------------------------------------------------------------
+// Expire-vs-accept race semantics (issue #81, T8). Each case pins one winner;
+// together they make "accepted AND expired-ledgered" unreachable.
+// ---------------------------------------------------------------------------
+
+test('expire wins over accept: a due, unswept order refuses the owner accept with ORDER_EXPIRED', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seedBusiness(t);
+  const orderId = await insertOrder(t, businessId, 'new');
+  // Boundary: `expiresAt <= now` is due, so the D8 guard fires.
+  await insertExpiry(t, orderId, businessId, NOW);
+
+  await expectOrderError(ownerAccept(t, businessId, orderId), 'ORDER_EXPIRED');
+
+  // The throwing transaction writes nothing: no status change, no event, and
+  // the schedule row is still there for the system sweep to convert.
+  const order = await t.run((ctx) => ctx.db.get(orderId));
+  expect(order?.status).toBe('new');
+  expect(order?.statusReason).toBeUndefined();
+  expect(order?.statusUpdatedAt).toBeUndefined();
+  const events = await eventsFor(t, orderId);
+  expect(events).toHaveLength(0);
+  expect(events.filter((event) => event.action === 'accepted')).toHaveLength(0);
+  expect(await expiryRowsFor(t, orderId)).toHaveLength(1);
+});
+
+test('accept wins over expire: a row that becomes due after the accept sweeps stale and never expires it', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seedBusiness(t);
+  const orderId = await insertOrder(t, businessId, 'new');
+  // Not due yet, so the accept passes the D8 guard and deletes this row.
+  await insertExpiry(t, orderId, businessId, NOW + 60_000);
+
+  const accepted = await ownerAccept(t, businessId, orderId);
+  expect(accepted).toEqual({ status: 'accepted', reused: false });
+
+  // The race under test: a due schedule exists for an order that is already
+  // accepted (a duplicate write or a sweep retry after the accept committed).
+  await insertExpiry(t, orderId, businessId, NOW);
+
+  const summary = await t.mutation(internal.orderExpiry.sweepExpiredOrders, {});
+
+  expect(summary).toEqual({ examined: 1, expired: 0, stale: 1 });
+  const order = await t.run((ctx) => ctx.db.get(orderId));
+  expect(order?.status).toBe('accepted');
+  expect(order?.statusReason).toBeUndefined();
+
+  const events = await eventsFor(t, orderId);
+  expect(events.map((event) => event.action)).toEqual(['accepted']);
+  expect(events.some((event) => event.toStatus === 'expired')).toBe(false);
+  expect(await expiryRowsFor(t, orderId)).toHaveLength(0);
+
+  // The forbidden combination is unreachable.
+  expect(order?.status === 'accepted' && events.some((event) => event.toStatus === 'expired')).toBe(
+    false
+  );
+});
+
+test('accept wins over expire: expireOrder on an accepted order clears the stale row without patching', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seedBusiness(t);
+  const orderId = await insertOrder(t, businessId, 'accepted');
+  await insertExpiry(t, orderId, businessId, NOW - 1);
+
+  await t.mutation(internal.orderExpiry.expireOrder, { orderId });
+
+  const order = await t.run((ctx) => ctx.db.get(orderId));
+  expect(order?.status).toBe('accepted');
+  expect(order?.statusReason).toBeUndefined();
+  expect(order?.statusUpdatedAt).toBeUndefined();
+
+  const events = await eventsFor(t, orderId);
+  expect(events).toHaveLength(0);
+  expect(events.some((event) => event.toStatus === 'expired')).toBe(false);
+  expect(await expiryRowsFor(t, orderId)).toHaveLength(0);
+
+  expect(order?.status === 'accepted' && events.some((event) => event.toStatus === 'expired')).toBe(
+    false
+  );
+});
+
+test('sweep only touches new: every non-new status reports stale and is never patched', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId } = await seedBusiness(t);
+  const nonNew: Doc<'orders'>['status'][] = [
+    'accepted',
+    'ready',
+    'completed',
+    'declined',
+    'cancelled',
+    'expired',
+    'no_show',
+  ];
+
+  // Seven due rows: one per non-`new` status, well inside the 50-row batch.
+  const seeded = await t.run(async (ctx) => {
+    const rows: { status: Doc<'orders'>['status']; orderId: Id<'orders'> }[] = [];
+    for (const [offset, status] of nonNew.entries()) {
+      const orderId = await ctx.db.insert('orders', {
+        businessId,
+        customerName: 'Ada Customer',
+        status,
+        createdAt: NOW,
+      });
+      await ctx.db.insert('orderExpiry', {
+        orderId,
+        businessId,
+        expiresAt: NOW - 10_000 + offset,
+      });
+      rows.push({ status, orderId });
+    }
+    return rows;
+  });
+
+  const summary = await t.mutation(internal.orderExpiry.sweepExpiredOrders, {});
+
+  expect(summary).toEqual({ examined: nonNew.length, expired: 0, stale: nonNew.length });
+
+  const after = await t.run(async (ctx) => {
+    const rows: { status: Doc<'orders'>['status']; order: Doc<'orders'> | null }[] = [];
+    for (const { status, orderId } of seeded) {
+      rows.push({ status, order: await ctx.db.get(orderId) });
+    }
+    return rows;
+  });
+  for (const { status, order } of after) {
+    expect(order?.status).toBe(status);
+    expect(order?.statusReason).toBeUndefined();
+    expect(order?.statusUpdatedAt).toBeUndefined();
+  }
+
+  // No ledger row was appended and every stale schedule was cleaned up.
+  expect(await t.run((ctx) => ctx.db.query('orderEvents').collect())).toHaveLength(0);
+  expect(await t.run((ctx) => ctx.db.query('orderExpiry').collect())).toHaveLength(0);
+});
+
+test('crons register the 5-minute expiry sweep and the daily throttle cleanup', () => {
+  expect(Object.keys(crons.crons).sort()).toEqual([
+    'cleanup stale order throttle',
+    'sweep expired orders',
+  ]);
+
+  const sweep = crons.crons['sweep expired orders'];
+  expect(sweep.schedule).toEqual({ type: 'interval', minutes: 5 });
+  expect(sweep.name).toMatch(/sweepExpiredOrders$/);
+
+  const cleanup = crons.crons['cleanup stale order throttle'];
+  expect(cleanup.schedule).toEqual({ type: 'daily', hourUTC: 4, minuteUTC: 0 });
+  expect(cleanup.name).toMatch(/cleanupStaleThrottleRows$/);
 });

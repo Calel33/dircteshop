@@ -694,6 +694,83 @@ function NoShowDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Block contact (issue #81, T9)
+// ---------------------------------------------------------------------------
+
+/**
+ * The one contact control that hides a customer from the business, so it asks
+ * once before writing. The reason is optional; the server stores it verbatim
+ * and has no length rule, so this dialog does not invent one.
+ */
+export function BlockContactDialog({
+  order,
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  order: OrderBoardRow;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (reason: string | undefined) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const reasonId = useId();
+
+  function handleSubmit() {
+    const trimmed = reason.trim();
+    onSubmit(trimmed.length === 0 ? undefined : trimmed);
+  }
+
+  return (
+    <DialogShell
+      order={order}
+      title={`Block contact for ${order.customerName}`}
+      description="New orders from this contact will be refused for this business. You can unblock the contact from any of their orders."
+      pending={pending}
+      onClose={onClose}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Keep contact
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="min-h-11"
+            disabled={pending}
+            aria-busy={pending}
+            onClick={handleSubmit}
+          >
+            {pending ? 'Blocking…' : 'Block contact'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={reasonId}>Reason (optional)</Label>
+        <Textarea
+          id={reasonId}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Why is this contact being blocked?"
+          disabled={pending}
+          className="min-h-11"
+        />
+        <DialogError message={error} pending={pending} onRetry={handleSubmit} />
+      </div>
+    </DialogShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 

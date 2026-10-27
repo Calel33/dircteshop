@@ -21,8 +21,14 @@ import type { TestConvex } from 'convex-test';
 import schema from './schema';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { DEFAULT_TTL_MS, VISITOR_CANCEL_REASON } from './orderCommitPolicy';
-import { businessThrottleKey } from './orderThrottle';
+import {
+  CONTACT_THROTTLE_WINDOW_24H_MS,
+  DEFAULT_TTL_MS,
+  ORDER_ERRORS,
+  VISITOR_CANCEL_REASON,
+  parseContact,
+} from './orderCommitPolicy';
+import { businessThrottleKey, contactThrottleKeys } from './orderThrottle';
 
 const modules = import.meta.glob('./**/*.ts');
 const NOW = 1_700_000_000_000;
@@ -745,6 +751,66 @@ async function rowCounts(t: TestBackend) {
 }
 
 /**
+ * The name-excluded identity hash the commit path keys its contact windows by
+ * (`parseContact` → `canonicalContact`). The customer name is deliberately
+ * excluded (Q3), so every name parses to the same hash for one contact.
+ */
+async function contactHashFor(phone: string, email: string): Promise<string> {
+  const parsed = await parseContact({ customerName: 'Throttle Probe', phone, email });
+  if (!parsed.ok) {
+    throw new Error('test contact did not parse');
+  }
+  return parsed.contactHash;
+}
+
+/** One `orderThrottle` row by key, or `null` when that window was never claimed. */
+async function throttleRow(t: SchemaBackend, key: string) {
+  return await t.run((ctx) =>
+    ctx.db.query('orderThrottle').withIndex('byKey', (q) => q.eq('key', key)).first()
+  );
+}
+
+/** Both contact windows for one contact, with the keys that identify them. */
+async function contactWindows(
+  t: SchemaBackend,
+  businessId: Id<'businesses'>,
+  contactHash: string
+) {
+  const keys = contactThrottleKeys(businessId, contactHash);
+  const tenMinutes = await throttleRow(t, keys.tenMinutes);
+  const day = await throttleRow(t, keys.day);
+  return { keys, tenMinutes, day };
+}
+
+/** The three throttle counts an accepted order touches, for before/after pins. */
+async function throttleCounts(
+  t: SchemaBackend,
+  businessId: Id<'businesses'>,
+  contactHash: string
+) {
+  const { tenMinutes, day } = await contactWindows(t, businessId, contactHash);
+  const business = await throttleRow(t, businessThrottleKey(businessId));
+  return {
+    business: business?.count ?? 0,
+    tenMinutes: tenMinutes?.count ?? 0,
+    day: day?.count ?? 0,
+  };
+}
+
+/**
+ * Backdates one window's start so the next claim reads it as expired. A `byMs`
+ * larger than the window is the deterministic window-recovery fixture: no
+ * sleeps and no clock movement.
+ */
+async function backdateWindow(t: SchemaBackend, key: string, byMs: number) {
+  const row = await throttleRow(t, key);
+  if (row === null) {
+    throw new Error(`expected a throttle row for ${key}`);
+  }
+  await t.run((ctx) => ctx.db.patch(row._id, { windowStart: row.windowStart - byMs }));
+}
+
+/**
  * Asserts the §6.5 object envelope. `convex-test` restores the original
  * `ConvexError` (`deserializeConvexErrorData`), so `.data` is the object the
  * handler threw — no raw-message matching, no weakening.
@@ -796,7 +862,9 @@ test('basket: one order commits exactly six rows and returns the masked receipt'
     events: 1,
     expiry: 1,
     notifications: 1,
-    throttle: 1,
+    // One accepted basket order claims three windows (§6.2.3 L1044 step 4):
+    // `business:<id>:10m` plus the contact's `:10m` and `:24h` rows.
+    throttle: 3,
   });
 
   const order = await t.run((ctx) => ctx.db.query('orders').first());
@@ -939,7 +1007,9 @@ test('basket: two tabs with the same key get the same token and reference, one o
   expect(second.reference).toBe(first.reference);
   expect(second.orderId).toBe(first.orderId);
 
-  // Throttle stays at 1: the fast path returns before the serialization write.
+  // Throttle stays at 3: the commit claimed the business row and both contact
+  // windows, and the replay's fast path returns before any claim, so the second
+  // call adds nothing.
   expect(await rowCounts(t)).toEqual({
     orders: 1,
     access: 1,
@@ -947,7 +1017,7 @@ test('basket: two tabs with the same key get the same token and reference, one o
     events: 1,
     expiry: 1,
     notifications: 1,
-    throttle: 1,
+    throttle: 3,
   });
 });
 
@@ -973,7 +1043,9 @@ test('basket: a replay ignores current supply state (D5b)', async () => {
     events: 1,
     expiry: 1,
     notifications: 1,
-    throttle: 1,
+    // The replay returned on the fast path, so it claimed no new windows; the
+    // original commit's three rows are all that exist.
+    throttle: 3,
   });
 });
 
@@ -1134,7 +1206,7 @@ test('basket: a live window at the limit throws TOO_MANY_REQUESTS with retryAfte
   expect((await rowCounts(t)).orders).toBe(0);
 });
 
-test('basket: two successful orders increment one window to 2', async () => {
+test('basket: two successful orders increment every window to 2', async () => {
   const t = convexTest(schema, modules);
   const { businessId, menuItemId } = await seed(t);
   await configureBasket(t, businessId);
@@ -1149,12 +1221,372 @@ test('basket: two successful orders increment one window to 2', async () => {
   );
 
   const rows = await t.run((ctx) => ctx.db.query('orderThrottle').collect());
-  expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({
+  // The business row plus the contact's two windows, one slot each per order.
+  expect(rows).toHaveLength(3);
+
+  const businessRow = rows.find((row) => row.key === businessThrottleKey(businessId));
+  expect(businessRow).toMatchObject({
     key: businessThrottleKey(businessId),
     windowStart: NOW,
     count: 2,
   });
+
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+  const contactKeys = contactThrottleKeys(businessId, contactHash);
+  for (const key of [contactKeys.tenMinutes, contactKeys.day]) {
+    expect(rows.find((row) => row.key === key)).toMatchObject({
+      key,
+      windowStart: NOW,
+      count: 2,
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Contact abuse controls (T9, issue #81): the contact throttle and the block
+// list as `placeOrder` integrates them (§6.2.3 L1044 step 4; S4 L1633).
+//
+// Limits are 3 per 10 minutes and 10 per 24 hours per business × hashed contact
+// (§6.2.4 L1063–1064). Every case drives the real handler under the pinned
+// `Date` above, so a window reset is a `windowStart` patch, never a sleep.
+// ---------------------------------------------------------------------------
+
+test('basket: the fourth contact submission in ten minutes is TOO_MANY_REQUESTS', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  for (const idempotencyKey of ['contact-10m-a', 'contact-10m-b', 'contact-10m-c']) {
+    await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { idempotencyKey }));
+  }
+
+  // Three accepted submissions fill the 10-minute window exactly.
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual({
+    business: 3,
+    tenMinutes: 3,
+    day: 3,
+  });
+
+  const data = await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: 'contact-10m-d' })
+    ),
+    'TOO_MANY_REQUESTS'
+  );
+  const retryAfterMs = Number(data.retryAfterMs);
+  expect(retryAfterMs).toBeGreaterThan(0);
+  expect(retryAfterMs).toBeLessThanOrEqual(600_000);
+  expect(String(data.message)).toBe(
+    'Too many order attempts. Try again in 10 minutes or call the business.'
+  );
+  expect(String(data.message)).not.toContain('{n}');
+
+  // Both windows are judged before either write, and the refusal aborts the
+  // whole mutation, so the fourth attempt consumed no slot anywhere.
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual({
+    business: 3,
+    tenMinutes: 3,
+    day: 3,
+  });
+  expect((await rowCounts(t)).orders).toBe(3);
+});
+
+test('basket: the eleventh contact submission in 24 hours is TOO_MANY_REQUESTS', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+  const { keys } = await contactWindows(t, businessId, contactHash);
+
+  // Ten accepted submissions. Only the 10-minute window is reset between
+  // batches (3 + 3 + 3 + 1), so the 24-hour window keeps counting to ten.
+  for (let index = 0; index < 10; index += 1) {
+    if (index > 0 && index % 3 === 0) {
+      await backdateWindow(t, keys.tenMinutes, 600_001);
+    }
+    await t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: `contact-24h-${index}` })
+    );
+  }
+
+  const before = await throttleCounts(t, businessId, contactHash);
+  expect(before).toEqual({ business: 10, tenMinutes: 1, day: 10 });
+
+  // The 10-minute window is live but below its limit, so the refusal comes from
+  // the 24-hour window: a day-scale retry, not a ten-minute one.
+  const data = await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: 'contact-24h-10' })
+    ),
+    'TOO_MANY_REQUESTS'
+  );
+  const retryAfterMs = Number(data.retryAfterMs);
+  expect(retryAfterMs).toBeGreaterThan(600_000);
+  expect(retryAfterMs).toBeLessThanOrEqual(CONTACT_THROTTLE_WINDOW_24H_MS);
+  expect(String(data.message)).toBe(
+    'Too many order attempts. Try again in 1440 minutes or call the business.'
+  );
+
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual(before);
+});
+
+test('basket: a stale contact window resets both counters and accepts the order', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+  const { keys } = await contactWindows(t, businessId, contactHash);
+
+  for (const idempotencyKey of ['recover-a', 'recover-b', 'recover-c']) {
+    await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { idempotencyKey }));
+  }
+
+  // Both rows stale: the 10-minute window by >10 min, the day window by >24 h.
+  await backdateWindow(t, keys.tenMinutes, 600_001);
+  await backdateWindow(t, keys.day, CONTACT_THROTTLE_WINDOW_24H_MS + 1);
+
+  const receipt = await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'recover-d' })
+  );
+  expect(receipt.status).toBe('new');
+
+  const after = await contactWindows(t, businessId, contactHash);
+  expect(after.tenMinutes).toMatchObject({ windowStart: NOW, count: 1 });
+  expect(after.day).toMatchObject({ windowStart: NOW, count: 1 });
+  expect((await rowCounts(t)).orders).toBe(4);
+});
+
+test('basket: a blocked contact gets generic ORDER_NOT_ACCEPTED and consumes no slot', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+  const block = await asOwner.mutation(api.orderBlocks.blockContact, {
+    businessId,
+    phone: '555-010-0100',
+  });
+  expect(block.created).toBe(1);
+
+  const data = await expectOrderError(
+    t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId)),
+    'ORDER_NOT_ACCEPTED'
+  );
+
+  // Generic copy verbatim (§6.6 L1376): no block disclosure, and the payload is
+  // the catalogue envelope only — no hash and no contact.
+  expect(String(data.message)).toBe(ORDER_ERRORS.ORDER_NOT_ACCEPTED.message);
+  expect(Object.keys(data).sort()).toEqual(['code', 'message']);
+  const payload = JSON.stringify(data);
+  expect(payload).not.toContain(contactHash);
+  expect(payload).not.toContain('5550100100');
+  expect(payload).not.toContain('ada@example.com');
+
+  // The block check precedes the contact claim, so no contact row exists. The
+  // refusal also aborts the transaction, so the business claim that ran first
+  // left nothing behind either: "a failed order should not consume a quota
+  // slot" (§6.6 L1370).
+  const { tenMinutes, day } = await contactWindows(t, businessId, contactHash);
+  expect(tenMinutes).toBeNull();
+  expect(day).toBeNull();
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual({
+    business: 0,
+    tenMinutes: 0,
+    day: 0,
+  });
+  expect(await rowCounts(t)).toMatchObject({ orders: 0, throttle: 0 });
+});
+
+test('basket: a block on either channel refuses a submission presenting the other', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+
+  // Email-only block: the dual-channel submission still matches the email hash.
+  await asOwner.mutation(api.orderBlocks.blockContact, {
+    businessId,
+    email: 'ada@example.com',
+  });
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: 'channel-email-blocked' })
+    ),
+    'ORDER_NOT_ACCEPTED'
+  );
+
+  // Phone block added: an email-only submission is still refused.
+  await asOwner.mutation(api.orderBlocks.blockContact, {
+    businessId,
+    phone: '555-010-0100',
+  });
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, {
+        contactPhone: '',
+        idempotencyKey: 'channel-phone-blocked',
+      })
+    ),
+    'ORDER_NOT_ACCEPTED'
+  );
+
+  expect((await rowCounts(t)).orders).toBe(0);
+});
+
+test('basket: unblocking the contact restores the submission', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const asOwner = t.withIdentity({ subject: 'user_owner' });
+  const args = basketArgs(businessId, menuItemId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  await asOwner.mutation(api.orderBlocks.blockContact, {
+    businessId,
+    phone: '(555) 010-0100',
+    email: 'ada@example.com',
+  });
+  await expectOrderError(t.mutation(api.orders.placeOrder, args), 'ORDER_NOT_ACCEPTED');
+
+  const removed = await asOwner.mutation(api.orderBlocks.unblockContact, {
+    businessId,
+    phone: '(555) 010-0100',
+    email: 'ada@example.com',
+  });
+  expect(removed.removed).toBe(2);
+
+  const receipt = await t.mutation(api.orders.placeOrder, args);
+  expect(receipt.status).toBe('new');
+  expect((await rowCounts(t)).orders).toBe(1);
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual({
+    business: 1,
+    tenMinutes: 1,
+    day: 1,
+  });
+});
+
+test('basket: an idempotent duplicate does not double-count the throttle', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const args = basketArgs(businessId, menuItemId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  const first = await t.mutation(api.orders.placeOrder, args);
+  const before = await throttleCounts(t, businessId, contactHash);
+  expect(before).toEqual({ business: 1, tenMinutes: 1, day: 1 });
+
+  // The fast path runs before the business claim and the contact claim, so the
+  // replay returns the original receipt and claims nothing.
+  const replay = await t.mutation(api.orders.placeOrder, args);
+  expect(replay).toEqual(first);
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual(before);
+  expect((await rowCounts(t)).orders).toBe(1);
+});
+
+test('basket: a failed supply guard consumes no contact slot', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  await t.mutation(
+    api.orders.placeOrder,
+    basketArgs(businessId, menuItemId, { idempotencyKey: 'guard-ok' })
+  );
+  const before = await throttleCounts(t, businessId, contactHash);
+  expect(before).toEqual({ business: 1, tenMinutes: 1, day: 1 });
+
+  await configureBasket(t, businessId, { acceptingOrders: false });
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: 'guard-closed' })
+    ),
+    'ORDERING_CLOSED'
+  );
+
+  // The supply guards precede every claim: no new contact slot, no row change.
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual(before);
+  expect((await rowCounts(t)).throttle).toBe(3);
+});
+
+test('basket: renaming the customer does not reset the throttle', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+
+  for (const idempotencyKey of ['rename-a', 'rename-b', 'rename-c']) {
+    await t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey, customerName: 'Ada' })
+    );
+  }
+
+  // Same phone and email, new name, fresh key: the name-excluded identity hash
+  // (Q3 regression pin) is unchanged, so the fourth submission is throttled.
+  await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, {
+        idempotencyKey: 'rename-d',
+        customerName: 'Grace',
+      })
+    ),
+    'TOO_MANY_REQUESTS'
+  );
+
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+  expect(await throttleCounts(t, businessId, contactHash)).toEqual({
+    business: 3,
+    tenMinutes: 3,
+    day: 3,
+  });
+});
+
+test('basket: throttle keys and error payloads carry no raw contact', async () => {
+  const t = convexTest(schema, modules);
+  const { businessId, menuItemId } = await seed(t);
+  await configureBasket(t, businessId);
+  const contactHash = await contactHashFor('(555) 010-0100', 'ada@example.com');
+
+  for (const idempotencyKey of ['privacy-a', 'privacy-b', 'privacy-c']) {
+    await t.mutation(api.orders.placeOrder, basketArgs(businessId, menuItemId, { idempotencyKey }));
+  }
+  const data = await expectOrderError(
+    t.mutation(
+      api.orders.placeOrder,
+      basketArgs(businessId, menuItemId, { idempotencyKey: 'privacy-d' })
+    ),
+    'TOO_MANY_REQUESTS'
+  );
+
+  const rows = await t.run((ctx) => ctx.db.query('orderThrottle').collect());
+  expect(rows).toHaveLength(3);
+  for (const row of rows) {
+    // §6.6 L1378: keys are SHA-256 of the normalized contact, never the contact.
+    expect(row.key).not.toContain('5550100100');
+    expect(row.key).not.toContain('ada@example.com');
+    expect(row.key).not.toContain('Ada');
+  }
+
+  const { keys } = await contactWindows(t, businessId, contactHash);
+  expect(rows.map((row) => row.key).sort()).toEqual(
+    [businessThrottleKey(businessId), keys.tenMinutes, keys.day].sort()
+  );
+
+  const payload = JSON.stringify(data);
+  expect(payload).not.toContain(contactHash);
+  expect(payload).not.toContain('5550100100');
+  expect(payload).not.toContain('ada@example.com');
 });
 
 test('basket: an empty basket is BASKET_EMPTY', async () => {

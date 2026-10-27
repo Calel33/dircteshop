@@ -1,25 +1,40 @@
 import { ConvexError } from 'convex/values';
 
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
-import { BUSINESS_THROTTLE_10M, ORDER_ERRORS } from './orderCommitPolicy';
+import {
+  BUSINESS_THROTTLE_10M,
+  CONTACT_THROTTLE_10M,
+  CONTACT_THROTTLE_24H,
+  CONTACT_THROTTLE_WINDOW_24H_MS,
+  ORDER_ERRORS,
+} from './orderCommitPolicy.ts';
 
-// Order commitment protocol §6.2.3 / §6.2.4 (issue #78, T4): the per-business
-// fixed-window throttle. `claimBusinessThrottle` reads and patches one
-// `orderThrottle` row keyed `business:<id>:10m`; that patch is also the
-// serialization write that makes the following idempotency re-check safe under
-// OCC retry, so the caller runs it before the inserts, never after (§6.2.3
-// L1044).
+// Order commitment protocol §6.2.3 / §6.2.4 (issue #78 S1, issue #81 T9):
+// the fixed-window throttles and the contact block check that guard the public
+// write surface. The module owns three things:
 //
-// Scope: S1 enforces the business limit only. Contact throttling and the block
-// list are S4 and are added to this same file as sibling keys (§6.2.3 L1044
-// "S4 adds the contact throttle and block list"; S1 file list L1561; S4 file
-// list L1622) — no contact key is read or written here.
+//   1. The per-business key `business:<id>:10m`. `claimBusinessThrottle`'s
+//      patch is the serialization write that makes the following idempotency
+//      re-check safe under OCC retry, so the caller runs it before the inserts,
+//      never after (§6.2.3 L1044).
+//   2. The sibling contact keys `contact:<businessId>:<sha256>:10m` and
+//      `contact:<businessId>:<sha256>:24h` (§6.2.3 L1009; limits §6.2.4
+//      L1063–1064). The digest is the name-excluded identity hash returned by
+//      `parseContact` — never a raw phone or email. `claimContactThrottle`
+//      reads both rows, judges both limits, and only then writes, so a rejected
+//      order consumes no slot in either window.
+//   3. The owner-managed block list. `assertContactNotBlocked` probes the
+//      per-channel hashes from `contactChannelHashes` and refuses with the
+//      generic `ORDER_NOT_ACCEPTED` copy — never a block disclosure and never
+//      the hash in the error payload.
 //
-// Fixed window: 10 minutes, limit `BUSINESS_THROTTLE_10M` (60) per business
-// (§6.2.4 L1065). The window resets only when `now - windowStart` is strictly
-// greater than 10 minutes, so a row exactly 10 minutes old is still live; the
-// exact-boundary error case is handled under the throw below.
+// Fixed window: `BUSINESS_THROTTLE_WINDOW_MS` (10 minutes) is shared by the
+// business key and the contact `:10m` key; the contact `:24h` key uses
+// `CONTACT_THROTTLE_WINDOW_24H_MS`. A window resets only when
+// `now - windowStart` is strictly greater than its length, so a row exactly one
+// window old is still live; the exact-boundary error case is handled under the
+// throw below.
 //
 // Clock: `now` is a parameter and this module never reads the ambient clock.
 // The handler reads the clock once and passes it in, which keeps the window
@@ -40,8 +55,8 @@ export const BUSINESS_THROTTLE_WINDOW_MS = 10 * MINUTE_MS;
 
 /**
  * The serialization key for one business (`schema.ts:315-319`; §6.2.3 L1044).
- * Exported so S4 can mint sibling `contact:<businessId>:<sha256>:10m` keys
- * without changing the claim below.
+ * The contact keys below are its siblings; both shapes are pinned by the
+ * protocol (L1009).
  */
 export function businessThrottleKey(businessId: Id<'businesses'>): string {
   return `business:${businessId}:10m`;
@@ -102,4 +117,207 @@ export async function claimBusinessThrottle(
   }
 
   await ctx.db.patch(row._id, { count: row.count + 1 });
+}
+
+// ---------------------------------------------------------------------------
+// Contact throttle (§6.2.3 L1044 step 4; limits §6.2.4 L1063–1064)
+// ---------------------------------------------------------------------------
+
+/**
+ * The two contact window keys for one business.
+ *
+ * The shape `contact:<businessId>:<contactHash>:10m|24h` is pinned by the
+ * protocol at §6.2.2 L1009 (and by the `schema.ts:316` comment), so it must not
+ * be reformatted. `contactHash` is the name-excluded identity digest from
+ * `parseContact`; the raw phone/email is never interpolated into a key.
+ */
+export function contactThrottleKeys(
+  businessId: Id<'businesses'>,
+  contactHash: string
+): { tenMinutes: string; day: string } {
+  return {
+    tenMinutes: `contact:${businessId}:${contactHash}:10m`,
+    day: `contact:${businessId}:${contactHash}:24h`,
+  };
+}
+
+type ThrottleWindow = {
+  readonly key: string;
+  readonly windowMs: number;
+  readonly limit: number;
+};
+
+type ThrottleClaim = {
+  readonly window: ThrottleWindow;
+  readonly row: Doc<'orderThrottle'> | null;
+  /** Recorded once, at read time, from the same `now` as the limits below. */
+  readonly live: boolean;
+};
+
+function throttleRejection(
+  window: ThrottleWindow,
+  windowStart: number,
+  now: number
+): ConvexError<Record<string, string | number>> {
+  // Same ceil/clamp rule as the business claim: at the exact boundary
+  // `retryAfterMs` is 0, so `{n}` clamps up to 1 rather than "0 minutes".
+  const retryAfterMs = Math.max(0, windowStart + window.windowMs - now);
+  const minutes = Math.max(1, Math.ceil(retryAfterMs / MINUTE_MS));
+
+  return new ConvexError({
+    code: 'TOO_MANY_REQUESTS',
+    message: ORDER_ERRORS.TOO_MANY_REQUESTS.message.replace(
+      '{n}',
+      String(minutes)
+    ),
+    retryAfterMs,
+  });
+}
+
+/**
+ * Reads one window's row.
+ *
+ * `null` is still a recorded read: the `byKey` index interval for this exact
+ * key — including "no row" — joins the transaction's read set, so a concurrent
+ * insert of the same key conflicts and the loser retries and sees the winner's
+ * row (issue #81 research Q5). That is why there is deliberately no re-read
+ * after an insert; adding one would cost a query without changing anything.
+ */
+function readThrottleWindow(
+  ctx: MutationCtx,
+  window: ThrottleWindow
+): Promise<Doc<'orderThrottle'> | null> {
+  return ctx.db
+    .query('orderThrottle')
+    .withIndex('byKey', (q) => q.eq('key', window.key))
+    .first();
+}
+
+/** Throws when the recorded liveness says the window is live and at its limit. */
+function assertWindowAvailable(claim: ThrottleClaim, now: number): void {
+  const { window, row, live } = claim;
+  if (row === null || !live) {
+    return;
+  }
+  if (row.count >= window.limit) {
+    throw throttleRejection(window, row.windowStart, now);
+  }
+}
+
+/**
+ * Claims one slot in one window. One helper for both windows so the insert /
+ * reset / increment rules cannot drift between `:10m` and `:24h`.
+ */
+async function writeWindowClaim(
+  ctx: MutationCtx,
+  claim: ThrottleClaim,
+  now: number
+): Promise<void> {
+  const { window, row, live } = claim;
+
+  if (row === null) {
+    await ctx.db.insert('orderThrottle', {
+      key: window.key,
+      windowStart: now,
+      count: 1,
+    });
+    return;
+  }
+
+  if (!live) {
+    await ctx.db.patch(row._id, { windowStart: now, count: 1 });
+    return;
+  }
+
+  await ctx.db.patch(row._id, { count: row.count + 1 });
+}
+
+/**
+ * Claims one slot in both contact windows for `businessId` × `contactHash`.
+ *
+ * Ordering is load-bearing (§6.2.3 L1044 step 4, plan T2):
+ *   1. read both rows and record each window's liveness;
+ *   2. judge both limits — a live window at its limit throws
+ *      `TOO_MANY_REQUESTS` with that window's own `retryAfterMs`;
+ *   3. only when both are clear, write both rows.
+ *
+ * Because the throw precedes the first write, a rejected order consumes no
+ * quota slot in either window.
+ */
+export async function claimContactThrottle(
+  ctx: MutationCtx,
+  args: { businessId: Id<'businesses'>; contactHash: string; now: number }
+): Promise<void> {
+  const keys = contactThrottleKeys(args.businessId, args.contactHash);
+  const windows: readonly ThrottleWindow[] = [
+    {
+      key: keys.tenMinutes,
+      windowMs: BUSINESS_THROTTLE_WINDOW_MS,
+      limit: CONTACT_THROTTLE_10M,
+    },
+    {
+      key: keys.day,
+      windowMs: CONTACT_THROTTLE_WINDOW_24H_MS,
+      limit: CONTACT_THROTTLE_24H,
+    },
+  ];
+
+  const claims: ThrottleClaim[] = [];
+  for (const window of windows) {
+    const row = await readThrottleWindow(ctx, window);
+    claims.push({
+      window,
+      row,
+      live: row !== null && args.now - row.windowStart <= window.windowMs,
+    });
+  }
+
+  // Both limits are judged before either write, so a rejection never leaves a
+  // half-claimed window behind.
+  for (const claim of claims) {
+    assertWindowAvailable(claim, args.now);
+  }
+
+  for (const claim of claims) {
+    await writeWindowClaim(ctx, claim, args.now);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Block list (§6.2.3 L1044 step 4; §6.6 L1341)
+// ---------------------------------------------------------------------------
+
+/**
+ * Refuses when any of the contact's per-channel hashes is blocked for this
+ * business.
+ *
+ * `channelHashes` are the domain-separated `phone:` / `email:` digests from
+ * `contactChannelHashes`, so a block on either channel refuses the order. The
+ * refusal is deliberately generic — `ORDER_ERRORS.ORDER_NOT_ACCEPTED` verbatim
+ * (protocol §6.5 L124) — and the payload carries no hash and no contact data:
+ * a blocked contact must not learn that it is blocked, and must not learn which
+ * channel matched.
+ *
+ * The envelope is built here rather than with `orderError` from `./orders`
+ * because `orders.ts` imports this module; importing back would be a cycle.
+ */
+export async function assertContactNotBlocked(
+  ctx: MutationCtx,
+  args: { businessId: Id<'businesses'>; channelHashes: readonly string[] }
+): Promise<void> {
+  for (const contactHash of args.channelHashes) {
+    const blocked = await ctx.db
+      .query('orderBlocks')
+      .withIndex('byBusinessIdContactHash', (q) =>
+        q.eq('businessId', args.businessId).eq('contactHash', contactHash)
+      )
+      .first();
+
+    if (blocked !== null) {
+      throw new ConvexError({
+        code: 'ORDER_NOT_ACCEPTED',
+        message: ORDER_ERRORS.ORDER_NOT_ACCEPTED.message,
+      });
+    }
+  }
 }

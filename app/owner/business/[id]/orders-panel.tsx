@@ -12,14 +12,18 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 import { EVENT_FOR_ACTION, type OrderOwnerAction } from '../../../../convex/orderPolicy.ts';
 import { ORDERS_SECTION } from './editor-sections';
-import { OrdersDialogs, type OrdersDialogRequest } from './orders-panel-dialogs';
+import { BlockContactDialog, OrdersDialogs, type OrdersDialogRequest } from './orders-panel-dialogs';
 import { OrdersFilterBar } from './orders-panel-filter-bar';
 import {
   ORDER_FILTERS,
   ORDER_STATUS_LABELS,
   canLoadMore,
+  contactActionAnnouncement,
+  contactActionErrorFallback,
+  formatOrderTime,
   isLoadingMore,
   mergeLiveOrderPages,
+  type OrderContactAction,
   type OrderFilter,
 } from './orders-panel-helpers';
 import { OrdersPauseControl } from './orders-panel-pause';
@@ -32,11 +36,27 @@ const PAGE_SIZE = 50;
 /** One live page from `api.orders.listOrders` (rows + cursor envelope). */
 type OrdersListResult = FunctionReturnType<typeof api.orders.listOrders>;
 
-type RowFailure = {
-  orderId: Id<'orders'>;
-  action: OrderOwnerAction;
-  message: string;
-};
+/** One projected row from `api.orderBlocks.listBlocked` (reason + date only). */
+type BlockedListRow = FunctionReturnType<typeof api.orderBlocks.listBlocked>[number];
+
+/**
+ * A row-scoped failure. `kind` keeps the retry honest: a protocol transition
+ * and a contact control are separate mutations, so a failed contact action can
+ * never be retried through `transitionOrderStatus` (or the other way round).
+ */
+type RowFailure =
+  | {
+      orderId: Id<'orders'>;
+      kind: 'transition';
+      action: OrderOwnerAction;
+      message: string;
+    }
+  | {
+      orderId: Id<'orders'>;
+      kind: 'contact';
+      action: OrderContactAction;
+      message: string;
+    };
 
 /**
  * `accept`, `decline`, `cancel`, and `noShow` need the verification-call copy or
@@ -135,10 +155,27 @@ function boardStatusLine(announcement: string, label: string, visibleCount: numb
  * that is not about it.
  */
 function dialogFailure(failure: RowFailure | null, request: PendingAction | null): string | null {
-  if (failure === null || request === null) {
+  if (failure === null || request === null || failure.kind !== 'transition') {
     return null;
   }
   if (failure.orderId !== request.order._id || failure.action !== request.action) {
+    return null;
+  }
+  return failure.message;
+}
+
+/** The failure that belongs inside the block-contact dialog, and nowhere else. */
+function blockDialogFailure(
+  failure: RowFailure | null,
+  order: OrderBoardRow | null
+): string | null {
+  if (failure === null || order === null) {
+    return null;
+  }
+  if (failure.kind !== 'contact' || failure.action !== 'block') {
+    return null;
+  }
+  if (failure.orderId !== order._id) {
     return null;
   }
   return failure.message;
@@ -157,6 +194,7 @@ function OrdersQueue({
   pendingIds,
   failure,
   onAction,
+  onContactAction,
   showLoadMore,
   loadingMore,
   onLoadMore,
@@ -166,6 +204,7 @@ function OrdersQueue({
   pendingIds: ReadonlySet<Id<'orders'>>;
   failure: RowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
+  onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
   showLoadMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -184,6 +223,7 @@ function OrdersQueue({
               pending={pendingIds.has(order._id)}
               failure={rowFailure}
               onAction={onAction}
+              onContactAction={onContactAction}
             />
           );
         })}
@@ -226,6 +266,7 @@ function OrdersBoardList({
   pendingIds,
   failure,
   onAction,
+  onContactAction,
   loadingMore,
   onLoadMore,
 }: {
@@ -236,6 +277,7 @@ function OrdersBoardList({
   pendingIds: ReadonlySet<Id<'orders'>>;
   failure: RowFailure | null;
   onAction: (order: OrderBoardRow, action: OrderOwnerAction) => void;
+  onContactAction: (order: OrderBoardRow, action: OrderContactAction) => void;
   loadingMore: boolean;
   onLoadMore: () => void;
 }) {
@@ -251,11 +293,81 @@ function OrdersBoardList({
       pendingIds={pendingIds}
       failure={failure}
       onAction={onAction}
+      onContactAction={onContactAction}
       showLoadMore={showLoadMore}
       loadingMore={loadingMore}
       onLoadMore={onLoadMore}
       capped={filter !== 'new' && firstPageCapped === true}
     />
+  );
+}
+
+/**
+ * The owner's block list (issue #81, T9). The server returns the reason and
+ * creation time only — no contact and no hash — so this section is
+ * informational; unblocking happens from the contact shown on an order row.
+ */
+function BlockedContactList({ blocked }: { blocked: readonly BlockedListRow[] | undefined }) {
+  if (blocked === undefined) {
+    return (
+      <p role="status" className="text-card-muted text-tiny">
+        Loading blocked contacts…
+      </p>
+    );
+  }
+  if (blocked.length === 0) {
+    return <p className="text-card-muted text-tiny">No contacts are blocked.</p>;
+  }
+  return (
+    <ul role="list" className="flex flex-col gap-1">
+      {blocked.map((entry) => (
+        <li
+          key={entry._id}
+          className="border-border flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b pb-1 last:border-b-0 last:pb-0"
+        >
+          <span className="text-sm break-words">
+            {entry.reason === undefined || entry.reason.trim().length === 0
+              ? 'No reason given'
+              : entry.reason}
+          </span>
+          <time
+            dateTime={new Date(entry.createdAt).toISOString()}
+            className="text-card-muted font-label text-micro"
+          >
+            {formatOrderTime(entry.createdAt)}
+          </time>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BlockedContacts({ businessId }: { businessId: Id<'businesses'> }) {
+  const [open, setOpen] = useState(false);
+  const blocked = useQuery(api.orderBlocks.listBlocked, { businessId });
+
+  return (
+    <section
+      aria-label="Blocked contacts"
+      className="border-border rounded-control flex flex-col gap-2 border p-card"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">
+          Blocked contacts{blocked === undefined ? '' : ` (${blocked.length})`}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="min-h-11"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? 'Hide blocked contacts' : 'Show blocked contacts'}
+        </Button>
+      </div>
+      {open ? <BlockedContactList blocked={blocked} /> : null}
+    </section>
   );
 }
 
@@ -303,6 +415,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
   const [pendingIds, setPendingIds] = useState<ReadonlySet<Id<'orders'>>>(() => new Set());
   const [failure, setFailure] = useState<RowFailure | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [blockRequest, setBlockRequest] = useState<OrderBoardRow | null>(null);
   const [announcement, setAnnouncement] = useState('');
 
   const counts = useQuery(api.orders.listOrderCounts, { businessId });
@@ -313,6 +426,9 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
   });
 
   const transitionOrderStatus = useMutation(api.orders.transitionOrderStatus);
+  const blockContact = useMutation(api.orderBlocks.blockContact);
+  const unblockContact = useMutation(api.orderBlocks.unblockContact);
+  const clearContactThrottle = useMutation(api.orderBlocks.clearContactThrottle);
 
   // Stable identity: every page effect depends on it, so a fresh callback per
   // render would re-run them all. The functional updater plus the reference
@@ -356,6 +472,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
     setPageResults(new Map());
     setFailure(null);
     setPendingAction(null);
+    setBlockRequest(null);
     setAnnouncement('');
   }
 
@@ -400,6 +517,7 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
     } catch (error) {
       setFailure({
         orderId: order._id,
+        kind: 'transition',
         action,
         message: messageForError(error, 'Could not update this order. Try again.'),
       });
@@ -420,6 +538,71 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
       return;
     }
     setPendingAction({ order, action });
+  }
+
+  /**
+   * The three owner abuse controls (issue #81, T9). They share `pendingIds` with
+   * protocol transitions, so a row stays disabled while either kind of mutation
+   * is in flight, and a failure lands in the same row/dialog error path.
+   */
+  async function runContactAction(
+    order: OrderBoardRow,
+    action: OrderContactAction,
+    reason?: string
+  ) {
+    setFailure(null);
+    setPendingIds((current) => new Set(current).add(order._id));
+
+    try {
+      if (action === 'clear_throttle') {
+        const { cleared } = await clearContactThrottle({ businessId, orderId: order._id });
+        setAnnouncement(contactActionAnnouncement(action, order.customerName, cleared));
+      } else {
+        // The row carries the owner-visible contact; the mutation hashes it
+        // server-side. Absent channels are omitted, never sent as null.
+        const contact = {
+          businessId,
+          ...(order.contactPhone === null ? {} : { phone: order.contactPhone }),
+          ...(order.contactEmail === null ? {} : { email: order.contactEmail }),
+        };
+        const changed =
+          action === 'block'
+            ? (
+                await blockContact({
+                  ...contact,
+                  ...(reason === undefined ? {} : { reason }),
+                })
+              ).created
+            : (await unblockContact(contact)).removed;
+        setAnnouncement(contactActionAnnouncement(action, order.customerName, changed));
+      }
+      setBlockRequest(null);
+    } catch (error) {
+      setFailure({
+        orderId: order._id,
+        kind: 'contact',
+        action,
+        message: messageForError(error, contactActionErrorFallback(action)),
+      });
+    } finally {
+      setPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(order._id);
+        return next;
+      });
+    }
+  }
+
+  function handleContactAction(order: OrderBoardRow, action: OrderContactAction) {
+    setFailure(null);
+    // Blocking is the destructive control, so it confirms (and accepts an
+    // optional reason) through the shared dialog shell. The restorative
+    // controls are one-tap.
+    if (action === 'block') {
+      setBlockRequest(order);
+      return;
+    }
+    void runContactAction(order, action);
   }
 
   return (
@@ -450,9 +633,12 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
         pendingIds={pendingIds}
         failure={failure}
         onAction={handleAction}
+        onContactAction={handleContactAction}
         loadingMore={loadingMore}
         onLoadMore={handleLoadMore}
       />
+
+      <BlockedContacts businessId={businessId} />
 
       <OrdersDialogs
         request={pendingAction}
@@ -474,6 +660,17 @@ function OrdersBoard({ businessId }: { businessId: Id<'businesses'> }) {
         }}
         onClose={() => setPendingAction(null)}
       />
+
+      {blockRequest === null ? null : (
+        <BlockContactDialog
+          key={blockRequest._id}
+          order={blockRequest}
+          pending={pendingIds.has(blockRequest._id)}
+          error={blockDialogFailure(failure, blockRequest)}
+          onSubmit={(reason) => void runContactAction(blockRequest, 'block', reason)}
+          onClose={() => setBlockRequest(null)}
+        />
+      )}
     </div>
   );
 }

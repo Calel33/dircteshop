@@ -61,6 +61,13 @@ export const REFERENCE_LENGTH = 6;
 export const REFERENCE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const CONTACT_THROTTLE_10M = 3;
 export const CONTACT_THROTTLE_24H = 10;
+/**
+ * The fixed window for the `contact:<businessId>:<hash>:24h` key, whose shape
+ * the protocol pins at §6.2.2 L1009. The 10-minute sibling window is not
+ * duplicated here: `convex/orderThrottle.ts` owns it as
+ * `BUSINESS_THROTTLE_WINDOW_MS` and the S4 contact keys reuse it.
+ */
+export const CONTACT_THROTTLE_WINDOW_24H_MS = 24 * 60 * 60_000;
 export const BUSINESS_THROTTLE_10M = 60;
 export const MAX_ORDER_VALUE = 100_000;
 
@@ -684,10 +691,26 @@ function normalizeEmail(raw: string): string | null | undefined {
   return email;
 }
 
-/** Fixed key order, normalized values only — never the raw input. */
+/**
+ * The contact *identity*: fixed key order, normalized values only, and no
+ * customer name — never the raw input.
+ *
+ * Why the name is excluded (issue #81 research Q3): the name is required, but
+ * it is free text the abuser controls, so a name-inclusive key lets a script
+ * rename the customer between submissions and reset the per-contact throttle
+ * (`contact:<businessId>:<hash>:10m|24h`) to zero. Nothing in the protocol asks
+ * the name to participate — §6.6 L1378 hashes the *contact*, and the block hash
+ * is explicitly phone/email (`schema.ts` L324).
+ *
+ * Residual, accepted in v1 and not solved here: adding or rotating a channel
+ * changes the identity, so a newly added phone/email escapes a prior block
+ * (protocol §6.6 L1375 — "This is residual, not solved"). Per-channel counters
+ * would close it at two rows × two windows; instead the throttle keeps one
+ * counter and the block list carries one hash per channel
+ * (`contactChannelHashes`).
+ */
 function canonicalContact(contact: ParsedContact): string {
   return JSON.stringify({
-    name: contact.customerName,
     phoneDigits: contact.phoneDigits ?? '',
     email: contact.email ?? '',
   });
@@ -704,8 +727,9 @@ export async function sha256Hex(input: string): Promise<string> {
 }
 
 /**
- * Normalizes a contact and returns its stable hash, or CONTACT_INVALID when a
- * field fails or neither a phone nor an email survives normalization.
+ * Normalizes a contact and returns its stable identity hash — the name is
+ * excluded, see `canonicalContact` — or CONTACT_INVALID when a field fails or
+ * neither a phone nor an email survives normalization.
  */
 export async function parseContact(input: {
   customerName: string;
@@ -742,6 +766,83 @@ export async function parseContact(input: {
 
   const contactHash = await sha256Hex(canonicalContact(contact));
   return { ok: true, contact, contactHash };
+}
+
+/**
+ * The block-list hashes for a parsed contact: one SHA-256 per *present*
+ * channel, domain-separated by channel name.
+ *
+ * Takes the structural subset `Partial<ParsedContact>` rather than a full
+ * `ParsedContact`: the owner block form has no customer name, so the name must
+ * not be required here. A complete `ParsedContact` still satisfies it, and a
+ * caller may pass the name (it is ignored — only the channel fields are read).
+ * `Partial` rather than `Pick<..., 'phoneDigits' | 'email'>` because callers
+ * that do include `customerName` in an object literal must keep compiling
+ * (excess-property check, TS2353).
+ *
+ * The block list stores one row per channel (`schema.ts` L324 — "SHA-256 of
+ * normalized phone/email"), so a block refuses when either the phone or the
+ * email matches: "block blocks both phone and email hashes" (protocol S4
+ * L1633). A phone-only contact yields exactly one hash and creates no email
+ * row; an email-only contact yields one; a dual-channel contact yields two, in
+ * the fixed order phone then email.
+ *
+ * The `phone:` / `email:` prefixes are load-bearing. Without them a digits
+ * string and an email string holding the same characters would hash
+ * identically, so a phone block could silently match an unrelated email. They
+ * also keep these block keys distinct from the throttle identity hash above.
+ */
+export async function contactChannelHashes(contact: Partial<ParsedContact>): Promise<string[]> {
+  const hashes: string[] = [];
+  if (contact.phoneDigits !== undefined) {
+    hashes.push(await sha256Hex(`phone:${contact.phoneDigits}`));
+  }
+  if (contact.email !== undefined) {
+    hashes.push(await sha256Hex(`email:${contact.email}`));
+  }
+  return hashes;
+}
+
+/**
+ * The block-list hashes for the *raw* phone/email an owner submits (issue #81,
+ * T9 / §7.2 S4 L1625–1637; key shape §6.2.2 L1009).
+ *
+ * The owner block form has no customer name, so normalization and the
+ * domain-separated `phone:` / `email:` hashing happen here, in the one module
+ * that already owns `normalizePhone` / `normalizeEmail` / `contactChannelHashes`
+ * — `orderBlocks.ts` must never re-implement either step, or a second spelling
+ * of the hash could drift from the check `assertContactNotBlocked` performs.
+ *
+ * Returns `null` when a supplied channel is invalid (the catalog's
+ * `CONTACT_INVALID` case) or when neither channel is present. Empty / whitespace
+ * input counts as absent: the same rule the commit form applies.
+ */
+export async function contactChannelHashesFromInput(input: {
+  phone?: string;
+  email?: string;
+}): Promise<string[] | null> {
+  const phone = normalizePhone(input.phone ?? '');
+  if (phone === null) {
+    return null;
+  }
+
+  const email = normalizeEmail(input.email ?? '');
+  if (email === null) {
+    return null;
+  }
+
+  if (phone === undefined && email === undefined) {
+    return null;
+  }
+
+  const channels: Partial<ParsedContact> = {};
+  if (phone !== undefined) {
+    channels.phoneDigits = phone.phoneDigits;
+  }
+  if (email !== undefined) {
+    channels.email = email;
+  }
+  return contactChannelHashes(channels);
 }
 
 // ---------------------------------------------------------------------------

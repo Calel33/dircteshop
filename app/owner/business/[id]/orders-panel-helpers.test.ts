@@ -22,11 +22,15 @@ import {
   AGE_RED_MS,
   NOTE_PREVIEW_LENGTH,
   ORDER_ACTION_LABELS,
+  ORDER_CONTACT_ACTIONS,
+  ORDER_CONTACT_ACTION_LABELS,
   ORDER_FILTERS,
   ORDER_STATUS_LABELS,
   STATUS_PILL_CLASSES,
   ageClass,
   canLoadMore,
+  contactActionAnnouncement,
+  contactActionErrorFallback,
   countChipLabel,
   formatAge,
   isLoadingMore,
@@ -52,6 +56,52 @@ test('ORDER_ACTION_LABELS covers the six-action owner union', () => {
   assert.deepEqual(Object.keys(ORDER_ACTION_LABELS).sort(), [...ORDER_OWNER_ACTIONS].sort());
   for (const action of ORDER_OWNER_ACTIONS) {
     assert.ok(ORDER_ACTION_LABELS[action].trim().length > 0, action);
+  }
+});
+
+test('contact controls stay outside the protocol action union', () => {
+  assert.deepEqual(Object.keys(ORDER_CONTACT_ACTION_LABELS).sort(), [
+    ...ORDER_CONTACT_ACTIONS,
+  ].sort());
+  for (const action of ORDER_CONTACT_ACTIONS) {
+    assert.equal(
+      (ORDER_OWNER_ACTIONS as readonly string[]).includes(action),
+      false,
+      `${action} must not be a protocol action`
+    );
+  }
+});
+
+test('contactActionAnnouncement names the change and reports a no-op honestly', () => {
+  assert.equal(
+    contactActionAnnouncement('block', 'Ada', 2),
+    "Blocked the contact for Ada's order."
+  );
+  assert.equal(
+    contactActionAnnouncement('block', 'Ada', 0),
+    "The contact for Ada's order was already blocked."
+  );
+  assert.equal(
+    contactActionAnnouncement('unblock', 'Ada', 1),
+    "Unblocked the contact for Ada's order."
+  );
+  assert.equal(
+    contactActionAnnouncement('unblock', 'Ada', 0),
+    "The contact for Ada's order was not blocked."
+  );
+  assert.equal(
+    contactActionAnnouncement('clear_throttle', 'Ada', 2),
+    "Cleared the throttle for Ada's order."
+  );
+  assert.equal(
+    contactActionAnnouncement('clear_throttle', 'Ada', 0),
+    "There was no throttle to clear for Ada's order."
+  );
+});
+
+test('contactActionErrorFallback has copy for every contact control', () => {
+  for (const action of ORDER_CONTACT_ACTIONS) {
+    assert.ok(contactActionErrorFallback(action).trim().length > 0, action);
   }
 });
 

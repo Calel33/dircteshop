@@ -8,6 +8,7 @@ import { insertNotification } from './notificationHelpers';
 import { insertOrderAccess } from './orderAccess';
 import {
   canonicalArgsHash,
+  contactChannelHashes,
   DEFAULT_NO_SHOW_REASON,
   DEFAULT_TTL_MS,
   effectiveOpenReason,
@@ -34,7 +35,11 @@ import {
   validateOrderSelections,
 } from './orderPolicy';
 import type { OrderOwnerAction } from './orderPolicy';
-import { claimBusinessThrottle } from './orderThrottle';
+import {
+  assertContactNotBlocked,
+  claimBusinessThrottle,
+  claimContactThrottle,
+} from './orderThrottle';
 
 // B8 (issue #8) anonymous order workflow. The visitor submits one item with its
 // customization selections and a name + contact channel (no Clerk account);
@@ -890,6 +895,22 @@ export const placeOrder = mutation({
     if (replayAfterClaim !== null) {
       return replayAfterClaim;
     }
+
+    // §6.2.3 L1044 step (4): contact block check, then the contact throttle.
+    // Blocking first means a blocked contact burns no contact quota row. (The
+    // business-wide 10-minute counter above still counts the attempt — that is
+    // S1's shared cap, not a contact row.) Both run after
+    // the post-claim idempotency re-check, so a duplicate submit never consumes a
+    // contact slot (fast path L838 and re-check L889 both return before this).
+    await assertContactNotBlocked(ctx, {
+      businessId: args.businessId,
+      channelHashes: await contactChannelHashes(contact),
+    });
+    await claimContactThrottle(ctx, {
+      businessId: args.businessId,
+      contactHash: parsed.contactHash,
+      now,
+    });
 
     const orderId = await ctx.db.insert('orders', {
       businessId: args.businessId,

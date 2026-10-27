@@ -313,7 +313,7 @@ export default defineSchema({
 
   // Fixed-window counters. Contact keys are hashes; business keys are ids.
   orderThrottle: defineTable({
-    key: v.string(), // "contact:<businessId>:<sha256>:10m" | "business:<id>:10m"
+    key: v.string(), // "contact:<businessId>:<sha256>:10m" | "contact:<businessId>:<sha256>:24h" | "business:<id>:10m"
     windowStart: v.number(),
     count: v.number(),
   }).index('byKey', ['key']),
@@ -325,7 +325,11 @@ export default defineSchema({
     reason: v.optional(v.string()),
     createdByUserId: v.id('users'),
     createdAt: v.number(),
-  }).index('byBusinessIdContactHash', ['businessId', 'contactHash']),
+  })
+    .index('byBusinessIdContactHash', ['businessId', 'contactHash'])
+    // The owner block-list page reads the newest rows for one business; the
+    // compound hash index above cannot order by recency.
+    .index('byBusinessIdCreatedAt', ['businessId', 'createdAt']),
 
   bookings: defineTable({
     businessId: v.id('businesses'),

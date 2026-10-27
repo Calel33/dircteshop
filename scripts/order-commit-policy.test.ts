@@ -19,6 +19,7 @@ import {
   BUSINESS_THROTTLE_10M,
   CONTACT_THROTTLE_10M,
   CONTACT_THROTTLE_24H,
+  CONTACT_THROTTLE_WINDOW_24H_MS,
   DEFAULT_TTL_MS,
   IDEMPOTENCY_TTL_MS,
   MAX_EMAIL,
@@ -43,6 +44,7 @@ import {
   TERMINAL_ORDER_STATUSES,
   TOKEN_BYTES,
   canonicalArgsHash,
+  contactChannelHashes,
   createReference,
   effectiveOpenReason,
   isEffectiveOpen,
@@ -73,6 +75,11 @@ import type { OrderCustomizationGroup } from '../convex/orderPolicy.ts';
 // here without a Convex deployment — the same reason the plan calls it
 // importable "in the interim".
 import { createAccessToken } from '../convex/orderAccess.ts';
+// The contact key shape is pinned by the protocol (§6.2.2 L1009), so it is
+// pinned here too. `orderThrottle.ts` imports `convex/values` at runtime, which
+// loads without a deployment (same as the modules above).
+import { contactThrottleKeys } from '../convex/orderThrottle.ts';
+import type { Id } from '../convex/_generated/dataModel.ts';
 
 // ---------------------------------------------------------------------------
 // State machine: §6.1 transition table plus the idempotent-repeat policy.
@@ -1256,6 +1263,149 @@ test('accepts a 254-character email and rejects 255', async () => {
     await parseContact({ customerName: 'Ada', email: `${'a'.repeat(243)}@example.com` }),
     { ok: false, code: 'CONTACT_INVALID' }
   );
+});
+
+// ---------------------------------------------------------------------------
+// Contact identity and block hashes: the anti-abuse shape (issue #81, research
+// Q3). The throttle keys on the channel identity, so a rename must not reset
+// it; the block list keys on one domain-separated hash per present channel, so
+// a block on either channel refuses.
+// ---------------------------------------------------------------------------
+
+test('keys the contact identity on the channels, not the customer name', async () => {
+  // The name is required but abuser-controlled free text. If it entered the
+  // identity hash, a script could rename the customer between submissions and
+  // reset the per-contact throttle to zero.
+  const ada = await parseContact({
+    customerName: 'Ada',
+    phone: '15550100',
+    email: 'ada@example.com',
+  });
+  const grace = await parseContact({
+    customerName: 'Grace',
+    phone: '15550100',
+    email: 'ada@example.com',
+  });
+  const otherPhone = await parseContact({
+    customerName: 'Ada',
+    phone: '15550101',
+    email: 'ada@example.com',
+  });
+
+  assert.ok(ada.ok);
+  assert.ok(grace.ok);
+  assert.ok(otherPhone.ok);
+  assert.equal(ada.contactHash, grace.contactHash);
+  assert.notEqual(ada.contactHash, otherPhone.contactHash);
+});
+
+test('validates the customer name even though the hash excludes it', async () => {
+  assert.deepEqual(
+    await parseContact({ customerName: '   ', phone: '15550100' }),
+    { ok: false, code: 'CONTACT_INVALID' }
+  );
+  assert.deepEqual(
+    await parseContact({ customerName: 'Ada\u0007Lovelace', phone: '15550100' }),
+    { ok: false, code: 'CONTACT_INVALID' }
+  );
+});
+
+test('domain-separates the phone and email block hashes', async () => {
+  const phone = await contactChannelHashes({
+    customerName: 'Ada',
+    phoneDigits: '5550100',
+  });
+  const email = await contactChannelHashes({
+    customerName: 'Ada',
+    // Deliberately not a valid address: the two channels carry the *same*
+    // characters so only the domain prefix can keep the hashes apart.
+    email: '5550100',
+  });
+
+  assert.equal(phone.length, 1);
+  assert.equal(email.length, 1);
+  // The same characters on both channels must not collide: without the
+  // `phone:`/`email:` prefixes a phone block would match an unrelated email.
+  assert.notEqual(phone[0], email[0]);
+  assert.equal(phone.some((hash) => email.includes(hash)), false);
+});
+
+test('returns one block hash per present channel, phone first', async () => {
+  const both = await contactChannelHashes({
+    customerName: 'Ada',
+    phoneDigits: '15550100',
+    email: 'ada@example.com',
+  });
+  const phoneOnly = await contactChannelHashes({
+    customerName: 'Ada',
+    phoneDigits: '15550100',
+  });
+  const emailOnly = await contactChannelHashes({
+    customerName: 'Ada',
+    email: 'ada@example.com',
+  });
+
+  assert.deepEqual(both, [
+    await sha256Hex('phone:15550100'),
+    await sha256Hex('email:ada@example.com'),
+  ]);
+  assert.deepEqual(phoneOnly, [await sha256Hex('phone:15550100')]);
+  assert.deepEqual(emailOnly, [await sha256Hex('email:ada@example.com')]);
+});
+
+test('exposes the 24-hour contact throttle window', () => {
+  assert.equal(CONTACT_THROTTLE_WINDOW_24H_MS, 86_400_000);
+  assert.equal(CONTACT_THROTTLE_WINDOW_24H_MS, 24 * 60 * 60_000);
+  // The 10-minute window is owned by `convex/orderThrottle.ts` as
+  // `BUSINESS_THROTTLE_WINDOW_MS`; the key-shape tests below import that module.
+});
+
+// ---------------------------------------------------------------------------
+// Contact throttle key shapes (issue #81, T9). The shape is pinned by the
+// protocol at §6.2.2 L1009, so it is written out literally rather than derived.
+// ---------------------------------------------------------------------------
+
+const BUSINESS_ID = 'business-1' as Id<'businesses'>;
+const OTHER_BUSINESS_ID = 'business-2' as Id<'businesses'>;
+
+test('mints the two pinned contact throttle keys', () => {
+  const hash = 'a'.repeat(64);
+  assert.deepEqual(contactThrottleKeys(BUSINESS_ID, hash), {
+    tenMinutes: `contact:business-1:${hash}:10m`,
+    day: `contact:business-1:${hash}:24h`,
+  });
+});
+
+test('contact throttle keys differ by business and by contact hash', () => {
+  const hash = 'a'.repeat(64);
+  const otherHash = 'b'.repeat(64);
+  const base = contactThrottleKeys(BUSINESS_ID, hash);
+  const otherBusiness = contactThrottleKeys(OTHER_BUSINESS_ID, hash);
+  const otherContact = contactThrottleKeys(BUSINESS_ID, otherHash);
+
+  assert.notEqual(base.tenMinutes, otherBusiness.tenMinutes);
+  assert.notEqual(base.day, otherBusiness.day);
+  assert.notEqual(base.tenMinutes, otherContact.tenMinutes);
+  assert.notEqual(base.day, otherContact.day);
+  // The window suffix is the only part the two key families share.
+  assert.ok(base.tenMinutes.endsWith(':10m'));
+  assert.ok(base.day.endsWith(':24h'));
+});
+
+test('contact throttle keys carry only the supplied hash, never raw contact', () => {
+  const hash = 'a'.repeat(64);
+  const keys = contactThrottleKeys(BUSINESS_ID, hash);
+
+  // Exactly four colon-separated segments, and the digest segment is the
+  // supplied hash — nothing else can ride along in the key.
+  assert.deepEqual(keys.tenMinutes.split(':'), ['contact', 'business-1', hash, '10m']);
+  assert.deepEqual(keys.day.split(':'), ['contact', 'business-1', hash, '24h']);
+
+  for (const key of [keys.tenMinutes, keys.day]) {
+    assert.ok(!key.includes('+1 (555) 010-0100'));
+    assert.ok(!key.includes('5550100100'));
+    assert.ok(!key.includes('alice@example.com'));
+  }
 });
 
 // ---------------------------------------------------------------------------
