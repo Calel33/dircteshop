@@ -22,6 +22,17 @@ import {
 // The owner notice is written in the same transaction as the order (plain
 // helper, no `ctx.runMutation`), so neither commits alone.
 //
+// Deferred rate limiting: `submitOrder` is unthrottled at the application
+// layer. Each accepted call inserts an order *and* an owner notification, and
+// `listOrders` surfaces only the newest 100 per business, so a flood of
+// submissions from one contact would both spam the badge and push genuine
+// orders out of the owner's window. The selection-quantity cap below bounds
+// the size of a request, not the number of requests. A per-business+contact
+// fixed-window guard in this transaction, or an edge/provider rate limit
+// (Convex provides network-layer protection only — see its abuse-protection
+// docs), is deliberately deferred until launch hardening: it is an
+// infrastructure decision a content fix should not make unilaterally.
+//
 // Docs: https://docs.convex.dev/functions/error-handling (ConvexError text)
 
 const ORDER_LIST_LIMIT = 100;
