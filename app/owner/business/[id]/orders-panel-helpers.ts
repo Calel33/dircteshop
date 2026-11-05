@@ -1,6 +1,8 @@
 import {
   ORDER_ACTIONS,
   ORDER_ACTION_TARGET,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_PILL_CLASSES,
   ORDER_STATUS_TRANSITIONS,
   type OrderAction,
   type OrderStatus,
@@ -10,24 +12,12 @@ import {
 // itself lives in `convex/orderPolicy.ts`; this module only derives what the
 // row renders from it, so an illegal transition can never be offered.
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  new: 'New',
-  accepted: 'Accepted',
-  ready: 'Ready',
-  completed: 'Completed',
-};
+export { ORDER_STATUS_LABELS };
 
 export const ORDER_ACTION_LABELS: Record<OrderAction, string> = {
   accept: 'Accept',
   ready: 'Ready',
   complete: 'Complete',
-};
-
-const STATUS_PILL_CLASSES: Record<OrderStatus, string> = {
-  new: 'bg-warning-soft border-warning-border text-warning-strong',
-  accepted: 'bg-info-soft border-info-border text-info-strong',
-  ready: 'bg-success-soft border-success-border text-success-strong',
-  completed: 'bg-neutral-chip border-border text-neutral-chip-foreground',
 };
 
 /** The single forward action available from `status`; `completed` has none. */
@@ -39,9 +29,9 @@ export function nextActionForStatus(status: OrderStatus): OrderAction | null {
   return ORDER_ACTIONS.find((action) => ORDER_ACTION_TARGET[action] === target) ?? null;
 }
 
-/** Token classes for the status pill (fill + border + text, never colour alone). */
+/** Token classes for the status pill — the shared map, re-exported for the board. */
 export function statusPillClass(status: OrderStatus): string {
-  return STATUS_PILL_CLASSES[status];
+  return ORDER_STATUS_PILL_CLASSES[status];
 }
 
 /** Owner-facing creation time in the viewer's locale. */

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
-import type { OrderStatus } from '@/convex/orderPolicy';
+import { ORDER_STATUS_LABELS, ORDER_STATUS_PILL_CLASSES, type OrderStatus } from '@/convex/orderPolicy';
 import { cn } from '@/lib/utils';
 
 import {
@@ -32,26 +32,11 @@ import {
  * state and mutation wiring lives in `ordering-panel.tsx`.
  */
 
-const ORDER_STEPS: readonly { status: OrderStatus; label: string }[] = [
-  { status: 'new', label: 'New' },
-  { status: 'accepted', label: 'Accepted' },
-  { status: 'ready', label: 'Ready' },
-  { status: 'completed', label: 'Completed' },
-];
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  new: 'New',
-  accepted: 'Accepted',
-  ready: 'Ready',
-  completed: 'Completed',
-};
-
-const STATUS_PILL_CLASS: Record<OrderStatus, string> = {
-  new: 'border-info-border bg-info-soft text-info-strong',
-  accepted: 'border-warning-border bg-warning-soft text-warning-strong',
-  ready: 'border-success-border bg-success-soft text-success-strong',
-  completed: 'border-border bg-neutral-chip text-neutral-chip-foreground',
-};
+const ORDER_STEPS: readonly { status: OrderStatus; label: string }[] =
+  (Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((status) => ({
+    status,
+    label: ORDER_STATUS_LABELS[status],
+  }));
 
 const ERROR_CLASS =
   'border-danger-border bg-danger-soft text-danger-strong rounded-control border p-3 text-tiny';
@@ -455,10 +440,10 @@ export function OrderConfirmation({
             <span
               className={cn(
                 'rounded-pill border px-2 py-0.5 text-micro font-semibold',
-                STATUS_PILL_CLASS[status]
+                ORDER_STATUS_PILL_CLASSES[status]
               )}
             >
-              {STATUS_LABEL[status]}
+              {ORDER_STATUS_LABELS[status]}
             </span>
           )}
         </div>

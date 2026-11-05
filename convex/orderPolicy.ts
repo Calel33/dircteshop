@@ -15,6 +15,26 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const ORDER_ACTIONS = ['accept', 'ready', 'complete'] as const;
 export type OrderAction = (typeof ORDER_ACTIONS)[number];
 
+/** Status label shared by the owner board and the public receipt. */
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  new: 'New',
+  accepted: 'Accepted',
+  ready: 'Ready',
+  completed: 'Completed',
+};
+
+/**
+ * Token classes for the status pill (fill + border + text, never colour
+ * alone). One shared map so the owner board and the public receipt can never
+ * disagree on the colour of the same status.
+ */
+export const ORDER_STATUS_PILL_CLASSES: Record<OrderStatus, string> = {
+  new: 'bg-warning-soft border-warning-border text-warning-strong',
+  accepted: 'bg-info-soft border-info-border text-info-strong',
+  ready: 'bg-success-soft border-success-border text-success-strong',
+  completed: 'bg-neutral-chip border-border text-neutral-chip-foreground',
+};
+
 /** The status each owner action advances to. A client never sends a status. */
 export const ORDER_ACTION_TARGET: Record<OrderAction, OrderStatus> = {
   accept: 'accepted',
