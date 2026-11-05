@@ -10,10 +10,14 @@ import { EditorHistory } from './editor-history';
 import {
   ANALYTICS_SECTION,
   HISTORY_SECTION,
+  MENU_SECTION,
+  ORDERS_SECTION,
   PHOTOS_SECTION,
   SETTINGS_SECTION,
   type EditorSectionId,
 } from './editor-sections';
+import { MenuPanel } from './menu-panel';
+import { OrdersPanel } from './orders-panel';
 import { PhotosPanel } from './photos-panel';
 import type { EditorSection } from './editor-types';
 import type { EditorFormState } from './editor-form';
@@ -151,6 +155,14 @@ export function EditorSectionBody({
 
   if (activeId === SETTINGS_SECTION.id) {
     return <SettingsPanel section={activeSection} />;
+  }
+
+  if (activeId === MENU_SECTION.id) {
+    return <MenuPanel businessId={businessId} readOnly={readOnly} />;
+  }
+
+  if (activeId === ORDERS_SECTION.id) {
+    return <OrdersPanel businessId={businessId} />;
   }
 
   return (

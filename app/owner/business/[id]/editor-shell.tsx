@@ -15,10 +15,11 @@ import { EditorSaveBar } from './editor-save-bar';
 import { EditorStatusBanner } from './editor-banner';
 import { EditorSectionBody } from './editor-section-body';
 import {
+  buildEditorNavGroups,
   deriveNavCompletion,
-  EDITOR_NAV_SECTIONS,
   EDITOR_SECTIONS,
   EditorSectionNav,
+  flattenNavSections,
   type EditorSectionId,
 } from './editor-sections';
 import type { CategoryOption } from './section-card';
@@ -197,8 +198,18 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
     ),
   });
 
+  // Section registration is category-conditional: restaurants get Menu + Orders
+  // after Listing Details; every other category keeps the static groups.
+  const categorySlug = findSelectedCategory(categories, business.categoryId)?.slug;
+  const navGroups = buildEditorNavGroups(categorySlug);
+  const navSections = flattenNavSections(navGroups);
+  // The selected id can outlive its section (the category query resolves after
+  // the first render, or the business changes category); the single lookup
+  // falls back to the first rendered section, and the nav reuses that id so the
+  // highlight and the body never disagree.
   const activeSection =
-    EDITOR_NAV_SECTIONS.find((section) => section.id === activeId) ?? EDITOR_NAV_SECTIONS[0];
+    navSections.find((section) => section.id === activeId) ?? navSections[0];
+  const resolvedActiveId = activeSection.id;
   const previewState = buildPreviewState(business, form, categories);
 
   function handleFieldChange<K extends keyof EditorFormState>(
@@ -390,9 +401,14 @@ export function EditorShell({ business }: { business: OwnerEditorDocument }) {
         onPrimary={handlePrimary}
       />
       <div className="grid grid-cols-1 items-start gap-gap lg:grid-cols-[15rem_minmax(0,1fr)_22rem]">
-        <EditorSectionNav activeId={activeId} onSelect={setActiveId} completion={navCompletion} />
+        <EditorSectionNav
+          groups={navGroups}
+          activeId={resolvedActiveId}
+          onSelect={setActiveId}
+          completion={navCompletion}
+        />
         <EditorSectionBody
-          activeId={activeId}
+          activeId={resolvedActiveId}
           activeSection={activeSection}
           form={form}
           onChange={handleFieldChange}

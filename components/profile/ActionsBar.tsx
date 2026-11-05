@@ -1,4 +1,4 @@
-import { CalendarCheck, Globe, MapPin, MessageSquare, Phone } from 'lucide-react';
+import { CalendarCheck, Globe, MapPin, MessageSquare, Phone, ShoppingBag } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import type { BusinessAddress, PublicBusiness } from './profile-types';
 
 type LinkAction = Extract<ProfileAction, { kind: 'call' | 'directions' | 'website' }>;
 type WorkflowAction = Extract<ProfileAction, { kind: 'book' | 'quote' }>;
+type OrderAction = Extract<ProfileAction, { kind: 'order' }>;
 
 export type ActionsBarProps = {
   actions: readonly ProfileAction[];
@@ -17,6 +18,10 @@ export type ActionsBarProps = {
 
 function isWorkflowAction(action: ProfileAction): action is WorkflowAction {
   return action.kind === 'book' || action.kind === 'quote';
+}
+
+function isOrderAction(action: ProfileAction): action is OrderAction {
+  return action.kind === 'order';
 }
 
 /** Google Maps search URL built from the business address. */
@@ -74,13 +79,25 @@ function resolveWorkflowAction(action: WorkflowAction): { label: string; icon: R
 /**
  * Renders the vertical config's `ProfileAction[]`. Link actions resolve their
  * href from the business document; book/quote render as disabled labeled stubs
- * until the B8/B9 workflows ship.
+ * until the B8/B9 workflows ship; the order action anchors to the in-page
+ * `#order` module.
  */
 export function ActionsBar({ actions, business }: ActionsBarProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action, index) => {
         const key = `${action.kind}-${index}`;
+
+        if (isOrderAction(action)) {
+          return (
+            <Button key={key} variant="outline" asChild>
+              <a href="#order">
+                <ShoppingBag aria-hidden />
+                {action.label ?? 'Order Online'}
+              </a>
+            </Button>
+          );
+        }
 
         if (isWorkflowAction(action)) {
           const { label, icon } = resolveWorkflowAction(action);

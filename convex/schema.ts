@@ -139,6 +139,18 @@ export default defineSchema({
     ),
     ordering: v.number(),
     isAvailable: v.boolean(),
+    // v1 nutrition display contract. Neither SPEC nor
+    // `wayfinder/research/convex-domain-model.md` pins a shape, so this minimal
+    // display-only object is the agreed v1 contract. It is additive: absent means
+    // the owner has not published nutrition values.
+    nutrition: v.optional(
+      v.object({
+        calories: v.optional(v.number()),
+        proteinGrams: v.optional(v.number()),
+        carbohydrateGrams: v.optional(v.number()),
+        fatGrams: v.optional(v.number()),
+      })
+    ),
   })
     .index('byBusinessId', ['businessId'])
     .index('byGroupId', ['groupId'])
@@ -180,6 +192,7 @@ export default defineSchema({
     customerName: v.string(),
     contactPhone: v.optional(v.string()),
     contactEmail: v.optional(v.string()),
+    note: v.optional(v.string()),
     status: v.union(
       v.literal('new'),
       v.literal('accepted'),
@@ -187,7 +200,15 @@ export default defineSchema({
       v.literal('completed')
     ),
     createdAt: v.number(),
-  }).index('byBusinessId', ['businessId']),
+    // Anonymous status-link token (the `convex/AGENTS.md` "token links"
+    // convention, mirroring `bookings.cancelToken`): minted by `submitOrder`
+    // with fresh runtime entropy — never derived from the document id — and
+    // required by `getOrderStatus`. Optional so pre-token rows (seed/legacy)
+    // stay schema-valid.
+    accessToken: v.optional(v.string()),
+  })
+    .index('byBusinessId', ['businessId'])
+    .index('byAccessToken', ['accessToken']),
 
   bookings: defineTable({
     businessId: v.id('businesses'),

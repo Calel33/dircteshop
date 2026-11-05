@@ -49,10 +49,15 @@ export type ModuleId =
   | 'services'
   | 'credentials';
 
-/** SPEC §6 actions union, reproduced verbatim. */
+/**
+ * SPEC §6 actions union, plus the B8 `order` kind: the vertical registry records
+ * the "Order Online" trigger and `ActionsBar` resolves it to the in-page
+ * `#order` anchor of the ordering module.
+ */
 export type ProfileAction =
   | { kind: 'call' | 'directions' | 'website'; href: string }
-  | { kind: 'book' | 'quote'; workflow: 'booking' | 'quoteRequest'; label?: string };
+  | { kind: 'book' | 'quote'; workflow: 'booking' | 'quoteRequest'; label?: string }
+  | { kind: 'order'; workflow: 'order'; label?: string };
 
 export type VerticalConfig = {
   modules: ModuleId[];
@@ -85,10 +90,9 @@ const FALLBACK_VERTICAL: VerticalConfig = {
  */
 export const verticalConfigs: Record<CategorySlug, VerticalConfig> = {
   restaurants: {
-    // TODO(#2): SPEC §6 also lists "Order Online (order workflow)". The §6
-    // ProfileAction union has no order kind, so it lands with B8's order flow.
     modules: ['menuTabs', 'orderingPanel'],
     defaultActions: [
+      { kind: 'order', workflow: 'order' },
       { kind: 'call', href: PLACEHOLDER_HREF },
       { kind: 'directions', href: PLACEHOLDER_HREF },
       { kind: 'website', href: PLACEHOLDER_HREF },
