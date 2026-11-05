@@ -9,13 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
-import { ORDER_STATUS_LABELS, ORDER_STATUS_PILL_CLASSES, type OrderStatus } from '@/convex/orderPolicy';
-import { cn } from '@/lib/utils';
-
 import {
   MAX_CONTACT_LENGTH,
   MAX_CUSTOMER_NAME_LENGTH,
-  MAX_NOTE_LENGTH,
+  MAX_ORDER_NOTE_LENGTH,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_PILL_CLASSES,
+  type OrderStatus,
+} from '@/convex/orderPolicy';
+import { cn } from '@/lib/utils';
+
+import {
   adjustmentTotal,
   formatPrice,
   orderCode,
@@ -364,7 +368,7 @@ export function Customizer({
               id="order-note"
               name="note"
               rows={3}
-              maxLength={MAX_NOTE_LENGTH}
+              maxLength={MAX_ORDER_NOTE_LENGTH}
               value={form.note}
               disabled={isSubmitting}
               onChange={(event) => onFormChange({ note: event.target.value })}

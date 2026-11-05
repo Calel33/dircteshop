@@ -4,6 +4,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '@/convex/_generated/api';
 import {
+  MAX_ORDER_NOTE_LENGTH,
   validateOrderContact,
   validateOrderSelections,
   type OrderCustomizationGroup,
@@ -43,19 +44,6 @@ export type Confirmation = {
   selections: OrderSelection[];
   total: number | null;
 };
-
-/** Mirrors `convex/orders.ts` `MAX_ORDER_NOTE_LENGTH` (not exported there). */
-export const MAX_NOTE_LENGTH = 500;
-
-/**
- * Mirrors `convex/orders.ts` `MAX_ORDER_SELECTIONS` (not exported there). Real
- * orders are far below this; the cap exists to bound the anonymous endpoint.
- */
-export const MAX_SELECTIONS = 32;
-
-/** Mirrors `convex/orderPolicy.ts` name/contact caps (not exported there). */
-export const MAX_CUSTOMER_NAME_LENGTH = 120;
-export const MAX_CONTACT_LENGTH = 200;
 
 const PRICE_FORMATTER = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -201,8 +189,8 @@ export function validateOrderForm(
     return contactError;
   }
 
-  if (values.note.trim().length > MAX_NOTE_LENGTH) {
-    return `Note must be ${MAX_NOTE_LENGTH} characters or fewer.`;
+  if (values.note.trim().length > MAX_ORDER_NOTE_LENGTH) {
+    return `Note must be ${MAX_ORDER_NOTE_LENGTH} characters or fewer.`;
   }
 
   return validateOrderSelections(

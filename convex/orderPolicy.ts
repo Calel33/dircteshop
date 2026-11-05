@@ -50,6 +50,17 @@ export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus | null> =
   completed: null,
 };
 
+// Shared caps — the single source for `convex/orders.ts` and the public
+// ordering panel's client mirror (hand-mirrored constants drift silently).
+/** Bounds the anonymous submission's validation loop; real orders sit far below. */
+export const MAX_ORDER_SELECTIONS = 32;
+/** Optional note cap, enforced server-side and mirrored by the client form. */
+export const MAX_ORDER_NOTE_LENGTH = 500;
+/** Customer name cap, enforced server-side and mirrored by the client form. */
+export const MAX_CUSTOMER_NAME_LENGTH = 120;
+/** Contact channel cap, enforced server-side and mirrored by the client form. */
+export const MAX_CONTACT_LENGTH = 200;
+
 /** The status reached by `action` from `status`, or `null` when illegal. */
 export function nextOrderStatus(status: OrderStatus, action: OrderAction): OrderStatus | null {
   const target = ORDER_ACTION_TARGET[action];
@@ -132,9 +143,6 @@ export function validateOrderSelections(
 
   return null;
 }
-
-const MAX_CUSTOMER_NAME_LENGTH = 120;
-const MAX_CONTACT_LENGTH = 200;
 
 /**
  * Validates the anonymous contact block. Returns the first user-facing error,

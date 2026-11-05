@@ -5,7 +5,13 @@ import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireBusinessOwner } from './authz';
 import { insertNotification } from './notificationHelpers';
-import { nextOrderStatus, validateOrderContact, validateOrderSelections } from './orderPolicy';
+import {
+  MAX_ORDER_NOTE_LENGTH,
+  MAX_ORDER_SELECTIONS,
+  nextOrderStatus,
+  validateOrderContact,
+  validateOrderSelections,
+} from './orderPolicy';
 
 // B8 (issue #8) anonymous order workflow. The visitor submits one item with its
 // customization selections and a name + contact channel (no Clerk account);
@@ -19,10 +25,11 @@ import { nextOrderStatus, validateOrderContact, validateOrderSelections } from '
 // Docs: https://docs.convex.dev/functions/error-handling (ConvexError text)
 
 const ORDER_LIST_LIMIT = 100;
-const MAX_ORDER_NOTE_LENGTH = 500;
-// Anonymous public surface: bounds the per-submission validation loop (Convex
-// caps arrays at 8192 elements, far more than any real order needs).
-const MAX_ORDER_SELECTIONS = 32;
+
+// `MAX_ORDER_NOTE_LENGTH` and `MAX_ORDER_SELECTIONS` (the anonymous surface's
+// per-submission bound — Convex caps arrays at 8192 elements, far more than
+// any real order needs) are shared with the client mirror via
+// `convex/orderPolicy.ts`, so the two sides cannot drift.
 
 const selectionValidator = v.object({
   optionName: v.string(),
