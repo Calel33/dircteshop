@@ -82,9 +82,31 @@ function normalizedNoteOrThrow(note: string | undefined): string | undefined {
 }
 
 /**
+ * Mints an anonymous order token. The runtime's `Math.random` is Convex's
+ * "seeded" strong pseudo-random generator whose seed is fresh entropy at the
+ * start of every mutation
+ * (https://docs.convex.dev/functions/runtimes), so 32 bytes here never derive
+ * from the document id and are not guessable from it. Same contract shape as
+ * `bookings.cancelToken`: one secret, indexed for lookup, required by the
+ * status link.
+ */
+function newAccessToken(): string {
+  let token = '';
+  for (let index = 0; index < 32; index += 1) {
+    token += Math.floor(Math.random() * 256)
+      .toString(16)
+      .padStart(2, '0');
+  }
+  return token;
+}
+
+/**
  * Places one anonymous order and notifies the business owner. Business/item
  * checks happen before any validation message so an unavailable item never
- * leaks another business's menu data. Returns the new order id.
+ * leaks another business's menu data. Returns the new order id together with
+ * its one-time `accessToken` — the visitor's only durable handle for the
+ * status link (`getOrderStatus`), per the anonymous-workflow token-link
+ * convention in `convex/AGENTS.md`.
  */
 export const submitOrder = mutation({
   args: {
@@ -122,7 +144,10 @@ export const submitOrder = mutation({
       throw new ConvexError(selectionError);
     }
 
-    const orderId = await ctx.db.insert('orders', {
+    // Minted before the write so it is committed atomically with the order.
+    const accessToken = newAccessToken();
+
+    const orderId: Id<'orders'> = await ctx.db.insert('orders', {
       businessId: args.businessId,
       menuItemId: args.menuItemId,
       selections: args.selections,
@@ -132,6 +157,7 @@ export const submitOrder = mutation({
       note,
       status: 'new',
       createdAt: Date.now(),
+      accessToken,
     });
 
     await insertNotification(ctx, business.ownerId, {
@@ -141,7 +167,7 @@ export const submitOrder = mutation({
       reason: undefined,
     });
 
-    return orderId;
+    return { orderId, accessToken };
   },
 });
 
@@ -218,19 +244,26 @@ export const transitionOrderStatus = mutation({
 });
 
 /**
- * Public status-only projection for the visitor confirmation view. Accepted v1
- * limitation (plan §3): the order id is the only handle — no visitor token, unlike
- * `bookings.cancelToken`, and Convex does not document document ids as
- * unguessable. The projection therefore returns status + creation time only —
- * never customer data, selections, item, or business fields — so a leaked or
- * guessed id discloses at most order progress. Revisit with a token link
- * (`convex/AGENTS.md` convention) if this surface grows.
+ * Public status-only projection for the visitor confirmation view.
+ *
+ * Anonymous workflows keep their handle secret, per `convex/AGENTS.md`'s
+ * token-link convention: the caller must present BOTH the order id and the
+ * `accessToken` minted once by `submitOrder` (the sibling `bookings` table
+ * implements the same contract as `cancelToken`, indexed `byCancelToken`).
+ * The lookup goes through the token index, so a request that does not carry
+ * the real token finds no row — even orders created before tokens existed
+ * (they hold none) are unqueryable without one. The projection returns
+ * status + creation time only — never customer data, selections, item, or
+ * business fields, so a leaked id alone discloses nothing.
  */
 export const getOrderStatus = query({
-  args: { orderId: v.id('orders') },
-  handler: async (ctx, args) => {
-    const order = await ctx.db.get('orders', args.orderId);
-    if (order === null) {
+  args: { orderId: v.id('orders'), accessToken: v.string() },
+  handler: async (ctx, { orderId, accessToken }) => {
+    const order = await ctx.db
+      .query('orders')
+      .withIndex('byAccessToken', (q) => q.eq('accessToken', accessToken))
+      .unique();
+    if (order === null || order._id !== orderId) {
       return null;
     }
 

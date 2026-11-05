@@ -255,7 +255,7 @@ function OrderingPanelBody({
       const contactEmail = form.contactEmail.trim();
       const note = form.note.trim();
 
-      const orderId = await submitOrder({
+      const { orderId, accessToken } = await submitOrder({
         businessId,
         menuItemId: activeItem._id,
         selections,
@@ -267,6 +267,7 @@ function OrderingPanelBody({
 
       setConfirmation({
         orderId,
+        accessToken,
         itemName: activeItem.name,
         selections,
         total: totalForSelection(activeItem, model),

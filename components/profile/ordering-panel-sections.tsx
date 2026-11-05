@@ -398,7 +398,10 @@ export function OrderConfirmation({
   confirmation: Confirmation;
   onReset: () => void;
 }) {
-  const statusData = useQuery(api.orders.getOrderStatus, { orderId: confirmation.orderId });
+  const statusData = useQuery(api.orders.getOrderStatus, {
+    orderId: confirmation.orderId,
+    accessToken: confirmation.accessToken,
+  });
   const status = statusData === undefined || statusData === null ? null : statusData.status;
   const currentIndex =
     status === null ? -1 : ORDER_STEPS.findIndex((step) => step.status === status);

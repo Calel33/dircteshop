@@ -37,9 +37,15 @@ export type OrderFormValues = {
   note: string;
 };
 
-/** Snapshot held by the confirmation view after a successful submit. */
+/** Snapshot held by the confirmation view after a successful submit.
+ *
+ * `orderId` is paired with `accessToken` — the one-time token `submitOrder`
+ * mints and the status link (`getOrderStatus`) requires — so the receipt is
+ * both displayed and, on a future lookup surface, resumable.
+ */
 export type Confirmation = {
   orderId: Id<'orders'>;
+  accessToken: string;
   itemName: string;
   selections: OrderSelection[];
   total: number | null;
