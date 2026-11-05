@@ -221,8 +221,3 @@ export function messageForError(error: unknown, fallback: string): string {
 
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }
-
-/** Short human code: the last 6 characters of the order id, uppercased. */
-export function orderCode(orderId: string): string {
-  return orderId.slice(-6).toUpperCase();
-}

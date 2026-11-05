@@ -22,7 +22,6 @@ import { cn } from '@/lib/utils';
 import {
   adjustmentTotal,
   formatPrice,
-  orderCode,
   totalForSelection,
   type Confirmation,
   type OrderFormValues,
@@ -412,9 +411,12 @@ export function OrderConfirmation({
         <p className="text-micro text-card-muted font-mono tracking-label uppercase">
           Order received
         </p>
-        <p className="text-body font-semibold">Order #{orderCode(confirmation.orderId)}</p>
+        <p className="text-body font-mono font-semibold" aria-label="Order reference">
+          {confirmation.accessToken}
+        </p>
         <p className="text-tiny text-card-muted">
-          Keep this code. The business will contact you using the details you provided.
+          Keep this reference — it is saved with your order. The business will contact you
+          using the phone number or email you provided.
         </p>
       </div>
       <div className="border-border bg-muted flex flex-col gap-2 rounded-control border p-3">
@@ -458,7 +460,8 @@ export function OrderConfirmation({
           <p className="text-micro text-card-muted">Checking status…</p>
         ) : statusData === null ? (
           <p className="text-micro text-card-muted">
-            Status is unavailable right now. Keep your order code and contact the business.
+            Status is unavailable right now. The business will still contact you using the
+            details you provided.
           </p>
         ) : (
           <ol aria-label="Order status" className="grid grid-cols-4 gap-2 @max-[44rem]:grid-cols-2">
