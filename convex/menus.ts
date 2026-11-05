@@ -638,13 +638,19 @@ export const moveItem = mutation({
     const business = await requireBusinessOwner(ctx, args.businessId);
     assertMenuWritable(business);
 
+    const item = await itemInBusiness(ctx, args.businessId, args.itemId);
     const items = await readItems(ctx, args.businessId);
-    const index = items.findIndex((item) => item._id === args.itemId);
+    const index = items.findIndex((candidate) => candidate._id === args.itemId);
     if (index < 0) {
       throw new ConvexError('Menu item not found');
     }
 
-    const step = adjacentRow(items, index, args.direction);
+    // Neighbours are scoped to the moved item's group: the editor presents
+    // groups, and swapping ordering with an adjacent item of another group
+    // would reorder both groups against the presented order.
+    const sameGroup = items.filter((candidate) => candidate.groupId === item.groupId);
+    const groupIndex = sameGroup.findIndex((candidate) => candidate._id === args.itemId);
+    const step = adjacentRow(sameGroup, groupIndex, args.direction);
     if (step === null) {
       return;
     }

@@ -48,6 +48,7 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
   const updateGroupMutation = useMutation(api.menus.updateGroup);
   const deleteGroupMutation = useMutation(api.menus.deleteGroup);
   const moveGroupMutation = useMutation(api.menus.moveGroup);
+  const moveItemMutation = useMutation(api.menus.moveItem);
   const createItemMutation = useMutation(api.menus.createItem);
   const updateItemMutation = useMutation(api.menus.updateItem);
   const deleteItemMutation = useMutation(api.menus.deleteItem);
@@ -185,23 +186,15 @@ function MenuPanelContent({ businessId, readOnly }: { businessId: Id<'businesses
   }
 
   /**
-   * Item ordering is global on the server while the editor presents groups.
-   * Swapping the two `ordering` values of adjacent same-group items keeps the
-   * move scoped to its group (two patch writes, one action).
+   * Item moves are one transaction: the neighbour swap is scoped to the item's
+   * group server-side (`moveItem`), so a failed call leaves both ordering
+   * values untouched instead of landing half of it.
    */
   async function handleMoveItem(groupId: Id<'menuGroups'>, item: MenuItem, direction: MoveDirection) {
-    const groupItems = itemsByGroup.get(groupId) ?? [];
-    const index = groupItems.findIndex((candidate) => candidate._id === item._id);
-    const neighbour = groupItems[direction === 'up' ? index - 1 : index + 1];
-    if (index < 0 || neighbour === undefined) return;
-
     setGroupError(null);
     const moved = await runAction(
       `item:${item._id}:${direction}`,
-      async () => {
-        await updateItemMutation({ businessId, itemId: item._id, patch: { ordering: neighbour.ordering } });
-        await updateItemMutation({ businessId, itemId: neighbour._id, patch: { ordering: item.ordering } });
-      },
+      () => moveItemMutation({ businessId, itemId: item._id, direction }),
       'The menu item could not be moved. Try again.',
       (message) => setGroupError({ groupId, message }),
     );
