@@ -137,8 +137,15 @@ function validatedGroupOptions(group: CustomizationOptions[number]) {
   if (group.options.length === 0) {
     throw new ConvexError(`Customization group "${group.name}" needs at least one option`);
   }
+  // Option names are keyed downstream (the selection model and the server's
+  // validation map), so a repeat would resolve ambiguously.
+  const optionNames = new Set<string>();
   return group.options.map((option) => {
     const name = validatedName(option.name, 'Option name');
+    if (optionNames.has(name)) {
+      throw new ConvexError(`Option "${name}" appears more than once in "${group.name}".`);
+    }
+    optionNames.add(name);
     if (option.priceAdjustment === undefined) {
       return { name };
     }
@@ -153,11 +160,40 @@ function validatedGroupOptions(group: CustomizationOptions[number]) {
 function validatedCustomizationOptions(
   groups: CustomizationOptions
 ): CustomizationOptions {
-  return groups.map((group) => ({
-    name: validatedName(group.name, 'Customization group name'),
-    required: group.required,
-    options: validatedGroupOptions(group),
-  }));
+  // Groups are keyed by name everywhere downstream, so a repeated name means
+  // the last one silently wins in the server's validation Map.
+  const seen = new Set<string>();
+  return groups.map((group) => {
+    const name = validatedName(group.name, 'Customization group name');
+    if (seen.has(name)) {
+      throw new ConvexError(`Customization group "${name}" appears more than once.`);
+    }
+    seen.add(name);
+    return {
+      name,
+      required: group.required,
+      options: validatedGroupOptions(group),
+    };
+  });
+}
+
+/**
+ * Rejects a group name that is already used by another group of this business
+ * (optionally excepting one id, for renames). Everything downstream keys by
+ * group name, so duplicates are never accepted.
+ */
+async function assertGroupNameAvailable(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>,
+  name: string,
+  exceptGroupId?: Id<'menuGroups'>
+): Promise<void> {
+  const duplicate = (await readGroups(ctx, businessId)).find(
+    (group) => group.name === name && group._id !== exceptGroupId
+  );
+  if (duplicate !== undefined) {
+    throw new ConvexError(`A menu group named "${name}" already exists.`);
+  }
 }
 
 function nextOrdering(rows: readonly { ordering: number }[]): number {
@@ -404,11 +440,23 @@ export const createGroup = mutation({
     const description =
       args.description === undefined ? undefined : validatedDescription(args.description);
 
+    const name = validatedName(args.name, 'Menu group name');
+    // One bounded read carries the cap check, the duplicate-name check, and
+    // `nextOrdering`: a write at the cap must be rejected, not inserted and
+    // then made invisible by the capped reads.
+    const groups = await readGroups(ctx, args.businessId);
+    if (groups.length >= MAX_GROUPS) {
+      throw new ConvexError(
+        `This menu already has the maximum of ${MAX_GROUPS} groups. Delete one to add another.`
+      );
+    }
+    await assertGroupNameAvailable(ctx, args.businessId, name);
+
     return await ctx.db.insert('menuGroups', {
       businessId: args.businessId,
-      name: validatedName(args.name, 'Menu group name'),
+      name,
       ...(description === undefined ? {} : { description }),
-      ordering: nextOrdering(await readGroups(ctx, args.businessId)),
+      ordering: nextOrdering(groups),
     });
   },
 });
@@ -427,7 +475,9 @@ export const updateGroup = mutation({
 
     const patch: Partial<MenuGroup> = {};
     if (args.name !== undefined) {
-      patch.name = validatedName(args.name, 'Menu group name');
+      const name = validatedName(args.name, 'Menu group name');
+      await assertGroupNameAvailable(ctx, args.businessId, name, group._id);
+      patch.name = name;
     }
     if (args.description !== undefined) {
       // An empty supplied description clears the optional field: patch with
@@ -519,6 +569,15 @@ export const createItem = mutation({
       throw new ConvexError('Image not uploaded for this business');
     }
 
+    // One bounded read carries both the write-side cap (a business can never
+    // hold more items than the reads can return) and `nextOrdering`.
+    const items = await readItems(ctx, args.businessId);
+    if (items.length >= MAX_ITEMS) {
+      throw new ConvexError(
+        `This menu already has the maximum of ${MAX_ITEMS} items. Delete one to add another.`
+      );
+    }
+
     const item: Omit<Doc<'menuItems'>, '_id' | '_creationTime'> = {
       businessId: args.businessId,
       groupId: group._id,
@@ -527,7 +586,7 @@ export const createItem = mutation({
         args.customizationOptions === undefined
           ? []
           : validatedCustomizationOptions(args.customizationOptions),
-      ordering: nextOrdering(await readItems(ctx, args.businessId)),
+      ordering: nextOrdering(items),
       isAvailable: args.isAvailable ?? true,
     };
     Object.assign(item, optionalItemFields(args));
