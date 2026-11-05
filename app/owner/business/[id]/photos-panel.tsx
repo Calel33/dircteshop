@@ -1,7 +1,8 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
 import { useCallback, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -21,6 +22,7 @@ import { PHOTO_LIMITS } from '@/convex/businesses/photoPolicy';
 import { cn } from '@/lib/utils';
 
 import type { EditorSection } from './editor-types';
+import { uploadErrorMessage } from './menu-panel-helpers';
 import {
   messageForError,
   readStorageId,
@@ -30,12 +32,12 @@ import {
   type FormPhoto,
 } from './photos-panel-helpers';
 
-// B7 (issue #7): the real Photos & Media panel. Uploads follow the documented
-// Convex flow — the owner-gated `generateUploadUrl` mutation, a browser POST of
-// the bytes, then the returned storage id appended to `form.photos`. Photos are
-// content fields, so the existing save machinery persists them and the server
-// re-stamps `ordering` to the array index. Reordering uses buttons (WCAG 2.2
-// SC 2.5.7) rather than drag, with live-region announcements and retained focus.
+// B7 (issue #7): the real Photos & Media panel. Uploads POST the bytes to the
+// authenticated `/photos/upload` HTTP action with the Clerk bearer token, then
+// append the returned storage id to `form.photos`. Photos are content fields,
+// so the existing save machinery persists them and the server re-stamps
+// `ordering` to the array index. Reordering uses buttons (WCAG 2.2 SC 2.5.7)
+// rather than drag, with live-region announcements and retained focus.
 
 type MoveDirection = 'up' | 'down';
 
@@ -113,7 +115,7 @@ export function PhotosPanel({
   /** Notifies the mounting layer when an upload batch is in flight. */
   onBusyChange?: (busy: boolean) => void;
 }) {
-  const generateUploadUrl = useMutation(api.businesses.photoUploads.generateUploadUrl);
+  const { getToken } = useAuth();
   // Owner-gated resolution for both saved photos and unsaved uploads.
   const photoUrls = useQuery(api.businesses.photoStorage.photoUrls, {
     businessId,
@@ -134,15 +136,24 @@ export function PhotosPanel({
   const savedStorageIds = new Set(savedPhotos.map((photo) => photo.storageId));
 
   async function uploadPhoto(file: File): Promise<Id<'_storage'>> {
-    const uploadUrl = await generateUploadUrl({ businessId });
-    const response = await fetch(uploadUrl, {
+    const siteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+    if (siteUrl === undefined || siteUrl.length === 0) {
+      throw new Error('photo uploads are not configured for this environment.');
+    }
+
+    const token = await getToken({ template: 'convex' });
+    if (token === null) {
+      throw new Error('your session expired. Reload the page and try again.');
+    }
+
+    const response = await fetch(`${siteUrl}/photos/upload?businessId=${businessId}`, {
       method: 'POST',
-      headers: { 'Content-Type': file.type },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type },
       body: file,
     });
 
     if (!response.ok) {
-      throw new Error(`the upload failed (HTTP ${response.status}). Try again.`);
+      throw new Error(await uploadErrorMessage(response));
     }
 
     let payload: unknown;
