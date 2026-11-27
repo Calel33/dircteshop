@@ -10,6 +10,36 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
 /**
+ * One menu item inside a restaurant seed fixture. `ordering` is omitted on
+ * purpose: the seed stores the item's array index, so fixture order is stored
+ * order. Optional fields reuse the `menuItems` document contract, so a fixture
+ * can only express what `menus.createItem` / `menus.updateItem` accept.
+ */
+export type SeedMenuItemFixture = {
+  name: string;
+  description?: string;
+  price?: number;
+  isAvailable: boolean;
+  nutrition?: Doc<'menuItems'>['nutrition'];
+  customizationOptions: Doc<'menuItems'>['customizationOptions'];
+};
+
+/** One menu tab; group order and item order come from their array positions. */
+export type SeedMenuGroupFixture = {
+  name: string;
+  description?: string;
+  items: SeedMenuItemFixture[];
+};
+
+/**
+ * B8 (issue #8) dev seed menu for the restaurant tracer: the public `menuTabs`
+ * module and the `orderingPanel` customizer render exactly these rows.
+ */
+export type SeedMenuFixture = {
+  groups: SeedMenuGroupFixture[];
+};
+
+/**
  * One development fixture. Relative offsets (converted to absolute timestamps
  * at seed time) are declared per fixture so repeated seed runs are stable and
  * feed ordering is deterministic:
@@ -39,6 +69,11 @@ export type SeedFixture = {
   isFeatured: boolean;
   timezone: string;
   hours: Doc<'businesses'>['hours'];
+  /**
+   * Restaurant menus only (B8). Seeded idempotently by `seed.ts` on every run,
+   * including when the business already exists.
+   */
+  menu?: SeedMenuFixture;
   /** Approved fixtures only; feeds "New to LocalConnect". Distinct per fixture. */
   submittedAtAgoMs?: number;
   /** Feeds "Trending This Week" (with `isFeatured`). Distinct among featured. */
@@ -245,6 +280,132 @@ export const SEED_FIXTURES: readonly SeedFixture[] = [
       friday: [{ opensAt: '17:00', closesAt: '23:00' }],
       saturday: [{ opensAt: '17:00', closesAt: '23:00' }],
       sunday: [{ opensAt: '17:00', closesAt: '22:00' }],
+    },
+    // B8 (issue #8) restaurant tracer (prototype Variant A). Only this fixture
+    // declares a menu: the "Build Your Bowl" builder proves the required
+    // single-select groups + optional multi-select veggies flow, "Mains" proves
+    // direct "Order $x" items (one unavailable, one with nutrition), and
+    // "Drinks & Sides" fills the remaining tab. `seed.ts` writes these rows
+    // idempotently; this is dev seed data, not a production content path.
+    menu: {
+      groups: [
+        {
+          name: 'Build Your Bowl',
+          description: 'Pick a base, a protein, a sauce and as many veggies as you like.',
+          items: [
+            {
+              name: 'Build Your Bowl',
+              description: 'Steamed base, your choice of protein, house sauce and fresh veggies.',
+              price: 14.5,
+              isAvailable: true,
+              customizationOptions: [
+                {
+                  name: 'Base',
+                  required: true,
+                  options: [
+                    { name: 'Jasmine Rice' },
+                    { name: 'Brown Rice' },
+                    { name: 'Mixed Greens' },
+                    { name: 'Rice Noodles', priceAdjustment: 1.5 },
+                  ],
+                },
+                {
+                  name: 'Protein',
+                  required: true,
+                  options: [
+                    { name: 'Grilled Chicken', priceAdjustment: 4 },
+                    { name: 'Seared Salmon', priceAdjustment: 6 },
+                    { name: 'Crispy Tofu', priceAdjustment: 3 },
+                    { name: 'Slow-Braised Beef', priceAdjustment: 7 },
+                  ],
+                },
+                {
+                  name: 'Sauce',
+                  required: true,
+                  options: [
+                    { name: 'Miso Ginger' },
+                    { name: 'Spicy Sesame', priceAdjustment: 0.5 },
+                    { name: 'Herb Tahini', priceAdjustment: 0.5 },
+                    { name: 'Citrus Ponzu' },
+                  ],
+                },
+                {
+                  name: 'Veggies',
+                  required: false,
+                  options: [
+                    { name: 'Pickled Cucumber' },
+                    { name: 'Charred Broccoli', priceAdjustment: 0.75 },
+                    { name: 'Shaved Carrot' },
+                    { name: 'Edamame', priceAdjustment: 0.75 },
+                    { name: 'Roasted Peppers', priceAdjustment: 0.75 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'Mains',
+          description: 'Chef-composed plates from the harbor kitchen.',
+          items: [
+            {
+              name: 'Seared Salmon Plate',
+              description: 'Farro, charred greens and lemon butter.',
+              price: 24,
+              isAvailable: true,
+              nutrition: {
+                calories: 620,
+                proteinGrams: 41,
+                carbohydrateGrams: 38,
+                fatGrams: 30,
+              },
+              customizationOptions: [],
+            },
+            {
+              name: 'Braised Short Rib',
+              description: 'Creamy polenta, roasted carrots and red wine jus.',
+              price: 28,
+              isAvailable: true,
+              customizationOptions: [],
+            },
+            {
+              // Temporarily sold out: exercises the card's availability state.
+              name: 'Harvest Grain Bowl',
+              description: 'Seasonal squash, kale, farro and toasted seeds.',
+              price: 18,
+              isAvailable: false,
+              customizationOptions: [],
+            },
+          ],
+        },
+        {
+          name: 'Drinks & Sides',
+          description: 'House drinks and plates to share.',
+          items: [
+            {
+              name: 'Sparkling Yuzu Lemonade',
+              description: 'House-pressed lemon, yuzu and soda.',
+              price: 5.5,
+              isAvailable: true,
+              customizationOptions: [],
+            },
+            {
+              name: 'House Cold Brew',
+              description: 'Slow-steeped single-origin coffee, served over ice.',
+              price: 4,
+              isAvailable: true,
+              customizationOptions: [],
+            },
+            {
+              name: 'Sourdough & Cultured Butter',
+              description: 'Warm house sourdough with whipped butter.',
+              price: 6,
+              isAvailable: true,
+              customizationOptions: [],
+            },
+          ],
+        },
+      ],
     },
     submittedAtAgoMs: 12 * DAY_MS,
     lastUpdatedAtAgoMs: 8 * DAY_MS,

@@ -1,0 +1,272 @@
+import { ConvexError, v } from 'convex/values';
+
+import type { Doc, Id } from './_generated/dataModel';
+import { mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
+import { requireBusinessOwner } from './authz';
+import { insertNotification } from './notificationHelpers';
+import {
+  MAX_ORDER_NOTE_LENGTH,
+  MAX_ORDER_SELECTIONS,
+  nextOrderStatus,
+  validateOrderContact,
+  validateOrderSelections,
+} from './orderPolicy';
+
+// B8 (issue #8) anonymous order workflow. The visitor submits one item with its
+// customization selections and a name + contact channel (no Clerk account);
+// the owner works a forward-only board (`new → accepted → ready → completed`).
+// `submitOrder` is a public write surface, so every business rule is enforced
+// here — approved business only, item belongs to that business and is
+// available, and the selections match the item's current customization groups.
+// The owner notice is written in the same transaction as the order (plain
+// helper, no `ctx.runMutation`), so neither commits alone.
+//
+// Deferred rate limiting: `submitOrder` is unthrottled at the application
+// layer. Each accepted call inserts an order *and* an owner notification, and
+// `listOrders` surfaces only the newest 100 per business, so a flood of
+// submissions from one contact would both spam the badge and push genuine
+// orders out of the owner's window. The selection-quantity cap below bounds
+// the size of a request, not the number of requests. A per-business+contact
+// fixed-window guard in this transaction, or an edge/provider rate limit
+// (Convex provides network-layer protection only — see its abuse-protection
+// docs), is deliberately deferred until launch hardening: it is an
+// infrastructure decision a content fix should not make unilaterally.
+//
+// Docs: https://docs.convex.dev/functions/error-handling (ConvexError text)
+
+const ORDER_LIST_LIMIT = 100;
+
+// `MAX_ORDER_NOTE_LENGTH` and `MAX_ORDER_SELECTIONS` (the anonymous surface's
+// per-submission bound — Convex caps arrays at 8192 elements, far more than
+// any real order needs) are shared with the client mirror via
+// `convex/orderPolicy.ts`, so the two sides cannot drift.
+
+const selectionValidator = v.object({
+  optionName: v.string(),
+  choiceName: v.string(),
+});
+
+/** Loads an orderable business or rejects the submission (public surface). */
+async function approvedBusinessOrThrow(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>
+): Promise<Doc<'businesses'>> {
+  const business = await ctx.db.get('businesses', businessId);
+  if (business === null || business.status !== 'approved') {
+    throw new ConvexError('This business is not accepting orders.');
+  }
+  return business;
+}
+
+/** Loads a menu item that belongs to `businessId` and is orderable. */
+async function availableItemOrThrow(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>,
+  menuItemId: Id<'menuItems'>
+): Promise<Doc<'menuItems'>> {
+  const item = await ctx.db.get('menuItems', menuItemId);
+  if (item === null || item.businessId !== businessId || !item.isAvailable) {
+    throw new ConvexError('This item is not available for ordering.');
+  }
+  return item;
+}
+
+/** Trims the optional note, rejects an over-long one, and drops a blank one. */
+function normalizedNoteOrThrow(note: string | undefined): string | undefined {
+  const trimmed = note?.trim() || undefined;
+  if (trimmed !== undefined && trimmed.length > MAX_ORDER_NOTE_LENGTH) {
+    throw new ConvexError(`Note must be ${MAX_ORDER_NOTE_LENGTH} characters or fewer.`);
+  }
+  return trimmed;
+}
+
+/**
+ * Mints an anonymous order token. The runtime's `Math.random` is Convex's
+ * "seeded" strong pseudo-random generator whose seed is fresh entropy at the
+ * start of every mutation
+ * (https://docs.convex.dev/functions/runtimes), so 32 bytes here never derive
+ * from the document id and are not guessable from it. Same contract shape as
+ * `bookings.cancelToken`: one secret, indexed for lookup, required by the
+ * status link.
+ */
+function newAccessToken(): string {
+  let token = '';
+  for (let index = 0; index < 32; index += 1) {
+    token += Math.floor(Math.random() * 256)
+      .toString(16)
+      .padStart(2, '0');
+  }
+  return token;
+}
+
+/**
+ * Places one anonymous order and notifies the business owner. Business/item
+ * checks happen before any validation message so an unavailable item never
+ * leaks another business's menu data. Returns the new order id together with
+ * its one-time `accessToken` — the visitor's only durable handle for the
+ * status link (`getOrderStatus`), per the anonymous-workflow token-link
+ * convention in `convex/AGENTS.md`.
+ */
+export const submitOrder = mutation({
+  args: {
+    businessId: v.id('businesses'),
+    menuItemId: v.id('menuItems'),
+    selections: v.array(selectionValidator),
+    customerName: v.string(),
+    contactPhone: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const business = await approvedBusinessOrThrow(ctx, args.businessId);
+    const item = await availableItemOrThrow(ctx, args.businessId, args.menuItemId);
+
+    const contactError = validateOrderContact({
+      customerName: args.customerName,
+      contactPhone: args.contactPhone,
+      contactEmail: args.contactEmail,
+    });
+    if (contactError !== null) {
+      throw new ConvexError(contactError);
+    }
+
+    const note = normalizedNoteOrThrow(args.note);
+
+    if (args.selections.length > MAX_ORDER_SELECTIONS) {
+      throw new ConvexError(
+        `Too many selections — an order can include at most ${MAX_ORDER_SELECTIONS}.`
+      );
+    }
+
+    const selectionError = validateOrderSelections(item.customizationOptions, args.selections);
+    if (selectionError !== null) {
+      throw new ConvexError(selectionError);
+    }
+
+    // Minted before the write so it is committed atomically with the order.
+    const accessToken = newAccessToken();
+
+    const orderId: Id<'orders'> = await ctx.db.insert('orders', {
+      businessId: args.businessId,
+      menuItemId: args.menuItemId,
+      selections: args.selections,
+      customerName: args.customerName.trim(),
+      contactPhone: args.contactPhone?.trim() || undefined,
+      contactEmail: args.contactEmail?.trim() || undefined,
+      note,
+      status: 'new',
+      createdAt: Date.now(),
+      accessToken,
+    });
+
+    await insertNotification(ctx, business.ownerId, {
+      type: 'new_order',
+      businessId: args.businessId,
+      businessName: business.name,
+      reason: undefined,
+    });
+
+    return { orderId, accessToken };
+  },
+});
+
+/**
+ * Owner-only board read: newest first and bounded. `byBusinessId` appends
+ * `_creationTime` as its tie-breaker, so descending order on the equality range
+ * is descending creation time. Item name/price are read once per distinct
+ * `menuItemId`; a deleted item degrades to a placeholder instead of failing the
+ * board. No price snapshot exists in v1 (plan §3), so the price shown is the
+ * item's current price.
+ */
+export const listOrders = query({
+  args: { businessId: v.id('businesses') },
+  handler: async (ctx, args) => {
+    await requireBusinessOwner(ctx, args.businessId);
+
+    const orders = await ctx.db
+      .query('orders')
+      .withIndex('byBusinessId', (q) => q.eq('businessId', args.businessId))
+      .order('desc')
+      .take(ORDER_LIST_LIMIT);
+
+    const itemIds = [...new Set(orders.map((order) => order.menuItemId))];
+    const items = await Promise.all(itemIds.map((itemId) => ctx.db.get('menuItems', itemId)));
+    const itemById = new Map<Id<'menuItems'>, Doc<'menuItems'> | null>(
+      itemIds.map((itemId, index) => [itemId, items[index]])
+    );
+
+    return orders.map((order) => {
+      const item = itemById.get(order.menuItemId) ?? null;
+      return {
+        _id: order._id,
+        menuItemId: order.menuItemId,
+        itemName: item?.name ?? 'Unavailable item',
+        itemPrice: item?.price ?? null,
+        selections: order.selections,
+        customerName: order.customerName,
+        contactPhone: order.contactPhone ?? null,
+        contactEmail: order.contactEmail ?? null,
+        note: order.note ?? null,
+        status: order.status,
+        createdAt: order.createdAt,
+      };
+    });
+  },
+});
+
+/**
+ * Owner-only forward-only transition. The client supplies an action; the target
+ * status is resolved server-side by `nextOrderStatus`, and anything other than
+ * the one legal next step is rejected with a user-facing error.
+ */
+export const transitionOrderStatus = mutation({
+  args: {
+    businessId: v.id('businesses'),
+    orderId: v.id('orders'),
+    action: v.union(v.literal('accept'), v.literal('ready'), v.literal('complete')),
+  },
+  handler: async (ctx, args) => {
+    await requireBusinessOwner(ctx, args.businessId);
+
+    const order = await ctx.db.get('orders', args.orderId);
+    if (order === null || order.businessId !== args.businessId) {
+      throw new ConvexError('Order not found');
+    }
+
+    const target = nextOrderStatus(order.status, args.action);
+    if (target === null) {
+      throw new ConvexError('Invalid status transition');
+    }
+
+    await ctx.db.patch('orders', args.orderId, { status: target });
+  },
+});
+
+/**
+ * Public status-only projection for the visitor confirmation view.
+ *
+ * Anonymous workflows keep their handle secret, per `convex/AGENTS.md`'s
+ * token-link convention: the caller must present BOTH the order id and the
+ * `accessToken` minted once by `submitOrder` (the sibling `bookings` table
+ * implements the same contract as `cancelToken`, indexed `byCancelToken`).
+ * The lookup goes through the token index, so a request that does not carry
+ * the real token finds no row — even orders created before tokens existed
+ * (they hold none) are unqueryable without one. The projection returns
+ * status + creation time only — never customer data, selections, item, or
+ * business fields, so a leaked id alone discloses nothing.
+ */
+export const getOrderStatus = query({
+  args: { orderId: v.id('orders'), accessToken: v.string() },
+  handler: async (ctx, { orderId, accessToken }) => {
+    const order = await ctx.db
+      .query('orders')
+      .withIndex('byAccessToken', (q) => q.eq('accessToken', accessToken))
+      .unique();
+    if (order === null || order._id !== orderId) {
+      return null;
+    }
+
+    return { status: order.status, createdAt: order.createdAt };
+  },
+});

@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 
-import { BusinessProfile } from '@/components/profile/BusinessProfile';
+import { AboutCard, BusinessProfile } from '@/components/profile/BusinessProfile';
+import { MenuTabs } from '@/components/profile/menu-tabs';
+import { OrderingPanel } from '@/components/profile/ordering-panel';
 import type { BusinessProfileData } from '@/components/profile/profile-types';
 import { api } from '@/convex/_generated/api';
 import { getVerticalConfig } from '@/lib/verticals';
@@ -69,5 +71,22 @@ export default async function BusinessPage({ params }: { params: Promise<{ id: s
     photoUrls: result.photoUrls,
   };
 
-  return <BusinessProfile data={data} />;
+  return (
+    <BusinessProfile
+      data={data}
+      mainContent={
+        data.vertical.modules.includes('menuTabs') ? (
+          <div className="flex flex-col gap-6">
+            <AboutCard description={result.business.description} />
+            <MenuTabs businessId={result.business._id} />
+          </div>
+        ) : undefined
+      }
+      sidebar={
+        data.vertical.modules.includes('orderingPanel') ? (
+          <OrderingPanel businessId={result.business._id} />
+        ) : undefined
+      }
+    />
+  );
 }

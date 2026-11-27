@@ -22,7 +22,7 @@ export type BusinessProfileProps = {
   sidebar?: ReactNode;
 };
 
-function AboutCard({ description }: { description: string }) {
+export function AboutCard({ description }: { description: string }) {
   return (
     <Card>
       <CardHeader>

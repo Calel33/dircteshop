@@ -2,7 +2,13 @@ import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { buildSearchText } from './helpers';
-import { SEED_FIXTURES, type SeedFixture } from './seedFixtures';
+import {
+  SEED_FIXTURES,
+  type SeedFixture,
+  type SeedMenuFixture,
+  type SeedMenuGroupFixture,
+  type SeedMenuItemFixture,
+} from './seedFixtures';
 
 // Dev-only seed data for the LocalConnect public surfaces (B2, extended by B4).
 // Nothing in this module is client-callable: every entry point is an
@@ -14,9 +20,12 @@ import { SEED_FIXTURES, type SeedFixture } from './seedFixtures';
 // `externalId`, categories are resolved by slug (seeded separately by
 // `categories:seedCategories`), and a business is inserted only when the seed
 // owner has no business of that name. Re-running therefore returns the same
-// ids and writes nothing. The fixture contract (statuses, categories, ratings,
-// hours, timezones, deterministic feed offsets) lives in `seedFixtures.ts` and
-// is pinned by `scripts/business-seed.test.ts`.
+// ids and writes nothing. Menus are child rows of a business, so they cannot be
+// seeded inside `ensureFixture` (that early-returns for an existing business):
+// `seedBusinesses` ensures any declared menu on EVERY run, insert-only and
+// keyed by group/item name. The fixture contract (statuses, categories,
+// ratings, hours, timezones, deterministic feed offsets) lives in
+// `seedFixtures.ts` and is pinned by `scripts/business-seed.test.ts`.
 //
 // This module exists so `businesses/transition` stays a pure state machine —
 // the seed never fabricates a transition, it writes the terminal docs directly.
@@ -32,6 +41,12 @@ const SEED_OWNER_NAME = 'LocalConnect Seed Owner';
 // listing's owner, so the seed upserts a dedicated `superAdmin` row.
 const SEED_ADMIN_EXTERNAL_ID = 'seed-admin-localconnect';
 const SEED_ADMIN_NAME = 'LocalConnect Seed Admin';
+
+// Bounded reads for the menu seed: the fixture is tiny, but the idempotency
+// lookups must stay bounded even if an owner has grown the menu. The caps are
+// the same order of magnitude as `convex/menus.ts` (50 groups / 200 items).
+const MAX_SEED_MENU_GROUPS = 200;
+const MAX_SEED_MENU_ITEMS_PER_GROUP = 200;
 
 /**
  * Seeds the B4 discovery fixtures against the DEV deployment. Returns the seed
@@ -56,6 +71,12 @@ export const seedBusinesses = internalMutation({
       }
 
       const businessId = await ensureFixture(ctx, ownerId, adminId, categoryId, now, fixture);
+      // Menus are ensured for EVERY fixture, including one that `ensureFixture`
+      // just returned early for: on a deployment seeded before B8 the business
+      // exists but its menu child rows do not.
+      if (fixture.menu !== undefined) {
+        await ensureMenuFixture(ctx, businessId, fixture.menu);
+      }
       seeded.push({ name: fixture.name, status: fixture.status, businessId });
     }
 
@@ -186,4 +207,88 @@ async function findOwnedBusinessId(
 
   const match = owned.find((business) => business.name === name);
   return match?._id ?? null;
+}
+
+/**
+ * Seeds one fixture's menu idempotently. Called on every `seedBusinesses` run,
+ * including runs where `ensureFixture` found the business already present.
+ *
+ * Idempotency keys: groups by (businessId, name), items by (groupId, name).
+ * Missing rows are inserted; existing rows are never patched, so an owner's
+ * edits (rename, price, availability, reorder) survive a re-seed. `ordering` is
+ * the fixture array index, which keeps the seeded tab order stable.
+ *
+ * B8 tracer data: the "Build Your Bowl" item drives the ordering-panel flow.
+ */
+async function ensureMenuFixture(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>,
+  menu: SeedMenuFixture
+): Promise<void> {
+  const groups = await ctx.db
+    .query('menuGroups')
+    .withIndex('byBusinessIdOrdering', (q) => q.eq('businessId', businessId))
+    .take(MAX_SEED_MENU_GROUPS);
+  const groupIdByName = new Map<string, Id<'menuGroups'>>();
+  for (const group of groups) {
+    groupIdByName.set(group.name, group._id);
+  }
+
+  for (const [ordering, group] of menu.groups.entries()) {
+    let groupId = groupIdByName.get(group.name);
+    if (groupId === undefined) {
+      groupId = await insertSeedMenuGroup(ctx, businessId, group, ordering);
+    }
+    await ensureMenuItems(ctx, businessId, groupId, group.items);
+  }
+}
+
+/** Inserts one missing group at its fixture index (B8 dev seed data). */
+async function insertSeedMenuGroup(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>,
+  group: SeedMenuGroupFixture,
+  ordering: number
+): Promise<Id<'menuGroups'>> {
+  return await ctx.db.insert('menuGroups', {
+    businessId,
+    name: group.name,
+    description: group.description,
+    ordering,
+  });
+}
+
+/**
+ * Inserts only the items missing from a group, keyed by name. The `byGroupId`
+ * read is bounded; ordering is the item's fixture index. Existing documents are
+ * left untouched so owner edits win.
+ */
+async function ensureMenuItems(
+  ctx: MutationCtx,
+  businessId: Id<'businesses'>,
+  groupId: Id<'menuGroups'>,
+  items: SeedMenuItemFixture[]
+): Promise<void> {
+  const existing = await ctx.db
+    .query('menuItems')
+    .withIndex('byGroupId', (q) => q.eq('groupId', groupId))
+    .take(MAX_SEED_MENU_ITEMS_PER_GROUP);
+  const existingNames = new Set(existing.map((item) => item.name));
+
+  for (const [ordering, item] of items.entries()) {
+    if (existingNames.has(item.name)) {
+      continue;
+    }
+    await ctx.db.insert('menuItems', {
+      businessId,
+      groupId,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      customizationOptions: item.customizationOptions,
+      ordering,
+      isAvailable: item.isAvailable,
+      nutrition: item.nutrition,
+    });
+  }
 }
